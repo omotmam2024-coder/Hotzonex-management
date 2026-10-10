@@ -18,6 +18,7 @@ interface HotspotProfile {
 /**
  * Logs in to the router, reads its model/version and confirms the hotspot server exists.
  * payload.mode = "create": a failed first test removes the pending router row.
+ * A router's first passing test (status still "pending", also after an edit) gets its hotspot profiles.
  */
 export async function runTestConnection(supabase: SupabaseClient, config: AgentConfig, job: RouterJob): Promise<JobOutcome> {
   if (!job.router_id) return { ok: false, result: { error: 'This router has been removed.' } };
@@ -25,6 +26,7 @@ export async function runTestConnection(supabase: SupabaseClient, config: AgentC
   if (!router) return { ok: false, result: { error: 'This router has been removed.' } };
 
   const isCreate = job.payload['mode'] === 'create';
+  const firstTest = router.status === 'pending';
   const ip = bareIp(router.ip_address);
 
   try {
@@ -62,7 +64,7 @@ export async function runTestConnection(supabase: SupabaseClient, config: AgentC
       .eq('id', router.id);
     if (error) throw new Error(`Could not save router status: ${error.message}`);
 
-    if (isCreate) {
+    if (firstTest) {
       await supabase.from('audit_log').insert({
         user_id: job.created_by,
         action: 'router.added',

@@ -127,7 +127,16 @@ serveJson(async (req) => {
   if (!UUID_RE.test(routerId)) throw new HttpError(400, 'Router not found.');
   const { data: existing } = await admin.from('routers').select('id, status').eq('id', routerId).maybeSingle();
   if (!existing) throw new HttpError(404, 'Router not found.');
-  if (existing.status === 'pending') throw new HttpError(409, 'This router is still being tested. Wait a moment and try again.');
+  // A router still waiting for its first test can be corrected too: its old queued test is
+  // dropped and the new one below tests the corrected settings.
+  if (existing.status === 'pending') {
+    await admin
+      .from('router_jobs')
+      .update({ status: 'failed', result: { error: 'Replaced by a newer test after the router was edited.' }, finished_at: new Date().toISOString() })
+      .eq('router_id', routerId)
+      .eq('type', 'test_connection')
+      .eq('status', 'queued');
+  }
 
   const changes: Record<string, unknown> = { ...fields };
   if (password) changes.password_enc = await encryptSecret(password, keyHex);
