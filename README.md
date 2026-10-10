@@ -11,7 +11,7 @@ MikroTik hotspot voucher management for Hotzonex WiFi, Juba (Gorom, Jebel Iraq, 
 The browser never talks to a router. It writes jobs to Supabase; the Router Agent on the LAN
 polls those jobs over outbound HTTPS and calls each router's RouterOS v7 REST API.
 
-> Status: **Phase 5** (printing). Full setup, deployment and backup notes are completed in Phase 8.
+> Status: **Phase 6** (selling). Full setup, deployment and backup notes are completed in Phase 8.
 
 ## Setup
 
@@ -74,6 +74,7 @@ up to date. Each RouterOS request times out after 10 s.
 | --- | --- | --- |
 | `test_connection` | Router added/edited, **Test again** | Reads `/system/resource` and `/ip/hotspot`, checks the hotspot server and DNS name |
 | `sync_profiles` | Plan saved (speed, shared users, profile), new router passes its test | Creates/updates `/ip/hotspot/user/profile` (`rate-limit`, `shared-users`) |
+| `disable_voucher` | Admin voids a sale | Sets `disabled=yes` on the user tagged `hzc:<voucher_id>` and closes its open sessions |
 | `push_vouchers` | Vouchers generated, **Retry push** | Adds each voucher as `/ip/hotspot/user` (name = password = code, profile, `server`, `limit-uptime`, `limit-bytes-total`, `comment=hzc:<voucher_id>`), 50 per round |
 
 Pushing is safe to repeat: the agent reads the router's users first and only marks users that
@@ -127,6 +128,21 @@ customer's hand, so it is recorded with **Mark as sold** (Phase 6) instead of be
 
 The browser must list router columns explicitly (`select('id, name, ...')`); `select('*')` on
 `routers` is refused because of the `password_enc` column grant.
+
+## Selling
+
+- **Sell screen:** one big button per plan with price, duration and cards left. Sellers and
+  managers sell for their own site; admins pick a site. Below 20 cards the button shows a yellow
+  warning; at 0 it is disabled ("Out of stock — generate vouchers"). Each tap calls
+  `sell_voucher`, which locks one voucher (`FOR UPDATE SKIP LOCKED`) so two cashiers never get the
+  same code, and records one cash sale.
+- **Pre-printed cards** are never sold on the Sell screen. Either record them with
+  **Sales → Mark printed cards as sold** (by batch or by typing codes, choosing the seller), or
+  turn on **Sell on first login** for the site (Routers → Sites): the agent then records a cash sale
+  with no seller the first time an unused card logs in (checked every 60 s).
+- **Sales list:** today by default; filter by dates, site, plan and seller. Sellers see only
+  their own sales for today. Admins can **void** a sale within 24 hours with a reason: the sale
+  stays in the list as voided, is left out of all totals, and the voucher is disabled on the router.
 
 ## Printing
 

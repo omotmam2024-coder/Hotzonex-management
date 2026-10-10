@@ -56,3 +56,15 @@ export function formatDuration(totalSeconds: number): string {
   if (parts.length === 0) return `${totalSeconds} sec`;
   return parts.join(' ');
 }
+
+/** Today's date in Juba as YYYY-MM-DD (for date inputs and report periods). */
+export function jubaToday(): string {
+  return dayFmt.format(new Date());
+}
+
+/** "48213570" → ["4821", "3570"]: groups of 4 for reading a code aloud. */
+export function codeGroups(code: string): string[] {
+  const groups: string[] = [];
+  for (let i = 0; i < code.length; i += 4) groups.push(code.slice(i, i + 4));
+  return groups;
+}

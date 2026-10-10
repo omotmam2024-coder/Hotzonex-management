@@ -5,6 +5,7 @@ import { RequireRole } from './auth/RequireRole';
 import { Layout } from './components/Layout';
 import { homePathFor, rolesFor } from './lib/nav';
 import { LoginPage } from './pages/LoginPage';
+import { MarkSoldPage } from './pages/MarkSoldPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { GenerateVouchersPage } from './pages/GenerateVouchersPage';
 import { PlannedPage } from './pages/PlannedPage';
@@ -14,6 +15,8 @@ import { PrintSetupPage } from './pages/PrintSetupPage';
 import { PrintSheetPage } from './pages/PrintSheetPage';
 import { RouterFormPage } from './pages/RouterFormPage';
 import { RoutersPage } from './pages/RoutersPage';
+import { SalesPage } from './pages/SalesPage';
+import { SellPage } from './pages/SellPage';
 import { StaffPage } from './pages/StaffPage';
 import { VouchersPage } from './pages/VouchersPage';
 
@@ -23,18 +26,6 @@ function HomeRedirect() {
 }
 
 const PLANNED: { path: string; title: string; phase: number; features: string[] }[] = [
-  {
-    path: '/sell',
-    title: 'Sell',
-    phase: 6,
-    features: ['One big button per plan with price, duration and stock', 'Code shown full-screen after each sale', 'Print receipt and Sell another'],
-  },
-  {
-    path: '/sales',
-    title: 'Sales',
-    phase: 6,
-    features: ["Today's sales by default, with filters", 'Mark printed cards as sold', 'Void a sale within 24 hours (admin)'],
-  },
   {
     path: '/reports',
     title: 'Reports',
@@ -65,7 +56,14 @@ export function App() {
           <Route element={<RequireRole roles={rolesFor('/dashboard')} />}>
             <Route path="/dashboard" element={<DashboardPage />} />
           </Route>
+          <Route element={<RequireRole roles={rolesFor('/sell')} />}>
+            <Route path="/sell" element={<SellPage />} />
+          </Route>
+          <Route element={<RequireRole roles={rolesFor('/sales')} />}>
+            <Route path="/sales" element={<SalesPage />} />
+          </Route>
           <Route element={<RequireRole roles={rolesFor('/vouchers')} />}>
+            <Route path="/sales/mark-sold" element={<MarkSoldPage />} />
             <Route path="/vouchers" element={<VouchersPage />} />
             <Route path="/vouchers/generate" element={<GenerateVouchersPage />} />
             <Route path="/vouchers/print" element={<PrintSetupPage />} />

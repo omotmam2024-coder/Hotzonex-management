@@ -3,6 +3,7 @@ import type { AgentConfig } from './config.js';
 import { log } from './logger.js';
 import { bareIp, clientFor, readSystemResource, ROUTER_COLUMNS } from './routers.js';
 import type { RouterRow } from './types.js';
+import { recordFirstLoginSales } from './usage.js';
 
 /** Checks every tested router once and records online/offline, version and last seen time. */
 export async function checkRouterStatus(supabase: SupabaseClient, config: AgentConfig): Promise<void> {
@@ -12,10 +13,14 @@ export async function checkRouterStatus(supabase: SupabaseClient, config: AgentC
     return;
   }
 
+  const { data: autoSites } = await supabase.from('sites').select('id').eq('auto_sale_on_login', true);
+  const autoSaleSites = new Set((autoSites ?? []).map((s) => s.id as string));
+
   await Promise.allSettled(
     ((data ?? []) as RouterRow[]).map(async (router) => {
       try {
-        const resource = await readSystemResource(clientFor(router, config));
+        const client = clientFor(router, config);
+        const resource = await readSystemResource(client);
         if (router.status !== 'online') log.info('Router is back online', { router: router.name });
         await supabase
           .from('routers')
@@ -28,6 +33,7 @@ export async function checkRouterStatus(supabase: SupabaseClient, config: AgentC
           })
           .eq('id', router.id);
         await resumeUnfinishedPushes(supabase, router);
+        if (autoSaleSites.has(router.site_id)) await recordFirstLoginSales(supabase, router, client);
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         if (router.status !== 'offline' || router.last_error !== message) {

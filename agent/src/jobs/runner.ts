@@ -3,6 +3,7 @@ import type { AgentConfig } from '../config.js';
 import { log } from '../logger.js';
 import { RouterError } from '../routeros.js';
 import type { JobContext, JobOutcome, JobType, RouterJob } from '../types.js';
+import { runDisableVoucher } from './disableVoucher.js';
 import { runPushVouchers } from './pushVouchers.js';
 import { runSyncProfiles } from './syncProfiles.js';
 import { runTestConnection } from './testConnection.js';
@@ -14,6 +15,7 @@ const HANDLERS: Partial<Record<JobType, Handler>> = {
   test_connection: runTestConnection,
   sync_profiles: runSyncProfiles,
   push_vouchers: runPushVouchers,
+  disable_voucher: runDisableVoucher,
 };
 
 const MAX_ATTEMPTS = 3;

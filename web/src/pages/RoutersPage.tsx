@@ -9,7 +9,7 @@ import { bareIp, formatJubaTime, timeAgo } from '../lib/format';
 import { waitForJob } from '../lib/jobs';
 import { useRouters, useSites } from '../lib/queries';
 import { supabase } from '../lib/supabase';
-import type { RouterInfo, TestConnectionResult } from '../lib/types';
+import type { RouterInfo, SiteRow, TestConnectionResult } from '../lib/types';
 
 function StatusLine({ router }: { router: RouterInfo }) {
   if (router.status === 'online')
@@ -151,6 +151,22 @@ function SitesPanel() {
     },
   });
 
+  const toggle = useMutation({
+    mutationFn: async ({ id, value }: { id: string; value: boolean }) => {
+      const { error } = await supabase.from('sites').update({ auto_sale_on_login: value }).eq('id', id);
+      if (error) throw new Error(friendlyError(error));
+    },
+    // Show the new setting straight away; roll back if saving fails.
+    onMutate: async ({ id, value }) => {
+      await queryClient.cancelQueries({ queryKey: ['sites'] });
+      const previous = queryClient.getQueryData<SiteRow[]>(['sites']);
+      queryClient.setQueryData<SiteRow[]>(['sites'], (old) => old?.map((s) => (s.id === id ? { ...s, auto_sale_on_login: value } : s)));
+      return { previous };
+    },
+    onError: (_err, _vars, context) => queryClient.setQueryData(['sites'], context?.previous),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ['sites'] }),
+  });
+
   function submit(e: FormEvent) {
     e.preventDefault();
     if (name.trim()) add.mutate(name.trim());
@@ -159,13 +175,32 @@ function SitesPanel() {
   return (
     <Card>
       <h2 className="text-lg font-bold">Sites</h2>
-      <ul className="mt-2 flex flex-wrap gap-2">
+      <ul className="mt-2 divide-y divide-slate-100">
         {(sites.data ?? []).map((s) => (
-          <li key={s.id}>
+          <li key={s.id} className="flex flex-wrap items-center justify-between gap-2 py-2">
             <Badge color="blue">{s.name}</Badge>
+            <label className="flex min-h-11 cursor-pointer items-center gap-2 text-sm text-slate-700">
+              <input
+                type="checkbox"
+                className="h-5 w-5"
+                checked={s.auto_sale_on_login}
+                disabled={toggle.isPending}
+                onChange={(e) => toggle.mutate({ id: s.id, value: e.target.checked })}
+              />
+              Sell on first login
+            </label>
           </li>
         ))}
       </ul>
+      <p className="mt-1 text-xs text-slate-500">
+        Sell on first login: when an unused card logs in for the first time, a cash sale is recorded automatically at the plan price, with no seller. Leave it off to record
+        pre-printed cards with “Mark as sold”.
+      </p>
+      {toggle.error && (
+        <div className="mt-2">
+          <Alert tone="error">{toggle.error.message}</Alert>
+        </div>
+      )}
       <form onSubmit={submit} className="mt-3 flex gap-2">
         <TextInput placeholder="New site name, e.g. Jebel Iraq" value={name} onChange={(e) => setName(e.target.value)} maxLength={60} />
         <Button type="submit" variant="secondary" disabled={!name.trim() || add.isPending}>
