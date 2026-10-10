@@ -1,28 +1,15 @@
 import { useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../auth/AuthProvider';
 import { PageHeader } from '../components/PageHeader';
 import { Alert, Badge, Button, Card, Spinner, TextInput } from '../components/ui';
 import { friendlyError } from '../lib/errors';
 import { bareIp, formatJubaTime, timeAgo } from '../lib/format';
 import { waitForJob } from '../lib/jobs';
-import { useSites } from '../lib/queries';
+import { useRouters, useSites } from '../lib/queries';
 import { supabase } from '../lib/supabase';
-import { ROUTER_COLUMNS, type RouterInfo, type TestConnectionResult } from '../lib/types';
-
-function useRouters() {
-  return useQuery({
-    queryKey: ['routers'],
-    queryFn: async (): Promise<RouterInfo[]> => {
-      const { data, error } = await supabase.from('routers').select(ROUTER_COLUMNS).order('name');
-      if (error) throw new Error(error.message);
-      return (data ?? []) as RouterInfo[];
-    },
-    // The agent updates status every 60 s; refresh the list often enough to notice.
-    refetchInterval: 15_000,
-  });
-}
+import type { RouterInfo, TestConnectionResult } from '../lib/types';
 
 function StatusLine({ router }: { router: RouterInfo }) {
   if (router.status === 'online')
@@ -196,7 +183,8 @@ function SitesPanel() {
 
 export function RoutersPage() {
   const { profile } = useAuth();
-  const routers = useRouters();
+  // The agent updates status every 60 s; refresh often enough to notice.
+  const routers = useRouters(15_000);
   const sites = useSites();
   const queryClient = useQueryClient();
   const [tests, setTests] = useState<Record<string, TestState>>({});

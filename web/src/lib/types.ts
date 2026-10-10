@@ -69,3 +69,59 @@ export interface StaffMember {
   created_at: string;
   email: string;
 }
+
+export interface Plan {
+  id: string;
+  name: string;
+  price_ssp: number;
+  uptime_seconds: number;
+  validity_seconds: number | null;
+  rate_limit: string | null;
+  data_limit_mb: number | null;
+  shared_users: number;
+  color: string;
+  router_profile_name: string;
+  is_active: boolean;
+}
+
+export const PLAN_COLUMNS =
+  'id, name, price_ssp, uptime_seconds, validity_seconds, rate_limit, data_limit_mb, shared_users, color, router_profile_name, is_active';
+
+export type VoucherStatus = 'unused' | 'sold' | 'active' | 'expired' | 'disabled';
+
+export interface Voucher {
+  id: string;
+  created_at: string;
+  batch_id: string;
+  router_id: string;
+  site_id: string;
+  plan_id: string;
+  code: string;
+  status: VoucherStatus;
+  on_router: boolean;
+  printed_at: string | null;
+  sold_at: string | null;
+  first_used_at: string | null;
+  expires_at: string | null;
+}
+
+export interface BatchStatus {
+  id: string;
+  created_at: string;
+  site_id: string;
+  router_id: string;
+  plan_id: string;
+  quantity: number;
+  code_length: number;
+  site_name: string;
+  router_name: string;
+  plan_name: string;
+  plan_color: string;
+  price_ssp: number;
+  uptime_seconds: number;
+  voucher_count: number;
+  pushed_count: number;
+  push_status: JobStatus | null;
+  push_error: string | null;
+  push_finished_at: string | null;
+}

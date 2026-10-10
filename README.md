@@ -11,7 +11,7 @@ MikroTik hotspot voucher management for Hotzonex WiFi, Juba (Gorom, Jebel Iraq, 
 The browser never talks to a router. It writes jobs to Supabase; the Router Agent on the LAN
 polls those jobs over outbound HTTPS and calls each router's RouterOS v7 REST API.
 
-> Status: **Phase 3** (routers, staff and the Router Agent). Full setup, deployment and backup notes are completed in Phase 8.
+> Status: **Phase 4** (plans and voucher generation). Full setup, deployment and backup notes are completed in Phase 8.
 
 ## Setup
 
@@ -66,10 +66,21 @@ npm start                 # builds and runs; Ctrl+C to stop
 npm test                  # unit tests (encryption, RouterOS client)
 ```
 
-What it does: picks up `router_jobs` every 3 s (jobs for different routers run in parallel),
-tests routers when they are added or "Test again" is pressed, and checks every router every 60 s
-to keep online/offline, model, RouterOS version and last seen time up to date.
-Each RouterOS request times out after 10 s.
+What it does: picks up `router_jobs` every 3 s (jobs for different routers run in parallel) and
+checks every router every 60 s to keep online/offline, model, RouterOS version and last seen time
+up to date. Each RouterOS request times out after 10 s.
+
+| Job | When | What the agent does on the router |
+| --- | --- | --- |
+| `test_connection` | Router added/edited, **Test again** | Reads `/system/resource` and `/ip/hotspot`, checks the hotspot server and DNS name |
+| `sync_profiles` | Plan saved (speed, shared users, profile), new router passes its test | Creates/updates `/ip/hotspot/user/profile` (`rate-limit`, `shared-users`) |
+| `push_vouchers` | Vouchers generated, **Retry push** | Adds each voucher as `/ip/hotspot/user` (name = password = code, profile, `server`, `limit-uptime`, `limit-bytes-total`, `comment=hzc:<voucher_id>`), 50 per round |
+
+Pushing is safe to repeat: the agent reads the router's users first and only marks users that
+already carry the right `hzc:<voucher_id>` comment. A code that already belongs to another hotspot
+user is never touched; that voucher is disabled instead. If a router goes offline during a push,
+the progress so far is kept and the agent resumes the push by itself once the router is back
+(at most every 5 minutes per batch).
 
 **Run it as a service so it restarts on boot** (pick one):
 

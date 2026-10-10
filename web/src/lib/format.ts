@@ -31,3 +31,28 @@ export function timeAgo(iso: string | null | undefined): string {
 export function bareIp(ip: string): string {
   return ip.split('/')[0] ?? ip;
 }
+
+const numberFmt = new Intl.NumberFormat('en-US');
+
+/** 1000 → "1,000 SSP" */
+export function formatSSP(amount: number): string {
+  return `${numberFmt.format(amount)} SSP`;
+}
+
+export function formatNumber(n: number): string {
+  return numberFmt.format(n);
+}
+
+/** Seconds → short, number-first text for staff and cards: "30 min", "2 hrs", "1 hr 30 min", "1 day", "7 days". */
+export function formatDuration(totalSeconds: number): string {
+  if (totalSeconds <= 0) return '0 min';
+  const days = Math.floor(totalSeconds / 86400);
+  const hours = Math.floor((totalSeconds % 86400) / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const parts: string[] = [];
+  if (days) parts.push(`${days} ${days === 1 ? 'day' : 'days'}`);
+  if (hours) parts.push(`${hours} ${hours === 1 ? 'hr' : 'hrs'}`);
+  if (minutes && !days) parts.push(`${minutes} min`);
+  if (parts.length === 0) return `${totalSeconds} sec`;
+  return parts.join(' ');
+}

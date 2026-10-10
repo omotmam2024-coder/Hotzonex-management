@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from './supabase';
-import type { SiteRow } from './types';
+import { PLAN_COLUMNS, ROUTER_COLUMNS, type Plan, type RouterInfo, type SiteRow } from './types';
 
 export function useSites() {
   return useQuery({
@@ -12,6 +12,29 @@ export function useSites() {
         .order('name');
       if (error) throw new Error(error.message);
       return data ?? [];
+    },
+  });
+}
+
+export function useRouters(refetchInterval: number | false = false) {
+  return useQuery({
+    queryKey: ['routers'],
+    queryFn: async (): Promise<RouterInfo[]> => {
+      const { data, error } = await supabase.from('routers').select(ROUTER_COLUMNS).order('name');
+      if (error) throw new Error(error.message);
+      return (data ?? []) as RouterInfo[];
+    },
+    refetchInterval,
+  });
+}
+
+export function usePlans() {
+  return useQuery({
+    queryKey: ['plans'],
+    queryFn: async (): Promise<Plan[]> => {
+      const { data, error } = await supabase.from('plans').select(PLAN_COLUMNS).order('price_ssp');
+      if (error) throw new Error(error.message);
+      return (data ?? []) as Plan[];
     },
   });
 }

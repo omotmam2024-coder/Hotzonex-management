@@ -33,3 +33,9 @@ export interface JobOutcome {
   ok: boolean;
   result: Record<string, unknown>;
 }
+
+/** Helpers the runner gives to long-running jobs. */
+export interface JobContext {
+  /** Marks the job as still alive so stuck-job recovery leaves it alone. */
+  heartbeat: () => Promise<void>;
+}

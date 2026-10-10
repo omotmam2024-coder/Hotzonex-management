@@ -27,6 +27,7 @@ export async function checkRouterStatus(supabase: SupabaseClient, config: AgentC
             last_error: null,
           })
           .eq('id', router.id);
+        await resumeUnfinishedPushes(supabase, router);
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         if (router.status !== 'offline' || router.last_error !== message) {
@@ -36,4 +37,38 @@ export async function checkRouterStatus(supabase: SupabaseClient, config: AgentC
       }
     }),
   );
+}
+
+const RETRY_FAILED_PUSH_AFTER_MS = 5 * 60_000;
+
+/**
+ * Re-queues pushes that stopped part-way (for example the router went offline),
+ * at most once every 5 minutes per batch. The push job itself skips vouchers already on the router.
+ */
+async function resumeUnfinishedPushes(supabase: SupabaseClient, router: RouterRow): Promise<void> {
+  const { data: pending, error } = await supabase
+    .from('vouchers')
+    .select('batch_id')
+    .eq('router_id', router.id)
+    .eq('on_router', false)
+    .neq('status', 'disabled')
+    .limit(1000);
+  if (error || !pending?.length) return;
+
+  const batchIds = [...new Set(pending.map((v) => v.batch_id as string))];
+  for (const batchId of batchIds) {
+    const { data: lastJob } = await supabase
+      .from('router_jobs')
+      .select('status, finished_at')
+      .eq('type', 'push_vouchers')
+      .eq('payload->>batch_id', batchId)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (lastJob && (lastJob.status === 'queued' || lastJob.status === 'running')) continue;
+    if (lastJob?.finished_at && Date.now() - new Date(lastJob.finished_at).getTime() < RETRY_FAILED_PUSH_AFTER_MS) continue;
+
+    await supabase.from('router_jobs').insert({ router_id: router.id, type: 'push_vouchers', payload: { batch_id: batchId, resumed: true } });
+    log.info('Resuming unfinished voucher push', { router: router.name, batch: batchId });
+  }
 }

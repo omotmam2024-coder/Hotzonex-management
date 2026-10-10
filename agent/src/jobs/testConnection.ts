@@ -68,6 +68,8 @@ export async function runTestConnection(supabase: SupabaseClient, config: AgentC
         action: 'router.added',
         details: { router_id: router.id, name: router.name, ip },
       });
+      // A new router gets every plan's hotspot profile straight away.
+      await supabase.from('router_jobs').insert({ router_id: router.id, type: 'sync_profiles', payload: {}, created_by: job.created_by });
     }
 
     log.info('Router test passed', { router: router.name, ip, model, rosVersion });

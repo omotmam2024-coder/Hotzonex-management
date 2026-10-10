@@ -1,14 +1,19 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { AgentConfig } from '../config.js';
 import { log } from '../logger.js';
-import type { JobOutcome, JobType, RouterJob } from '../types.js';
+import { RouterError } from '../routeros.js';
+import type { JobContext, JobOutcome, JobType, RouterJob } from '../types.js';
+import { runPushVouchers } from './pushVouchers.js';
+import { runSyncProfiles } from './syncProfiles.js';
 import { runTestConnection } from './testConnection.js';
 
-type Handler = (supabase: SupabaseClient, config: AgentConfig, job: RouterJob) => Promise<JobOutcome>;
+type Handler = (supabase: SupabaseClient, config: AgentConfig, job: RouterJob, ctx: JobContext) => Promise<JobOutcome>;
 
 /** Job types this agent version handles. Other queued types wait for a newer agent. */
 const HANDLERS: Partial<Record<JobType, Handler>> = {
   test_connection: runTestConnection,
+  sync_profiles: runSyncProfiles,
+  push_vouchers: runPushVouchers,
 };
 
 const MAX_ATTEMPTS = 3;
@@ -109,14 +114,20 @@ export class JobRunner {
     if (!claimed || claimed.length === 0) return;
 
     const handler = HANDLERS[job.type];
+    const ctx: JobContext = {
+      heartbeat: async () => {
+        await this.supabase.from('router_jobs').update({ started_at: new Date().toISOString() }).eq('id', job.id);
+      },
+    };
     let outcome: JobOutcome;
     try {
       outcome = handler
-        ? await handler(this.supabase, this.config, { ...job, attempts: job.attempts + 1 })
+        ? await handler(this.supabase, this.config, { ...job, attempts: job.attempts + 1 }, ctx)
         : { ok: false, result: { error: `This agent cannot run ${job.type} jobs.` } };
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      log.error('Job crashed', { job: job.id, type: job.type, error: message });
+      if (err instanceof RouterError) log.warn('Job failed', { job: job.id, type: job.type, error: message });
+      else log.error('Job crashed', { job: job.id, type: job.type, error: message });
       outcome = { ok: false, result: { error: message } };
     }
 

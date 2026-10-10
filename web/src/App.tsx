@@ -6,10 +6,13 @@ import { Layout } from './components/Layout';
 import { homePathFor, rolesFor } from './lib/nav';
 import { LoginPage } from './pages/LoginPage';
 import { DashboardPage } from './pages/DashboardPage';
+import { GenerateVouchersPage } from './pages/GenerateVouchersPage';
 import { PlannedPage } from './pages/PlannedPage';
+import { PlansPage } from './pages/PlansPage';
 import { RouterFormPage } from './pages/RouterFormPage';
 import { RoutersPage } from './pages/RoutersPage';
 import { StaffPage } from './pages/StaffPage';
+import { VouchersPage } from './pages/VouchersPage';
 
 function HomeRedirect() {
   const { profile } = useAuth();
@@ -22,18 +25,6 @@ const PLANNED: { path: string; title: string; phase: number; features: string[] 
     title: 'Sell',
     phase: 6,
     features: ['One big button per plan with price, duration and stock', 'Code shown full-screen after each sale', 'Print receipt and Sell another'],
-  },
-  {
-    path: '/vouchers',
-    title: 'Vouchers',
-    phase: 4,
-    features: ['Generate voucher batches from a plan', 'Push vouchers to the router', 'Search and filter vouchers', 'Print A4 card sheets (Phase 5)'],
-  },
-  {
-    path: '/plans',
-    title: 'Plans',
-    phase: 4,
-    features: ['Price, time allowed, validity, speed and data limit', 'Plan colour for cards and Sell buttons', 'Profiles synced to every router'],
   },
   {
     path: '/sales',
@@ -64,6 +55,13 @@ export function App() {
           <Route index element={<HomeRedirect />} />
           <Route element={<RequireRole roles={rolesFor('/dashboard')} />}>
             <Route path="/dashboard" element={<DashboardPage />} />
+          </Route>
+          <Route element={<RequireRole roles={rolesFor('/vouchers')} />}>
+            <Route path="/vouchers" element={<VouchersPage />} />
+            <Route path="/vouchers/generate" element={<GenerateVouchersPage />} />
+          </Route>
+          <Route element={<RequireRole roles={rolesFor('/plans')} />}>
+            <Route path="/plans" element={<PlansPage />} />
           </Route>
           <Route element={<RequireRole roles={rolesFor('/routers')} />}>
             <Route path="/routers" element={<RoutersPage />} />
