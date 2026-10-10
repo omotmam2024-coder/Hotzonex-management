@@ -6,6 +6,7 @@ import { Layout } from './components/Layout';
 import { homePathFor, rolesFor } from './lib/nav';
 import { LoginPage } from './pages/LoginPage';
 import { MarkSoldPage } from './pages/MarkSoldPage';
+import { ActiveUsersPage } from './pages/ActiveUsersPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { GenerateVouchersPage } from './pages/GenerateVouchersPage';
 import { PlannedPage } from './pages/PlannedPage';
@@ -32,12 +33,6 @@ const PLANNED: { path: string; title: string; phase: number; features: string[] 
     phase: 8,
     features: ['Daily, weekly and monthly tabs', 'By plan, seller and site', 'Print and CSV export'],
   },
-  {
-    path: '/active-users',
-    title: 'Active Users',
-    phase: 7,
-    features: ['Users online per router, updated live', 'Time and data used', 'Disconnect (admin)'],
-  },
 ];
 
 export function App() {
@@ -58,6 +53,9 @@ export function App() {
           </Route>
           <Route element={<RequireRole roles={rolesFor('/sell')} />}>
             <Route path="/sell" element={<SellPage />} />
+          </Route>
+          <Route element={<RequireRole roles={rolesFor('/active-users')} />}>
+            <Route path="/active-users" element={<ActiveUsersPage />} />
           </Route>
           <Route element={<RequireRole roles={rolesFor('/sales')} />}>
             <Route path="/sales" element={<SalesPage />} />

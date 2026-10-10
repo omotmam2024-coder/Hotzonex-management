@@ -22,7 +22,7 @@ async function findUser(client: RouterOSClient, name: string): Promise<HotspotUs
 }
 
 /**
- * Adds every not-yet-pushed voucher of payload.batch_id to the router as a hotspot user.
+ * Adds every not-yet-pushed unused voucher of payload.batch_id to the router as a hotspot user.
  * Idempotent: users already on the router with comment "hzc:<voucher_id>" are only marked as pushed,
  * so running the job twice never creates duplicates. Progress is saved after every 50 vouchers.
  */
@@ -69,7 +69,7 @@ export async function runPushVouchers(
       .select('id, code')
       .eq('batch_id', batchId)
       .eq('on_router', false)
-      .neq('status', 'disabled')
+      .eq('status', 'unused')
       .gt('id', lastId)
       .order('id')
       .limit(CHUNK);

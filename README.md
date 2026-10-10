@@ -11,7 +11,7 @@ MikroTik hotspot voucher management for Hotzonex WiFi, Juba (Gorom, Jebel Iraq, 
 The browser never talks to a router. It writes jobs to Supabase; the Router Agent on the LAN
 polls those jobs over outbound HTTPS and calls each router's RouterOS v7 REST API.
 
-> Status: **Phase 6** (selling). Full setup, deployment and backup notes are completed in Phase 8.
+> Status: **Phase 7** (usage sync, active users and expiry). Full setup, deployment and backup notes are completed in Phase 8.
 
 ## Setup
 
@@ -66,14 +66,29 @@ npm start                 # builds and runs; Ctrl+C to stop
 npm test                  # unit tests (encryption, RouterOS client)
 ```
 
-What it does: picks up `router_jobs` every 3 s (jobs for different routers run in parallel) and
-checks every router every 60 s to keep online/offline, model, RouterOS version and last seen time
-up to date. Each RouterOS request times out after 10 s.
+What it does: picks up `router_jobs` every 3 s (jobs for different routers run in parallel) and,
+every 60 s, checks each router (online/offline, model, RouterOS version, last seen) and syncs usage.
+Each RouterOS request times out after 10 s.
+
+**Usage sync (every 60 s per online router).** The agent reads `/ip/hotspot/active` and the
+`hzc:`-tagged users in `/ip/hotspot/user`, and the database function `sync_router_usage`:
+
+- replaces the router's live user list (Active Users page; updated live through Supabase Realtime),
+- stores each voucher's used time and data from the router's counters,
+- on first login sets `first_used_at`, `expires_at` (plan validity) and status **active** (and, with
+  *Sell on first login*, records the cash sale for an unused card first),
+- marks vouchers **expired** when their time, validity or data is used up.
+
+The router itself stops users at their uptime and data limits. Validity is not known to the
+router, so when a voucher's validity ends while the customer is online the agent closes that
+session. Expired vouchers are removed from the router only once the user is offline. When a router
+cannot be reached its live user list is cleared, so nobody shows as online by mistake.
 
 | Job | When | What the agent does on the router |
 | --- | --- | --- |
 | `test_connection` | Router added/edited, **Test again** | Reads `/system/resource` and `/ip/hotspot`, checks the hotspot server and DNS name |
 | `sync_profiles` | Plan saved (speed, shared users, profile), new router passes its test | Creates/updates `/ip/hotspot/user/profile` (`rate-limit`, `shared-users`) |
+| `disconnect_user` | Admin presses **Disconnect** on Active Users | Closes that user's session (that device only) |
 | `disable_voucher` | Admin voids a sale | Sets `disabled=yes` on the user tagged `hzc:<voucher_id>` and closes its open sessions |
 | `push_vouchers` | Vouchers generated, **Retry push** | Adds each voucher as `/ip/hotspot/user` (name = password = code, profile, `server`, `limit-uptime`, `limit-bytes-total`, `comment=hzc:<voucher_id>`), 50 per round |
 

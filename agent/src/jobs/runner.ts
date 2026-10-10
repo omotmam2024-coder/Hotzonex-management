@@ -4,6 +4,7 @@ import { log } from '../logger.js';
 import { RouterError } from '../routeros.js';
 import type { JobContext, JobOutcome, JobType, RouterJob } from '../types.js';
 import { runDisableVoucher } from './disableVoucher.js';
+import { runDisconnectUser } from './disconnectUser.js';
 import { runPushVouchers } from './pushVouchers.js';
 import { runSyncProfiles } from './syncProfiles.js';
 import { runTestConnection } from './testConnection.js';
@@ -16,6 +17,7 @@ const HANDLERS: Partial<Record<JobType, Handler>> = {
   sync_profiles: runSyncProfiles,
   push_vouchers: runPushVouchers,
   disable_voucher: runDisableVoucher,
+  disconnect_user: runDisconnectUser,
 };
 
 const MAX_ATTEMPTS = 3;

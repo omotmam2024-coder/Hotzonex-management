@@ -3,7 +3,7 @@ import type { AgentConfig } from './config.js';
 import { log } from './logger.js';
 import { bareIp, clientFor, readSystemResource, ROUTER_COLUMNS } from './routers.js';
 import type { RouterRow } from './types.js';
-import { recordFirstLoginSales } from './usage.js';
+import { clearSessions, syncUsage } from './usage.js';
 
 /** Checks every tested router once and records online/offline, version and last seen time. */
 export async function checkRouterStatus(supabase: SupabaseClient, config: AgentConfig): Promise<void> {
@@ -12,9 +12,6 @@ export async function checkRouterStatus(supabase: SupabaseClient, config: AgentC
     log.error('Could not load routers for the status check', { error: error.message });
     return;
   }
-
-  const { data: autoSites } = await supabase.from('sites').select('id').eq('auto_sale_on_login', true);
-  const autoSaleSites = new Set((autoSites ?? []).map((s) => s.id as string));
 
   await Promise.allSettled(
     ((data ?? []) as RouterRow[]).map(async (router) => {
@@ -33,12 +30,17 @@ export async function checkRouterStatus(supabase: SupabaseClient, config: AgentC
           })
           .eq('id', router.id);
         await resumeUnfinishedPushes(supabase, router);
-        if (autoSaleSites.has(router.site_id)) await recordFirstLoginSales(supabase, router, client);
+        try {
+          await syncUsage(supabase, router, client);
+        } catch (err) {
+          log.warn('Usage sync failed', { router: router.name, error: err instanceof Error ? err.message : String(err) });
+        }
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         if (router.status !== 'offline' || router.last_error !== message) {
           log.warn('Router is offline', { router: router.name, ip: bareIp(router.ip_address), error: message });
           await supabase.from('routers').update({ status: 'offline', last_error: message }).eq('id', router.id);
+          await clearSessions(supabase, router.id);
         }
       }
     }),
@@ -57,7 +59,7 @@ async function resumeUnfinishedPushes(supabase: SupabaseClient, router: RouterRo
     .select('batch_id')
     .eq('router_id', router.id)
     .eq('on_router', false)
-    .neq('status', 'disabled')
+    .eq('status', 'unused')
     .limit(1000);
   if (error || !pending?.length) return;
 
