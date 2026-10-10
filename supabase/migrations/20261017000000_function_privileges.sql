@@ -11,6 +11,7 @@ revoke execute on function public.write_audit(text, jsonb) from authenticated;
 revoke execute on function public.random_numeric_code(integer) from authenticated;
 revoke execute on function public.record_auto_sale(uuid) from authenticated;
 revoke execute on function public.sync_router_usage(uuid, jsonb, jsonb) from authenticated;
+revoke execute on function public.hzc_session_rows(jsonb) from authenticated;
 revoke execute on function public.audit_router_delete() from authenticated;
 revoke execute on function public.plans_guard_profile_name() from authenticated;
 revoke execute on function public.plans_queue_profile_sync() from authenticated;

@@ -20,6 +20,21 @@ create index if not exists active_sessions_voucher_idx on public.active_sessions
 -- online) and which online sessions it should close (validity ran out; the
 -- router itself already stops users at their uptime and data limits).
 -- ---------------------------------------------------------------------------
+-- Sessions sent by the agent, as rows. Duplicate (code, mac) pairs keep the longest uptime.
+create or replace function public.hzc_session_rows(p_sessions jsonb)
+returns table (code text, mac text, ip text, uptime integer, bytes_in bigint, bytes_out bigint)
+language sql
+immutable
+set search_path = public
+as $$
+  select distinct on (s.code, coalesce(s.mac, ''))
+         s.code, coalesce(s.mac, ''), s.ip, coalesce(s.uptime, 0), coalesce(s.bytes_in, 0), coalesce(s.bytes_out, 0)
+  from jsonb_to_recordset(coalesce(p_sessions, '[]'::jsonb))
+    as s(code text, mac text, ip text, uptime integer, bytes_in bigint, bytes_out bigint)
+  where s.code is not null
+  order by s.code, coalesce(s.mac, ''), coalesce(s.uptime, 0) desc
+$$;
+
 create or replace function public.sync_router_usage(p_router_id uuid, p_sessions jsonb, p_users jsonb)
 returns jsonb
 language plpgsql
@@ -28,6 +43,7 @@ set search_path = public
 as $$
 declare
   v_now timestamptz := now();
+  v_online text[];
   v_first record;
   v_first_count integer := 0;
   v_auto_sales integer := 0;
@@ -35,24 +51,18 @@ declare
   v_remove jsonb;
   v_kick jsonb;
 begin
-  create temporary table if not exists _hzc_sessions (
-    code text, mac text, ip text, uptime integer, bytes_in bigint, bytes_out bigint
-  ) on commit drop;
-  truncate _hzc_sessions;
-  insert into _hzc_sessions
-  select s.code, coalesce(s.mac, ''), s.ip, coalesce(s.uptime, 0), coalesce(s.bytes_in, 0), coalesce(s.bytes_out, 0)
-  from jsonb_to_recordset(coalesce(p_sessions, '[]'::jsonb))
-    as s(code text, mac text, ip text, uptime integer, bytes_in bigint, bytes_out bigint)
-  where s.code is not null;
+  select coalesce(array_agg(distinct code), '{}') into v_online from public.hzc_session_rows(p_sessions);
 
   -- 1. Active sessions
   delete from public.active_sessions a
   where a.router_id = p_router_id
-    and not exists (select 1 from _hzc_sessions s where s.code = a.code and s.mac = a.mac_address);
+    and not exists (
+      select 1 from public.hzc_session_rows(p_sessions) s where s.code = a.code and s.mac = a.mac_address
+    );
 
   insert into public.active_sessions (router_id, voucher_id, code, mac_address, ip_address, uptime_seconds, bytes_in, bytes_out, updated_at)
   select p_router_id, v.id, s.code, s.mac, s.ip, s.uptime, s.bytes_in, s.bytes_out, v_now
-  from (select distinct on (code, mac) * from _hzc_sessions order by code, mac, uptime desc) s
+  from public.hzc_session_rows(p_sessions) s
   left join public.vouchers v on v.router_id = p_router_id and v.code = s.code
   on conflict on constraint active_sessions_unique do update
   set voucher_id = excluded.voucher_id,
@@ -79,7 +89,7 @@ begin
     where v.router_id = p_router_id
       and v.first_used_at is null
       and v.status in ('unused', 'sold')
-      and (v.uptime_used_seconds > 0 or exists (select 1 from _hzc_sessions s where s.code = v.code))
+      and (v.uptime_used_seconds > 0 or v.code = any (v_online))
     for update of v
   loop
     if v_first.status = 'unused' and public.record_auto_sale(v_first.id) then
@@ -112,7 +122,7 @@ begin
   where v.router_id = p_router_id
     and v.status = 'expired'
     and v.on_router
-    and not exists (select 1 from _hzc_sessions s where s.code = v.code);
+    and not (v.code = any (v_online));
 
   select coalesce(jsonb_agg(jsonb_build_object('id', v.id, 'code', v.code)), '[]'::jsonb) into v_kick
   from public.vouchers v
@@ -120,7 +130,7 @@ begin
     and v.status = 'expired'
     and v.expires_at is not null
     and v.expires_at <= v_now
-    and exists (select 1 from _hzc_sessions s where s.code = v.code);
+    and v.code = any (v_online);
 
   return jsonb_build_object(
     'first_logins', v_first_count,
@@ -132,7 +142,9 @@ begin
 end;
 $$;
 
+revoke all on function public.hzc_session_rows(jsonb) from public;
 revoke all on function public.sync_router_usage(uuid, jsonb, jsonb) from public;
+grant execute on function public.hzc_session_rows(jsonb) to service_role;
 grant execute on function public.sync_router_usage(uuid, jsonb, jsonb) to service_role;
 
 -- ---------------------------------------------------------------------------
