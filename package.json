@@ -1,0 +1,12 @@
+{
+  "name": "hotzonex-cloud",
+  "private": true,
+  "description": "Hotzonex Cloud — MikroTik hotspot voucher management (web, agent, supabase)",
+  "scripts": {
+    "install:all": "npm --prefix web install && npm --prefix agent install",
+    "dev:web": "npm --prefix web run dev",
+    "build:web": "npm --prefix web run build",
+    "typecheck": "npm --prefix web run typecheck && npm --prefix agent run typecheck",
+    "agent:check": "npm --prefix agent run check"
+  }
+}

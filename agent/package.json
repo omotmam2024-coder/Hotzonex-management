@@ -1,0 +1,24 @@
+{
+  "name": "hotzonex-agent",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Hotzonex Router Agent — runs on the router LAN and talks to MikroTik routers by private IP",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "check": "tsx src/check.ts"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.117.3",
+    "dotenv": "^16.4.7"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.43",
+    "tsx": "^4.23.15",
+    "typescript": "~5.9.3"
+  }
+}
