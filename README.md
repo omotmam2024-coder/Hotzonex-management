@@ -40,6 +40,24 @@ from auth.users u, public.sites s
 where u.email = 'seller@example.com' and s.name = 'HQ';
 ```
 
+### 3. Web app
+
+```bash
+cd web
+cp .env.example .env      # fill in VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY
+npm install
+npm run dev               # http://localhost:5173
+```
+
+### 4. Router Agent (connection check only until Phase 3)
+
+```bash
+cd agent
+cp .env.example .env      # fill in SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, ROUTER_SECRET_KEY
+npm install
+npm run check             # prints "Connected to Supabase"
+```
+
 ## Database overview
 
 | Table | Holds |
@@ -65,24 +83,6 @@ customer's hand, so it is recorded with **Mark as sold** (Phase 6) instead of be
 
 The browser must list router columns explicitly (`select('id, name, ...')`); `select('*')` on
 `routers` is refused because of the `password_enc` column grant.
-
-### 3. Web app
-
-```bash
-cd web
-cp .env.example .env      # fill in VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY
-npm install
-npm run dev               # http://localhost:5173
-```
-
-### 4. Router Agent (connection check only until Phase 3)
-
-```bash
-cd agent
-cp .env.example .env      # fill in SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, ROUTER_SECRET_KEY
-npm install
-npm run check             # prints "Connected to Supabase"
-```
 
 ## Roles
 
