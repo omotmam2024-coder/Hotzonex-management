@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../auth/AuthProvider';
+import { AgentStatusBanner } from '../components/AgentStatus';
 import { PageHeader } from '../components/PageHeader';
 import { Alert, Badge, Button, Card, Spinner, TextInput } from '../components/ui';
 import { friendlyError } from '../lib/errors';
@@ -93,8 +94,8 @@ function RouterCard({
       {router.status === 'pending' && Date.now() - new Date(router.created_at).getTime() > 90_000 && (
         <div className="mt-3">
           <Alert tone="warning">
-            The Router Agent has not tested this router yet. Make sure the agent is running on a computer on the same network as {bareIp(router.ip_address)} (npm start in the
-            agent folder, or its service) and that its .env points to this Supabase project. The test runs as soon as the agent starts.
+            The Router Agent has not tested this router yet — see the Router Agent status above. The test runs automatically as soon as an agent on the same network as{' '}
+            {bareIp(router.ip_address)} is running.
           </Alert>
         </div>
       )}
@@ -272,6 +273,7 @@ export function RoutersPage() {
         }
       />
 
+      <AgentStatusBanner />
       {routers.isLoading && <Spinner className="h-8 w-8 text-brand-600" />}
       {routers.error && <Alert tone="error">{friendlyError(routers.error)}</Alert>}
       {routers.data?.length === 0 && (

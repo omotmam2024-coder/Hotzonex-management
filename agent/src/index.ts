@@ -1,4 +1,5 @@
 import { ConfigError, loadConfig } from './config.js';
+import { createHeartbeat, lanAddresses } from './heartbeat.js';
 import { JobRunner } from './jobs/runner.js';
 import { log } from './logger.js';
 import { checkRouterStatus } from './status.js';
@@ -13,8 +14,11 @@ async function main(): Promise<void> {
 
   const runner = new JobRunner(supabase, config);
   await runner.recoverStaleJobs();
+  const heartbeat = createHeartbeat(supabase, runner.supportedTypes);
+  await heartbeat();
   log.info('Hotzonex Router Agent started', {
     jobs: runner.supportedTypes,
+    lanAddresses: lanAddresses(),
     pollEveryMs: config.jobPollIntervalMs,
     statusEveryMs: config.syncIntervalMs,
   });
@@ -32,6 +36,7 @@ async function main(): Promise<void> {
 
   const jobTimer = setInterval(() => void runner.poll(), config.jobPollIntervalMs);
   const staleTimer = setInterval(() => void runner.recoverStaleJobs(), 60_000);
+  const heartbeatTimer = setInterval(() => void heartbeat(), 20_000);
   const statusTimer = setInterval(() => void runStatus(), config.syncIntervalMs);
   void runner.poll();
   void runStatus();
@@ -40,6 +45,7 @@ async function main(): Promise<void> {
     log.info(`Received ${signal}, finishing running jobs…`);
     clearInterval(jobTimer);
     clearInterval(staleTimer);
+    clearInterval(heartbeatTimer);
     clearInterval(statusTimer);
     await runner.drain();
     log.info('Agent stopped');

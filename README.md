@@ -92,7 +92,7 @@ with **Node.js 20 or newer** and internet access.
 cd agent
 cp .env.example .env      # SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, ROUTER_SECRET_KEY
 npm install
-npm run check             # must print "Connected to Supabase"
+npm run check             # must print "Connected to Supabase" and "OK" for each router
 npm start                 # builds and runs; Ctrl+C to stop
 ```
 
@@ -237,7 +237,7 @@ the agent closes that session. Expired vouchers are removed from the router only
 
 | What you see | What to check |
 | --- | --- |
-| "The Router Agent did not answer" / router stuck on "Waiting for Router Agent…" | The agent is not running or its `.env` points to another Supabase project. On the agent PC run `npm run check` in `agent/` — it checks Supabase, the key and every router — then `npm start` (or the service). The waiting test runs as soon as the agent starts |
+| "The Router Agent did not answer" / router stuck on "Waiting for Router Agent…" | Look at the **Router Agent** banner on the Routers page. *Not connected* means no agent has ever run against this Supabase project; *stopped* means it ran but has been silent for 90 s or more. Having internet on your own computer does not replace the agent: the agent must run on a computer on the router's network (e.g. 192.168.120.x), because the website cannot reach a private router address. Another cause is an agent whose `.env` points to a different Supabase project. On the agent PC run `npm run check` in `agent/` — it checks Supabase, the key and every router — then `npm start` (or the service). The waiting test runs as soon as the agent starts |
 | "No reply from 192.168.88.1" | Router on? Same LAN as the agent PC? IP correct? |
 | "… refused the connection on port 80" | `/ip service set www disabled=no` and the `address=` list includes the agent PC |
 | "Wrong username or password" | The `hzc-api` user and password on the router |

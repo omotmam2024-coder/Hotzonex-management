@@ -3,7 +3,7 @@ import type { JobRow } from './types';
 
 export class AgentTimeoutError extends Error {
   constructor() {
-    super('The Router Agent did not answer. Check that the agent computer is on, connected to the internet, and running.');
+    super('The Router Agent did not answer. It must be running on a computer on the same network as the router (npm start in the agent folder, or its service).');
   }
 }
 

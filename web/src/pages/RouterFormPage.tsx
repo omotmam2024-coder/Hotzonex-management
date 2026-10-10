@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { AgentStatusBanner, agentProblem, useAgentState } from '../components/AgentStatus';
 import { PageHeader } from '../components/PageHeader';
 import { Alert, Button, Card, Checkbox, Field, Select, Spinner, TextInput } from '../components/ui';
 import { friendlyError } from '../lib/errors';
@@ -70,6 +71,7 @@ export function RouterFormPage() {
   const [form, setForm] = useState<FormState>(EMPTY);
   const [phase, setPhase] = useState<Phase>({ kind: 'idle' });
   const [formError, setFormError] = useState<string | null>(null);
+  const agentState = useAgentState();
 
   const existing = useQuery({
     queryKey: ['router', id],
@@ -152,13 +154,18 @@ export function RouterFormPage() {
       }
     } catch (err) {
       if (err instanceof AgentTimeoutError) {
+        const why =
+          agentProblem(agentState, form.ip_address.trim()) ??
+          (agentState.kind === 'online'
+            ? `The Router Agent on "${agentState.agent.hostname}" is running but did not finish the test within 60 seconds. Look at its log on that computer.`
+            : 'The Router Agent did not pick up the test.');
         setPhase({
           kind: 'failed',
           message:
-            'The Router Agent did not pick up the test, so the router could not be checked. Start the agent on a computer on the router network (npm start in the agent folder, or its service) and check its log. ' +
+            why +
             (isEdit
-              ? 'The changes are saved and the router will be tested as soon as the agent runs.'
-              : 'The router is kept as "waiting for the agent" and will be tested as soon as the agent runs. You can also press Save and test again.'),
+              ? ' Your changes are saved; the router will be tested as soon as the agent runs.'
+              : ' The router is kept as "waiting for the agent" and is tested automatically once the agent runs — no need to add it again.'),
         });
       } else {
         setPhase({ kind: 'failed', message: friendlyError(err) });
@@ -217,6 +224,7 @@ export function RouterFormPage() {
         title={isEdit ? 'Edit router' : 'Add router'}
         subtitle="The router is saved only after the Router Agent logs in to it successfully."
       />
+      <AgentStatusBanner routerIp={PRIVATE_IP_RE.test(form.ip_address.trim()) ? form.ip_address.trim() : undefined} />
       <RouterPrepHelp />
 
       <Card>

@@ -1,4 +1,5 @@
 import { ConfigError, loadConfig } from './config.js';
+import { lanAddresses } from './heartbeat.js';
 import { log } from './logger.js';
 import { bareIp, clientFor, readSystemResource, ROUTER_COLUMNS } from './routers.js';
 import { createServiceClient } from './supabase.js';
@@ -25,6 +26,9 @@ async function main(): Promise<void> {
   const { count: queued } = await supabase.from('router_jobs').select('id', { count: 'exact', head: true }).eq('status', 'queued');
   log.info(`Jobs waiting for the agent: ${queued ?? 0}${queued ? ' (they run as soon as you start the agent with npm start)' : ''}`);
 
+  const addresses = lanAddresses();
+  log.info(`This computer's network addresses: ${addresses.join(', ') || 'none found'}`);
+
   const list = (routers ?? []) as RouterRow[];
   if (list.length === 0) log.info('No routers added yet. Add one on the Routers page.');
 
@@ -37,6 +41,9 @@ async function main(): Promise<void> {
     } catch (err) {
       problems++;
       log.error(`Router "${router.name}" (${where}): ${err instanceof Error ? err.message : String(err)}`);
+      const net = bareIp(router.ip_address).split('.').slice(0, 3).join('.');
+      if (!addresses.some((a) => a.startsWith(`${net}.`)))
+        log.warn(`This computer is not on the router's network (${net}.x). Run the agent on a computer connected to that router.`);
     }
   }
   if (problems) process.exitCode = 1;
