@@ -1,0 +1,33 @@
+const TZ = 'Africa/Juba';
+
+const timeFmt = new Intl.DateTimeFormat('en-GB', { timeZone: TZ, hour: '2-digit', minute: '2-digit' });
+const dateTimeFmt = new Intl.DateTimeFormat('en-GB', {
+  timeZone: TZ,
+  day: 'numeric',
+  month: 'short',
+  hour: '2-digit',
+  minute: '2-digit',
+});
+const dayFmt = new Intl.DateTimeFormat('en-CA', { timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit' });
+
+/** "14:20" if the moment is today in Juba, otherwise "9 Oct, 14:20". */
+export function formatJubaTime(iso: string | null | undefined): string {
+  if (!iso) return 'never';
+  const d = new Date(iso);
+  return dayFmt.format(d) === dayFmt.format(new Date()) ? timeFmt.format(d) : dateTimeFmt.format(d);
+}
+
+/** "just now", "5 min ago", "3 h ago", or a date. */
+export function timeAgo(iso: string | null | undefined): string {
+  if (!iso) return 'never';
+  const seconds = Math.round((Date.now() - new Date(iso).getTime()) / 1000);
+  if (seconds < 45) return 'just now';
+  if (seconds < 3600) return `${Math.round(seconds / 60)} min ago`;
+  if (seconds < 86400) return `${Math.round(seconds / 3600)} h ago`;
+  return formatJubaTime(iso);
+}
+
+/** Strips a "/32" suffix Postgres may add to inet values. */
+export function bareIp(ip: string): string {
+  return ip.split('/')[0] ?? ip;
+}

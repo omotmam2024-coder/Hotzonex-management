@@ -1,0 +1,26 @@
+# systemd unit for the Hotzonex Router Agent (Linux).
+# Install:
+#   sudo cp deploy/hotzonex-agent.service /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now hotzonex-agent
+# Logs:  journalctl -u hotzonex-agent -f
+# Edit User and WorkingDirectory below if the agent lives somewhere else.
+[Unit]
+Description=Hotzonex Router Agent
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+User=hotzonex
+WorkingDirectory=/opt/hotzonex/agent
+ExecStart=/usr/bin/node /opt/hotzonex/agent/dist/index.js
+Restart=always
+RestartSec=5
+TimeoutStopSec=20
+Environment=NODE_ENV=production
+NoNewPrivileges=true
+ProtectSystem=full
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

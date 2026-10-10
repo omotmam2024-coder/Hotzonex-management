@@ -11,7 +11,7 @@ MikroTik hotspot voucher management for Hotzonex WiFi, Juba (Gorom, Jebel Iraq, 
 The browser never talks to a router. It writes jobs to Supabase; the Router Agent on the LAN
 polls those jobs over outbound HTTPS and calls each router's RouterOS v7 REST API.
 
-> Status: **Phase 2** (database). Full setup, deployment and backup notes are completed in Phase 8.
+> Status: **Phase 3** (routers, staff and the Router Agent). Full setup, deployment and backup notes are completed in Phase 8.
 
 ## Setup
 
@@ -29,16 +29,19 @@ polls those jobs over outbound HTTPS and calls each router's RouterOS v7 REST AP
    (2 Hours 1,000 SSP · 1 Day 3,000 SSP · 1 Week 15,000 SSP). It is safe to run twice.
    Locally, `supabase db reset` runs the migration and the seed for you.
 
-### 2. Extra test staff (until the Staff page arrives in Phase 3)
+### 2. Router password key and Edge Functions
 
-Create the user in **Authentication → Users → Add user** (tick "Auto Confirm User"), then:
+Generate one key and keep it safe. The same value goes into the Edge Function secret and the agent's `.env`.
+If it is lost, every router password has to be entered again.
 
-```sql
-insert into public.profiles (id, full_name, role, site_id)
-select u.id, 'Test Seller', 'seller', s.id
-from auth.users u, public.sites s
-where u.email = 'seller@example.com' and s.name = 'HQ';
+```bash
+openssl rand -hex 32                                   # 64 hex characters
+supabase secrets set ROUTER_SECRET_KEY=<that-value>
+supabase functions deploy add-router
+supabase functions deploy create-staff
 ```
+
+Staff accounts are now created on the **Staff** page (admin only).
 
 ### 3. Web app
 
@@ -49,14 +52,44 @@ npm install
 npm run dev               # http://localhost:5173
 ```
 
-### 4. Router Agent (connection check only until Phase 3)
+### 4. Router Agent (on an always-on PC on the router LAN)
+
+Needs Node.js 20 or newer. The agent only makes outbound HTTPS connections to Supabase,
+and plain HTTP (or HTTPS) to each router's private IP. No port forwarding, VPN or public IP is needed.
 
 ```bash
 cd agent
-cp .env.example .env      # fill in SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, ROUTER_SECRET_KEY
+cp .env.example .env      # SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, ROUTER_SECRET_KEY
 npm install
 npm run check             # prints "Connected to Supabase"
+npm start                 # builds and runs; Ctrl+C to stop
+npm test                  # unit tests (encryption, RouterOS client)
 ```
+
+What it does: picks up `router_jobs` every 3 s (jobs for different routers run in parallel),
+tests routers when they are added or "Test again" is pressed, and checks every router every 60 s
+to keep online/offline, model, RouterOS version and last seen time up to date.
+Each RouterOS request times out after 10 s.
+
+**Run it as a service so it restarts on boot** (pick one):
+
+| System | Steps |
+| --- | --- |
+| Linux, PM2 | `npm i -g pm2 && npm run build && pm2 start ecosystem.config.cjs && pm2 save && pm2 startup` |
+| Linux, systemd | Copy the agent to `/opt/hotzonex/agent`, create user `hotzonex`, then `sudo cp deploy/hotzonex-agent.service /etc/systemd/system/ && sudo systemctl daemon-reload && sudo systemctl enable --now hotzonex-agent` |
+| Windows, NSSM | `winget install NSSM.NSSM`, then in an Administrator PowerShell in the agent folder: `npm run build; .\deploy\install-windows-service.ps1` |
+
+### 5. Prepare each router
+
+Run in the router terminal (Winbox → New Terminal); use the agent PC's LAN IP:
+
+```
+/ip service set www disabled=no port=80 address=<agent-PC-IP>/32
+/user group add name=hzc-api policy=read,write,api,rest-api,test
+/user add name=hzc-api group=hzc-api password=<strong-password>
+```
+
+Then add the router on the **Routers** page and click **Save and test**.
 
 ## Database overview
 

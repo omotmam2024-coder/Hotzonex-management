@@ -7,6 +7,9 @@ import { homePathFor, rolesFor } from './lib/nav';
 import { LoginPage } from './pages/LoginPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { PlannedPage } from './pages/PlannedPage';
+import { RouterFormPage } from './pages/RouterFormPage';
+import { RoutersPage } from './pages/RoutersPage';
+import { StaffPage } from './pages/StaffPage';
 
 function HomeRedirect() {
   const { profile } = useAuth();
@@ -33,12 +36,6 @@ const PLANNED: { path: string; title: string; phase: number; features: string[] 
     features: ['Price, time allowed, validity, speed and data limit', 'Plan colour for cards and Sell buttons', 'Profiles synced to every router'],
   },
   {
-    path: '/routers',
-    title: 'Routers',
-    phase: 3,
-    features: ['Add a router by private IP, username and password', 'Save and test through the Router Agent', 'Online/offline with last seen time'],
-  },
-  {
     path: '/sales',
     title: 'Sales',
     phase: 6,
@@ -56,12 +53,6 @@ const PLANNED: { path: string; title: string; phase: number; features: string[] 
     phase: 7,
     features: ['Users online per router, updated live', 'Time and data used', 'Disconnect (admin)'],
   },
-  {
-    path: '/staff',
-    title: 'Staff',
-    phase: 3,
-    features: ['Create admin, manager and seller accounts', 'Assign a site', 'Switch accounts on or off'],
-  },
 ];
 
 export function App() {
@@ -73,6 +64,14 @@ export function App() {
           <Route index element={<HomeRedirect />} />
           <Route element={<RequireRole roles={rolesFor('/dashboard')} />}>
             <Route path="/dashboard" element={<DashboardPage />} />
+          </Route>
+          <Route element={<RequireRole roles={rolesFor('/routers')} />}>
+            <Route path="/routers" element={<RoutersPage />} />
+            <Route path="/routers/new" element={<RouterFormPage />} />
+            <Route path="/routers/:id/edit" element={<RouterFormPage />} />
+          </Route>
+          <Route element={<RequireRole roles={rolesFor('/staff')} />}>
+            <Route path="/staff" element={<StaffPage />} />
           </Route>
           {PLANNED.map((page) => (
             <Route key={page.path} element={<RequireRole roles={rolesFor(page.path)} />}>

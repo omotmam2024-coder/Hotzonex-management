@@ -9,3 +9,5 @@ dist/
 supabase/.branches
 supabase/.temp
 *.tsbuildinfo
+supabase/functions/deno.lock
+logs/
