@@ -1,114 +1,114 @@
 # Hotzonex Cloud
 
-MikroTik hotspot voucher management for Hotzonex WiFi, Juba (Gorom, Jebel Iraq, HQ, Sub-Office).
+MikroTik hotspot voucher management for Hotzonex WiFi in Juba, South Sudan
+(sites: Gorom, Jebel Iraq, HQ, Sub-Office — one RouterOS v7 router per site).
+
+It does five things: **add routers**, **create vouchers** and push them to the router,
+**print** A4 card sheets and thermal receipts, **sell** vouchers for cash at a cashier screen,
+and **report** sales and usage by day, week and month. Money is whole South Sudanese Pounds (SSP);
+all times are Africa/Juba (UTC+2).
+
+## How it fits together
+
+```
+Browser (staff)  ──►  Supabase (tables, login, router_jobs queue, Edge Functions)
+                               ▲
+                               │  outbound HTTPS only (polls jobs, writes results)
+                               │
+                      Router Agent (always-on PC on the router LAN)
+                               │  RouterOS v7 REST over the LAN
+                               ▼
+                 MikroTik routers (private IPs, e.g. 192.168.88.1)
+```
+
+- The browser never talks to a router. It writes a job (for example "test connection") and the
+  **Router Agent** on the LAN runs it against the router's private IP, then writes the result back.
+- The agent only makes outbound connections: no port forwarding, VPN, tunnel or public IP anywhere.
 
 | Folder | What it is | Runs on |
 | --- | --- | --- |
 | `web/` | React 18 + TypeScript + Vite + Tailwind staff app | Vercel |
-| `supabase/` | Database migration and Edge Functions | Supabase cloud |
-| `agent/` | Router Agent (Node.js 20) that talks to routers by private IP | Always-on PC on the router LAN |
+| `supabase/` | Database migrations, seed and Edge Functions (`add-router`, `create-staff`) | Supabase |
+| `agent/` | Router Agent (Node.js 20, TypeScript) | Always-on PC / mini PC on the router LAN |
 
-The browser never talks to a router. It writes jobs to Supabase; the Router Agent on the LAN
-polls those jobs over outbound HTTPS and calls each router's RouterOS v7 REST API.
+---
 
-> Status: **Phase 7** (usage sync, active users and expiry). Full setup, deployment and backup notes are completed in Phase 8.
+## 1. Supabase
 
-## Setup
+1. Create a project at <https://supabase.com> (pick the region closest to Juba, e.g. Frankfurt).
+2. **Authentication → Providers → Email**: keep Email on and turn **off** "Allow new users to sign up".
+3. Install the [Supabase CLI](https://supabase.com/docs/guides/cli), then from the repository root:
 
-### 1. Supabase project
+   ```bash
+   supabase login
+   supabase link --project-ref <your-project-ref>     # Project Settings → General → Reference ID
+   supabase db push                                   # runs every file in supabase/migrations
+   ```
 
-1. Create a project at <https://supabase.com> (region closest to Juba, e.g. Europe/Frankfurt).
-2. **Authentication → Providers → Email**: keep Email enabled, turn **off** "Allow new users to sign up".
-3. Run the migration on an **empty** project, either with the CLI
-   (`supabase link --project-ref <ref> && supabase db push`) or by pasting
-   `supabase/migrations/20261010000000_hotzonex_schema.sql` into **SQL Editor**.
-   If you ran the Phase 1 version of this file, start from an empty database first
-   (`supabase db reset --linked`, or drop the `public` tables `profiles` and `sites`).
-4. Open `supabase/seed.sql`, change the admin email and password at the top, and run it in the
-   SQL Editor. It creates the **HQ** site, the admin login and three sample plans
-   (2 Hours 1,000 SSP · 1 Day 3,000 SSP · 1 Week 15,000 SSP). It is safe to run twice.
-   Locally, `supabase db reset` runs the migration and the seed for you.
+4. **Router password key.** Generate it once and keep a copy somewhere safe (password manager).
+   The same value goes into the Edge Function secret and the agent's `.env`. If it is lost, every
+   router password has to be entered again.
 
-### 2. Router password key and Edge Functions
+   ```bash
+   openssl rand -hex 32                               # 64 hex characters
+   supabase secrets set ROUTER_SECRET_KEY=<that-value>
+   supabase functions deploy add-router
+   supabase functions deploy create-staff
+   ```
 
-Generate one key and keep it safe. The same value goes into the Edge Function secret and the agent's `.env`.
-If it is lost, every router password has to be entered again.
+5. **Seed.** Open `supabase/seed.sql`, change the admin email and password at the top, and run it
+   in **SQL Editor**. It creates the **HQ** site, the first admin login and three sample plans
+   (2 Hours 1,000 SSP · 1 Day 3,000 SSP · 1 Week 15,000 SSP). Running it twice is safe.
+   After the first login, change that password (Authentication → Users → Send password reset).
 
-```bash
-openssl rand -hex 32                                   # 64 hex characters
-supabase secrets set ROUTER_SECRET_KEY=<that-value>
-supabase functions deploy add-router
-supabase functions deploy create-staff
-```
+Local development instead: `supabase start` then `supabase db reset` (runs migrations and seed).
 
-Staff accounts are now created on the **Staff** page (admin only).
-
-### 3. Web app
+## 2. Web app
 
 ```bash
 cd web
-cp .env.example .env      # fill in VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY
+cp .env.example .env      # VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY
 npm install
 npm run dev               # http://localhost:5173
 ```
 
-### 4. Router Agent (on an always-on PC on the router LAN)
+### Deploy to Vercel
 
-Needs Node.js 20 or newer. The agent only makes outbound HTTPS connections to Supabase,
-and plain HTTP (or HTTPS) to each router's private IP. No port forwarding, VPN or public IP is needed.
+1. Import the GitHub repository in Vercel (**Add New → Project**).
+2. **Root Directory:** `web`. Framework, build command (`npm run build`) and output (`dist`)
+   come from `web/vercel.json`, which also routes every page to the app and sets security headers.
+3. **Environment Variables:** `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` (same values as
+   `web/.env`). Deploy.
+4. In Supabase **Authentication → URL Configuration**, set **Site URL** to the Vercel address.
+
+Every push to the main branch then redeploys the web app.
+
+## 3. Router Agent (on the router LAN)
+
+Use an always-on computer (PC, mini PC, Raspberry Pi 4+) on the same network as the routers,
+with **Node.js 20 or newer** and internet access.
 
 ```bash
 cd agent
 cp .env.example .env      # SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, ROUTER_SECRET_KEY
 npm install
-npm run check             # prints "Connected to Supabase"
+npm run check             # must print "Connected to Supabase"
 npm start                 # builds and runs; Ctrl+C to stop
-npm test                  # unit tests (encryption, RouterOS client)
 ```
 
-What it does: picks up `router_jobs` every 3 s (jobs for different routers run in parallel) and,
-every 60 s, checks each router (online/offline, model, RouterOS version, last seen) and syncs usage.
-Each RouterOS request times out after 10 s.
-
-**Usage sync (every 60 s per online router).** The agent reads `/ip/hotspot/active` and the
-`hzc:`-tagged users in `/ip/hotspot/user`, and the database function `sync_router_usage`:
-
-- replaces the router's live user list (Active Users page; updated live through Supabase Realtime),
-- stores each voucher's used time and data from the router's counters,
-- on first login sets `first_used_at`, `expires_at` (plan validity) and status **active** (and, with
-  *Sell on first login*, records the cash sale for an unused card first),
-- marks vouchers **expired** when their time, validity or data is used up.
-
-The router itself stops users at their uptime and data limits. Validity is not known to the
-router, so when a voucher's validity ends while the customer is online the agent closes that
-session. Expired vouchers are removed from the router only once the user is offline. When a router
-cannot be reached its live user list is cleared, so nobody shows as online by mistake.
-
-| Job | When | What the agent does on the router |
-| --- | --- | --- |
-| `test_connection` | Router added/edited, **Test again** | Reads `/system/resource` and `/ip/hotspot`, checks the hotspot server and DNS name |
-| `sync_profiles` | Plan saved (speed, shared users, profile), new router passes its test | Creates/updates `/ip/hotspot/user/profile` (`rate-limit`, `shared-users`) |
-| `disconnect_user` | Admin presses **Disconnect** on Active Users | Closes that user's session (that device only) |
-| `disable_voucher` | Admin voids a sale | Sets `disabled=yes` on the user tagged `hzc:<voucher_id>` and closes its open sessions |
-| `push_vouchers` | Vouchers generated, **Retry push** | Adds each voucher as `/ip/hotspot/user` (name = password = code, profile, `server`, `limit-uptime`, `limit-bytes-total`, `comment=hzc:<voucher_id>`), 50 per round |
-
-Pushing is safe to repeat: the agent reads the router's users first and only marks users that
-already carry the right `hzc:<voucher_id>` comment. A code that already belongs to another hotspot
-user is never touched; that voucher is disabled instead. If a router goes offline during a push,
-the progress so far is kept and the agent resumes the push by itself once the router is back
-(at most every 5 minutes per batch).
-
-**Run it as a service so it restarts on boot** (pick one):
+**Run it as a service so it restarts after power cuts** (pick one):
 
 | System | Steps |
 | --- | --- |
-| Linux, PM2 | `npm i -g pm2 && npm run build && pm2 start ecosystem.config.cjs && pm2 save && pm2 startup` |
-| Linux, systemd | Copy the agent to `/opt/hotzonex/agent`, create user `hotzonex`, then `sudo cp deploy/hotzonex-agent.service /etc/systemd/system/ && sudo systemctl daemon-reload && sudo systemctl enable --now hotzonex-agent` |
-| Windows, NSSM | `winget install NSSM.NSSM`, then in an Administrator PowerShell in the agent folder: `npm run build; .\deploy\install-windows-service.ps1` |
+| Linux, PM2 | `sudo npm i -g pm2 && npm run build && pm2 start ecosystem.config.cjs && pm2 save && pm2 startup` (run the command `pm2 startup` prints) |
+| Linux, systemd | Copy the agent to `/opt/hotzonex/agent`, `sudo useradd -r hotzonex`, `npm install && npm run build`, then `sudo cp deploy/hotzonex-agent.service /etc/systemd/system/ && sudo systemctl daemon-reload && sudo systemctl enable --now hotzonex-agent`. Logs: `journalctl -u hotzonex-agent -f` |
+| Windows, NSSM | `winget install NSSM.NSSM`; in an Administrator PowerShell in the agent folder: `npm install; npm run build; .\deploy\install-windows-service.ps1`. Logs: `agent\logs\` |
 
-### 5. Prepare each router
+Give the agent PC a fixed LAN IP (DHCP reservation) — the routers only accept REST calls from it.
 
-Run in the router terminal (Winbox → New Terminal); use the agent PC's LAN IP:
+## 4. Prepare each router
+
+In Winbox → **New Terminal** (use the agent PC's LAN IP and a strong password):
 
 ```
 /ip service set www disabled=no port=80 address=<agent-PC-IP>/32
@@ -116,69 +116,143 @@ Run in the router terminal (Winbox → New Terminal); use the agent PC's LAN IP:
 /user add name=hzc-api group=hzc-api password=<strong-password>
 ```
 
-Then add the router on the **Routers** page and click **Save and test**.
+The router also needs a working hotspot (IP → Hotspot → Hotspot Setup). Note its **server name**
+(e.g. `hotspot1`) and the **DNS name** of its hotspot profile (e.g. `hotzonex.wifi`).
 
-## Database overview
+## 5. First-day checklist
 
-| Table | Holds |
-| --- | --- |
-| `sites`, `profiles` | Business sites and staff (role + site) |
-| `routers` | Router connection details; `password_enc` is never readable by the browser |
-| `plans` | Price plans (SSP, seconds, speed, data, colour, RouterOS profile) |
-| `voucher_batches`, `vouchers` | Generated codes and their status |
-| `sales` | One row per sold voucher; voids keep the row with `voided_at` |
-| `router_jobs` | Queue the Router Agent works through |
-| `active_sessions`, `audit_log` | Live users per router; admin action log |
+1. Log in as the admin.
+2. **Routers → Sites:** add your sites (Gorom, Jebel Iraq, Sub-Office…).
+3. **Routers → Add router** for each site → **Save and test**. It must show *online* with the model and RouterOS version.
+4. **Plans:** check prices, time, validity, speed and colours. Each save updates the router profiles.
+5. **Staff:** create managers and sellers (each with a site).
+6. **Vouchers → Generate vouchers:** wait for the batch to show **Ready**.
+7. **Vouchers → Print cards** for pre-printed cards, and/or sell from the **Sell** screen.
 
-Money and voucher-status changes happen only inside these database functions:
+---
 
-| Function | Who | Does |
+## Environment variables
+
+| Where | Variable | What / where to get it |
 | --- | --- | --- |
-| `generate_vouchers(router_id, plan_id, quantity, code_length = 8)` | Admin, manager (own site) | Creates a batch of unique numeric codes and queues a `push_vouchers` job; returns the batch id |
-| `sell_voucher(router_id, plan_id)` | All staff (own site) | Takes the oldest unused, pushed, **not printed** voucher (`FOR UPDATE SKIP LOCKED`), marks it sold and inserts one sale; returns the code |
-| `report_sales(site_id, date_from, date_to, group_by, plan_id?, seller_id?)` | Admin; manager (own site) | Totals per day / week (Mon–Sun) / month in Africa/Juba time, voids excluded |
+| `web/.env`, Vercel | `VITE_SUPABASE_URL` | Supabase → Project Settings → API → Project URL |
+| `web/.env`, Vercel | `VITE_SUPABASE_ANON_KEY` | Supabase → Project Settings → API → `anon` public key |
+| `agent/.env` | `SUPABASE_URL` | Same Project URL |
+| `agent/.env` | `SUPABASE_SERVICE_ROLE_KEY` | Supabase → Project Settings → API → `service_role` key. **Secret: only on the agent PC** |
+| `agent/.env` | `ROUTER_SECRET_KEY` | The 64-hex key from step 1.4 (must equal the Edge Function secret) |
+| `agent/.env` | `JOB_POLL_INTERVAL_MS` | Job queue poll, default `3000` |
+| `agent/.env` | `SYNC_INTERVAL_MS` | Status and usage sync, default `60000` |
+| `agent/.env` | `ROUTER_TIMEOUT_MS` | Timeout per RouterOS request, default `10000` |
+| Supabase secrets | `ROUTER_SECRET_KEY` | `supabase secrets set ROUTER_SECRET_KEY=…` (`SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` are provided automatically) |
 
-Pre-printed cards are left out of `sell_voucher` on purpose: a printed card may already be in a
-customer's hand, so it is recorded with **Mark as sold** (Phase 6) instead of being sold twice.
+---
 
-The browser must list router columns explicitly (`select('id, name, ...')`); `select('*')` on
-`routers` is refused because of the `password_enc` column grant.
+## Using the app
 
-## Selling
+### Roles
 
-- **Sell screen:** one big button per plan with price, duration and cards left. Sellers and
-  managers sell for their own site; admins pick a site. Below 20 cards the button shows a yellow
-  warning; at 0 it is disabled ("Out of stock — generate vouchers"). Each tap calls
-  `sell_voucher`, which locks one voucher (`FOR UPDATE SKIP LOCKED`) so two cashiers never get the
-  same code, and records one cash sale.
-- **Pre-printed cards** are never sold on the Sell screen. Either record them with
-  **Sales → Mark printed cards as sold** (by batch or by typing codes, choosing the seller), or
-  turn on **Sell on first login** for the site (Routers → Sites): the agent then records a cash sale
-  with no seller the first time an unused card logs in (checked every 60 s).
-- **Sales list:** today by default; filter by dates, site, plan and seller. Sellers see only
-  their own sales for today. Admins can **void** a sale within 24 hours with a reason: the sale
-  stays in the list as voided, is left out of all totals, and the voucher is disabled on the router.
+| Role | Menu | Can do |
+| --- | --- | --- |
+| Admin | Dashboard, Sell, Vouchers, Plans, Routers, Sales, Reports, Active Users, Staff | Everything, all sites; voids; Disconnect |
+| Manager | Dashboard, Sell, Vouchers, Sales, Reports, Active Users | Own site: generate and print vouchers, sell, mark as sold, sales and reports |
+| Seller | Sell, Sales | Own site: sell and print receipts; sees only own sales for today |
 
-## Printing
+### Router jobs (run by the agent)
 
-- **A4 cards:** Vouchers → **Print cards**. Pick a batch, or unused cards for a router/plan, and
-  24, 40 or 50 cards per page (50 per page fits codes up to 8 digits). In the print window choose
-  **A4, portrait, scale 100% (Default), margins Default, no headers/footers**, and tick
-  **Background graphics** so the plan colour bars print.
-- Clicking **Print** marks the cards as printed (`printed_at`); the voucher status does not change
-  and it is not a sale. If the print was cancelled, click **Unmark these cards** straight away.
-  Printed cards are not handed out by the cashier's Sell screen, because they may already be with
-  a customer; record them with **Mark as sold** (Phase 6).
-- **Receipts:** 58 mm or 80 mm thermal paper (the choice is remembered on each device). Set the
-  thermal printer's paper size to match and margins to none.
-- Only vouchers that are already on the router can be printed.
+| Job | When | What happens on the router |
+| --- | --- | --- |
+| `test_connection` | Router added/edited, **Test again** | Reads `/system/resource` and `/ip/hotspot`; checks the hotspot server; warns if the DNS name differs. A failed first test removes the router |
+| `sync_profiles` | Plan saved, new router passes its test | Creates/updates `/ip/hotspot/user/profile` (`rate-limit`, `shared-users`) |
+| `push_vouchers` | Vouchers generated, **Retry push** | Adds each voucher as `/ip/hotspot/user`: name = password = code, profile, `server`, `limit-uptime`, `limit-bytes-total`, `comment=hzc:<voucher_id>`; 50 per round |
+| `disable_voucher` | Admin voids a sale | Disables the tagged user and closes its sessions |
+| `disconnect_user` | **Disconnect** on Active Users | Closes that user's session |
 
-## Roles
+Every router write is safe to repeat: the agent reads first and only touches users tagged
+`hzc:<voucher_id>`. A code that already belongs to another hotspot user is never changed; that
+voucher is disabled instead. If a router goes offline during a push, the progress is kept and the
+push resumes by itself when the router is back.
 
-| Role | Menu |
+### Usage sync and expiry (every 60 s per online router)
+
+The agent reads who is online and each voucher's counters; the database then updates the Active
+Users list, sets first login (`first_used_at`, `expires_at` = first login + plan validity, status
+**active**) and marks vouchers **expired** when time, validity or data is used up. The router
+itself stops users at their time and data limits; when **validity** ends while a customer is online
+the agent closes that session. Expired vouchers are removed from the router only once offline.
+
+### Selling
+
+- **Sell screen:** one big button per plan (price, duration, cards left; yellow below 20,
+  disabled at 0). Each tap sells one voucher — two cashiers can never get the same code — and
+  shows it full-screen with **Print receipt** and **Sell another**.
+- **Pre-printed cards** are never sold on the Sell screen. Record them with
+  **Sales → Mark printed cards as sold**, or switch on **Sell on first login** for the site
+  (Routers → Sites): the first time an unused card logs in, a cash sale is recorded with no seller.
+- **Voids:** admins only, within 24 hours, with a reason. The sale stays listed as voided, is left
+  out of all totals, and the voucher is disabled on the router.
+
+### Printing
+
+- **A4 cards:** Vouchers → **Print cards**; 24, 40 or 50 per page (50 fits codes up to 8 digits).
+  In the print window: **A4, portrait, scale 100%, default margins, no headers/footers**, and tick
+  **Background graphics** so plan colours print. Clicking Print marks the cards as printed (not a
+  sale); if the print failed, click **Unmark these cards** straight away.
+- **Receipts:** 58 mm or 80 mm thermal paper (remembered per device); set the printer's paper size to match.
+
+### Reports
+
+- **Dashboard:** today / this week (Mon–Sun) / this month revenue, users online now, revenue for
+  the last 14 days, and stock left per plan per site.
+- **Reports:** Daily, Weekly and Monthly tabs with filters for site, plan and seller. Sections:
+  summary with change versus the previous period, by plan, by seller, by site, sales per hour
+  (daily) or per day (weekly; monthly with weekly subtotals), and voucher status.
+  **Print** gives a clean A4 report; **Export CSV** opens in Excel.
+- All totals come from SQL functions in Africa/Juba time and always exclude voided sales.
+
+---
+
+## Security
+
+- Row Level Security is on for every table; policies read the caller's role and site from `profiles`.
+- Sales and voucher status change only through `SECURITY DEFINER` database functions; the browser
+  cannot insert sales or edit vouchers directly.
+- Router passwords are encrypted with AES-256-GCM by the `add-router` Edge Function. The browser can
+  never read `password_enc` (column grant) and the agent never logs passwords.
+- The service role key lives only in the agent's `.env`.
+- Admin actions (router added/updated/removed, staff created/updated, sale voided) are written to `audit_log`.
+
+## Backups
+
+- **Database:** Supabase Pro projects have daily backups (Database → Backups). On any plan, also
+  keep your own copy at least weekly and before big changes:
+  `supabase db dump --linked -f backup-$(date +%F).sql` and
+  `supabase db dump --linked --data-only -f data-$(date +%F).sql`. Store copies off the agent PC
+  (cloud drive or USB kept elsewhere).
+- **Keys:** keep `ROUTER_SECRET_KEY` and the agent `.env` in a password manager. Without the key
+  the stored router passwords cannot be decrypted (they can be re-entered on the Routers page).
+- **Routers:** `/export file=hotzonex-backup` in each router terminal, then download the `.rsc`
+  from Files. Vouchers on a reset router can be pushed again with **Retry push**.
+
+## Troubleshooting
+
+| What you see | What to check |
 | --- | --- |
-| Admin | Dashboard, Sell, Vouchers, Plans, Routers, Sales, Reports, Active Users, Staff |
-| Manager | Dashboard, Sell, Vouchers, Sales, Reports, Active Users (own site) |
-| Seller | Sell, Sales (own site) |
+| "The Router Agent did not answer" | Agent PC on and online? `npm run check` in `agent/`; service logs (PM2 / journalctl / `agent\logs`) |
+| "No reply from 192.168.88.1" | Router on? Same LAN as the agent PC? IP correct? |
+| "… refused the connection on port 80" | `/ip service set www disabled=no` and the `address=` list includes the agent PC |
+| "Wrong username or password" | The `hzc-api` user and password on the router |
+| "User hzc-api is not allowed to use the REST API" | The group needs `rest-api,read,write,api` policies |
+| "Hotspot server hotspot1 not found" | Use the exact server name from IP → Hotspot → Servers |
+| "Cannot decrypt the router password" | `ROUTER_SECRET_KEY` on the agent differs from the Edge Function secret |
+| Batch stuck on "Push failed" | Router offline; it resumes by itself when back, or press **Retry push** |
 
-Opening a page your role cannot use sends you back to your home page (Dashboard, or Sell for sellers).
+## Development
+
+```bash
+npm run install:all      # web + agent dependencies
+npm run typecheck        # strict TypeScript for web and agent
+npm --prefix agent test  # agent unit tests (encryption, RouterOS client, time conversion)
+npm run build:web
+```
+
+Migrations are in `supabase/migrations/` (one file per build phase, applied in order).

@@ -9,11 +9,11 @@ import { MarkSoldPage } from './pages/MarkSoldPage';
 import { ActiveUsersPage } from './pages/ActiveUsersPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { GenerateVouchersPage } from './pages/GenerateVouchersPage';
-import { PlannedPage } from './pages/PlannedPage';
 import { PlansPage } from './pages/PlansPage';
 import { PrintReceiptPage } from './pages/PrintReceiptPage';
 import { PrintSetupPage } from './pages/PrintSetupPage';
 import { PrintSheetPage } from './pages/PrintSheetPage';
+import { ReportsPage } from './pages/ReportsPage';
 import { RouterFormPage } from './pages/RouterFormPage';
 import { RoutersPage } from './pages/RoutersPage';
 import { SalesPage } from './pages/SalesPage';
@@ -25,15 +25,6 @@ function HomeRedirect() {
   const { profile } = useAuth();
   return <Navigate to={profile ? homePathFor(profile.role) : '/login'} replace />;
 }
-
-const PLANNED: { path: string; title: string; phase: number; features: string[] }[] = [
-  {
-    path: '/reports',
-    title: 'Reports',
-    phase: 8,
-    features: ['Daily, weekly and monthly tabs', 'By plan, seller and site', 'Print and CSV export'],
-  },
-];
 
 export function App() {
   return (
@@ -53,6 +44,9 @@ export function App() {
           </Route>
           <Route element={<RequireRole roles={rolesFor('/sell')} />}>
             <Route path="/sell" element={<SellPage />} />
+          </Route>
+          <Route element={<RequireRole roles={rolesFor('/reports')} />}>
+            <Route path="/reports" element={<ReportsPage />} />
           </Route>
           <Route element={<RequireRole roles={rolesFor('/active-users')} />}>
             <Route path="/active-users" element={<ActiveUsersPage />} />
@@ -77,11 +71,6 @@ export function App() {
           <Route element={<RequireRole roles={rolesFor('/staff')} />}>
             <Route path="/staff" element={<StaffPage />} />
           </Route>
-          {PLANNED.map((page) => (
-            <Route key={page.path} element={<RequireRole roles={rolesFor(page.path)} />}>
-              <Route path={page.path} element={<PlannedPage title={page.title} phase={page.phase} features={page.features} />} />
-            </Route>
-          ))}
           <Route path="*" element={<HomeRedirect />} />
         </Route>
       </Route>

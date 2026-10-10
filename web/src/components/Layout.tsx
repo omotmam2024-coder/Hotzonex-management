@@ -77,9 +77,9 @@ export function Layout() {
   );
 
   return (
-    <div className="flex h-full">
+    <div className="flex h-full print:block print:h-auto">
       {/* Desktop sidebar */}
-      <aside className="hidden w-64 shrink-0 lg:block">{sidebar}</aside>
+      <aside className="hidden w-64 shrink-0 lg:block print:!hidden">{sidebar}</aside>
 
       {/* Mobile drawer */}
       {menuOpen && (
@@ -89,8 +89,8 @@ export function Layout() {
         </div>
       )}
 
-      <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex h-14 items-center gap-3 bg-brand-900 px-3 text-white lg:hidden">
+      <div className="flex min-w-0 flex-1 flex-col print:block">
+        <header className="flex h-14 items-center gap-3 bg-brand-900 px-3 text-white lg:hidden print:hidden">
           <button
             type="button"
             className="rounded-lg p-2 hover:bg-white/10"
@@ -101,7 +101,7 @@ export function Layout() {
           </button>
           <Brand />
         </header>
-        <main className="min-w-0 flex-1 overflow-y-auto p-4 lg:p-8">
+        <main className="min-w-0 flex-1 overflow-y-auto p-4 lg:p-8 print:overflow-visible print:p-0">
           <Outlet />
         </main>
       </div>
