@@ -237,7 +237,7 @@ the agent closes that session. Expired vouchers are removed from the router only
 
 | What you see | What to check |
 | --- | --- |
-| "The Router Agent did not answer" | Agent PC on and online? `npm run check` in `agent/`; service logs (PM2 / journalctl / `agent\logs`) |
+| "The Router Agent did not answer" / router stuck on "Waiting for Router Agent…" | The agent is not running or its `.env` points to another Supabase project. On the agent PC run `npm run check` in `agent/` — it checks Supabase, the key and every router — then `npm start` (or the service). The waiting test runs as soon as the agent starts |
 | "No reply from 192.168.88.1" | Router on? Same LAN as the agent PC? IP correct? |
 | "… refused the connection on port 80" | `/ip service set www disabled=no` and the `address=` list includes the agent PC |
 | "Wrong username or password" | The `hzc-api` user and password on the router |

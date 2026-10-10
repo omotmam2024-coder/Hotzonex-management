@@ -98,6 +98,11 @@ serveJson(async (req) => {
     if (!password) throw new HttpError(400, 'Router password is required.');
     const passwordEnc = await encryptSecret(password, keyHex);
 
+    // A router with this name that never passed its first test (still "pending", e.g. the
+    // Router Agent was not running) is replaced, so the admin can simply try again.
+    const { data: waiting } = await admin.from('routers').select('id, status').eq('name', fields.name).maybeSingle();
+    if (waiting?.status === 'pending') await admin.from('routers').delete().eq('id', waiting.id);
+
     const { data: router, error } = await admin
       .from('routers')
       .insert({ ...fields, password_enc: passwordEnc, status: 'pending' })

@@ -6,7 +6,7 @@ import { Alert, Button, Card, Checkbox, Field, Select, Spinner, TextInput } from
 import { friendlyError } from '../lib/errors';
 import { bareIp } from '../lib/format';
 import { invokeFunction } from '../lib/functions';
-import { waitForJob } from '../lib/jobs';
+import { AgentTimeoutError, waitForJob } from '../lib/jobs';
 import { useSites } from '../lib/queries';
 import { supabase } from '../lib/supabase';
 import { ROUTER_COLUMNS, type RouterInfo, type TestConnectionResult } from '../lib/types';
@@ -151,7 +151,18 @@ export function RouterFormPage() {
         setPhase({ kind: 'failed', message: (result.error ?? 'The connection test failed.') + tail });
       }
     } catch (err) {
-      setPhase({ kind: 'failed', message: friendlyError(err) });
+      if (err instanceof AgentTimeoutError) {
+        setPhase({
+          kind: 'failed',
+          message:
+            'The Router Agent did not pick up the test, so the router could not be checked. Start the agent on a computer on the router network (npm start in the agent folder, or its service) and check its log. ' +
+            (isEdit
+              ? 'The changes are saved and the router will be tested as soon as the agent runs.'
+              : 'The router is kept as "waiting for the agent" and will be tested as soon as the agent runs. You can also press Save and test again.'),
+        });
+      } else {
+        setPhase({ kind: 'failed', message: friendlyError(err) });
+      }
     } finally {
       void queryClient.invalidateQueries({ queryKey: ['routers'] });
       if (id) void queryClient.invalidateQueries({ queryKey: ['router', id] });
