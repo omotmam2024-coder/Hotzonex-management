@@ -24,6 +24,7 @@ interface HotspotUser {
 }
 
 interface SyncResult {
+  synced_at: string;
   first_logins: number;
   auto_sales: number;
   expired: number;
@@ -71,6 +72,14 @@ export async function syncUsage(supabase: SupabaseClient, router: RouterRow, cli
   const { data, error } = await supabase.rpc('sync_router_usage', { p_router_id: router.id, p_sessions: sessions, p_users: usage });
   if (error) throw new Error(`Usage sync failed: ${error.message}`);
   const result = data as SyncResult;
+
+  // Sessions not seen in this sync have ended: the database stamped every current one with synced_at.
+  const { error: staleError } = await supabase
+    .from('active_sessions')
+    .delete()
+    .eq('router_id', router.id)
+    .lt('updated_at', result.synced_at);
+  if (staleError) log.error('Could not clear ended sessions', { router: router.name, error: staleError.message });
 
   // Close sessions of vouchers whose validity ran out (the router does not know about validity).
   for (const k of result.kick) {

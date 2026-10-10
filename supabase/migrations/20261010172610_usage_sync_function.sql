@@ -1,16 +1,14 @@
--- Phase 7: usage sync, first login, expiry and active sessions.
-
-create index if not exists active_sessions_voucher_idx on public.active_sessions (voucher_id);
-
--- ---------------------------------------------------------------------------
+-- Phase 7 (part 3): usage sync, first login, expiry and active sessions.
+--
 -- sync_router_usage: called by the Router Agent every 60 s per online router.
+--   p_sessions: [{ "code", "mac", "ip", "uptime", "bytes_in", "bytes_out" }]
+--               from /ip/hotspot/active (uptime already in seconds)
+--   p_users:    [{ "voucher_id", "uptime", "bytes" }]
+--               from /ip/hotspot/user, only users tagged comment=hzc:<voucher_id>
 --
--- p_sessions: [{ "code", "mac", "ip", "uptime", "bytes_in", "bytes_out" }]
---             from /ip/hotspot/active (uptime already in seconds)
--- p_users:    [{ "voucher_id", "uptime", "bytes" }]
---             from /ip/hotspot/user, only users tagged comment=hzc:<voucher_id>
---
--- 1. Replaces the router's active_sessions with what is online now.
+-- 1. Upserts who is online now with updated_at = this sync's time and returns that
+--    time as synced_at; the agent then removes this router's sessions with an older
+--    updated_at (sessions that ended).
 -- 2. Stores each voucher's used time and data (router user counters).
 -- 3. First login (online now, or the router counted some uptime): sets
 --    first_used_at, expires_at (validity) and status "active". With the site's
@@ -19,22 +17,6 @@ create index if not exists active_sessions_voucher_idx on public.active_sessions
 -- Returns which expired vouchers the agent should remove from the router (not
 -- online) and which online sessions it should close (validity ran out; the
 -- router itself already stops users at their uptime and data limits).
--- ---------------------------------------------------------------------------
--- Sessions sent by the agent, as rows. Duplicate (code, mac) pairs keep the longest uptime.
-create or replace function public.hzc_session_rows(p_sessions jsonb)
-returns table (code text, mac text, ip text, uptime integer, bytes_in bigint, bytes_out bigint)
-language sql
-immutable
-set search_path = public
-as $$
-  select distinct on (s.code, coalesce(s.mac, ''))
-         s.code, coalesce(s.mac, ''), s.ip, coalesce(s.uptime, 0), coalesce(s.bytes_in, 0), coalesce(s.bytes_out, 0)
-  from jsonb_to_recordset(coalesce(p_sessions, '[]'::jsonb))
-    as s(code text, mac text, ip text, uptime integer, bytes_in bigint, bytes_out bigint)
-  where s.code is not null
-  order by s.code, coalesce(s.mac, ''), coalesce(s.uptime, 0) desc
-$$;
-
 create or replace function public.sync_router_usage(p_router_id uuid, p_sessions jsonb, p_users jsonb)
 returns jsonb
 language plpgsql
@@ -42,7 +24,7 @@ security definer
 set search_path = public
 as $$
 declare
-  v_now timestamptz := now();
+  v_now timestamptz := clock_timestamp();
   v_online text[];
   v_first record;
   v_first_count integer := 0;
@@ -53,13 +35,7 @@ declare
 begin
   select coalesce(array_agg(distinct code), '{}') into v_online from public.hzc_session_rows(p_sessions);
 
-  -- 1. Active sessions
-  delete from public.active_sessions a
-  where a.router_id = p_router_id
-    and not exists (
-      select 1 from public.hzc_session_rows(p_sessions) s where s.code = a.code and s.mac = a.mac_address
-    );
-
+  -- 1. Active sessions (stale rows are removed by the agent using synced_at)
   insert into public.active_sessions (router_id, voucher_id, code, mac_address, ip_address, uptime_seconds, bytes_in, bytes_out, updated_at)
   select p_router_id, v.id, s.code, s.mac, s.ip, s.uptime, s.bytes_in, s.bytes_out, v_now
   from public.hzc_session_rows(p_sessions) s
@@ -133,6 +109,7 @@ begin
     and v.code = any (v_online);
 
   return jsonb_build_object(
+    'synced_at', v_now,
     'first_logins', v_first_count,
     'auto_sales', v_auto_sales,
     'expired', v_expired,
@@ -142,53 +119,5 @@ begin
 end;
 $$;
 
-revoke all on function public.hzc_session_rows(jsonb) from public;
 revoke all on function public.sync_router_usage(uuid, jsonb, jsonb) from public;
-grant execute on function public.hzc_session_rows(jsonb) to service_role;
 grant execute on function public.sync_router_usage(uuid, jsonb, jsonb) to service_role;
-
--- ---------------------------------------------------------------------------
--- Batch status: count vouchers that reached the router even after expired ones
--- were removed from it again.
--- ---------------------------------------------------------------------------
-create or replace view public.voucher_batch_status
-with (security_invoker = true)
-as
-select
-  b.id,
-  b.created_at,
-  b.site_id,
-  b.router_id,
-  b.plan_id,
-  b.quantity,
-  b.code_length,
-  b.created_by,
-  b.note,
-  s.name as site_name,
-  r.name as router_name,
-  p.name as plan_name,
-  p.color as plan_color,
-  p.price_ssp,
-  p.uptime_seconds,
-  coalesce(v.voucher_count, 0) as voucher_count,
-  coalesce(v.pushed_count, 0) as pushed_count,
-  j.status as push_status,
-  j.result->>'error' as push_error,
-  j.finished_at as push_finished_at
-from public.voucher_batches b
-join public.sites s on s.id = b.site_id
-join public.routers r on r.id = b.router_id
-join public.plans p on p.id = b.plan_id
-left join lateral (
-  select count(*)::integer as voucher_count,
-         count(*) filter (where vv.on_router or vv.status in ('sold', 'active', 'expired'))::integer as pushed_count
-  from public.vouchers vv
-  where vv.batch_id = b.id
-) v on true
-left join lateral (
-  select jj.status, jj.result, jj.finished_at
-  from public.router_jobs jj
-  where jj.type = 'push_vouchers' and jj.payload->>'batch_id' = b.id::text
-  order by jj.created_at desc
-  limit 1
-) j on true;
