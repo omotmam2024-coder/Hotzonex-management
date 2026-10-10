@@ -11,3 +11,15 @@ body,
 body {
   @apply bg-slate-100 text-slate-900 antialiased;
 }
+
+@media print {
+  html,
+  body,
+  #root {
+    height: auto !important;
+    background: #fff !important;
+  }
+  .no-print {
+    display: none !important;
+  }
+}

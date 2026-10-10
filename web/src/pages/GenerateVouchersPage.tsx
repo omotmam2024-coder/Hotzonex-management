@@ -80,6 +80,14 @@ function BatchRow({ batch }: { batch: BatchStatus }) {
             Retry push
           </Button>
         )}
+        {batch.pushed_count > 0 && (
+          <Link
+            to={`/vouchers/print?batch=${batch.id}`}
+            className="inline-flex min-h-11 items-center rounded-xl px-4 font-semibold text-slate-700 ring-1 ring-slate-300 hover:bg-slate-50"
+          >
+            Print
+          </Link>
+        )}
         <Link
           to={`/vouchers?batch=${batch.id}`}
           className="inline-flex min-h-11 items-center rounded-xl px-4 font-semibold text-slate-700 ring-1 ring-slate-300 hover:bg-slate-50"

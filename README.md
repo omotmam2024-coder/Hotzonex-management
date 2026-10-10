@@ -11,7 +11,7 @@ MikroTik hotspot voucher management for Hotzonex WiFi, Juba (Gorom, Jebel Iraq, 
 The browser never talks to a router. It writes jobs to Supabase; the Router Agent on the LAN
 polls those jobs over outbound HTTPS and calls each router's RouterOS v7 REST API.
 
-> Status: **Phase 4** (plans and voucher generation). Full setup, deployment and backup notes are completed in Phase 8.
+> Status: **Phase 5** (printing). Full setup, deployment and backup notes are completed in Phase 8.
 
 ## Setup
 
@@ -127,6 +127,20 @@ customer's hand, so it is recorded with **Mark as sold** (Phase 6) instead of be
 
 The browser must list router columns explicitly (`select('id, name, ...')`); `select('*')` on
 `routers` is refused because of the `password_enc` column grant.
+
+## Printing
+
+- **A4 cards:** Vouchers → **Print cards**. Pick a batch, or unused cards for a router/plan, and
+  24, 40 or 50 cards per page (50 per page fits codes up to 8 digits). In the print window choose
+  **A4, portrait, scale 100% (Default), margins Default, no headers/footers**, and tick
+  **Background graphics** so the plan colour bars print.
+- Clicking **Print** marks the cards as printed (`printed_at`); the voucher status does not change
+  and it is not a sale. If the print was cancelled, click **Unmark these cards** straight away.
+  Printed cards are not handed out by the cashier's Sell screen, because they may already be with
+  a customer; record them with **Mark as sold** (Phase 6).
+- **Receipts:** 58 mm or 80 mm thermal paper (the choice is remembered on each device). Set the
+  thermal printer's paper size to match and margins to none.
+- Only vouchers that are already on the router can be printed.
 
 ## Roles
 

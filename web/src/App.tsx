@@ -9,6 +9,9 @@ import { DashboardPage } from './pages/DashboardPage';
 import { GenerateVouchersPage } from './pages/GenerateVouchersPage';
 import { PlannedPage } from './pages/PlannedPage';
 import { PlansPage } from './pages/PlansPage';
+import { PrintReceiptPage } from './pages/PrintReceiptPage';
+import { PrintSetupPage } from './pages/PrintSetupPage';
+import { PrintSheetPage } from './pages/PrintSheetPage';
 import { RouterFormPage } from './pages/RouterFormPage';
 import { RoutersPage } from './pages/RoutersPage';
 import { StaffPage } from './pages/StaffPage';
@@ -51,6 +54,12 @@ export function App() {
     <Routes>
       <Route path="/login" element={<LoginPage />} />
       <Route element={<RequireAuth />}>
+        {/* Print pages render without the app layout so only the paper prints. */}
+        <Route element={<RequireRole roles={rolesFor('/vouchers')} />}>
+          <Route path="/print/sheet" element={<PrintSheetPage />} />
+        </Route>
+        <Route path="/print/receipt" element={<PrintReceiptPage />} />
+        <Route path="/print/receipt/:voucherId" element={<PrintReceiptPage />} />
         <Route element={<Layout />}>
           <Route index element={<HomeRedirect />} />
           <Route element={<RequireRole roles={rolesFor('/dashboard')} />}>
@@ -59,6 +68,7 @@ export function App() {
           <Route element={<RequireRole roles={rolesFor('/vouchers')} />}>
             <Route path="/vouchers" element={<VouchersPage />} />
             <Route path="/vouchers/generate" element={<GenerateVouchersPage />} />
+            <Route path="/vouchers/print" element={<PrintSetupPage />} />
           </Route>
           <Route element={<RequireRole roles={rolesFor('/plans')} />}>
             <Route path="/plans" element={<PlansPage />} />

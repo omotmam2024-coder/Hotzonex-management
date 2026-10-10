@@ -101,9 +101,17 @@ export function VouchersPage() {
       <PageHeader
         title="Vouchers"
         actions={
-          <Link to="/vouchers/generate" className="inline-flex min-h-11 items-center rounded-xl bg-brand-600 px-4 font-semibold text-white hover:bg-brand-700">
-            + Generate vouchers
-          </Link>
+          <div className="flex flex-wrap gap-2">
+            <Link
+              to={batchId ? `/vouchers/print?batch=${batchId}` : '/vouchers/print'}
+              className="inline-flex min-h-11 items-center rounded-xl bg-white px-4 font-semibold text-slate-800 ring-1 ring-slate-300 hover:bg-slate-50"
+            >
+              Print cards
+            </Link>
+            <Link to="/vouchers/generate" className="inline-flex min-h-11 items-center rounded-xl bg-brand-600 px-4 font-semibold text-white hover:bg-brand-700">
+              + Generate vouchers
+            </Link>
+          </div>
         }
       />
 
@@ -173,7 +181,7 @@ export function VouchersPage() {
           </span>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[640px] text-left text-sm">
+          <table className="w-full min-w-[700px] text-left text-sm">
             <thead className="border-y border-slate-200 bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
               <tr>
                 <th className="px-4 py-2">Code</th>
@@ -183,6 +191,9 @@ export function VouchersPage() {
                 <th className="px-4 py-2">Router</th>
                 <th className="px-4 py-2">Printed</th>
                 <th className="px-4 py-2">Sold</th>
+                <th className="px-4 py-2">
+                  <span className="sr-only">Receipt</span>
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -205,12 +216,19 @@ export function VouchersPage() {
                     <td className="px-4 py-2">{routerById.get(v.router_id)?.name ?? '—'}</td>
                     <td className="px-4 py-2">{v.printed_at ? formatJubaTime(v.printed_at) : '—'}</td>
                     <td className="px-4 py-2">{v.sold_at ? formatJubaTime(v.sold_at) : '—'}</td>
+                    <td className="px-4 py-2 text-right">
+                      {v.on_router && v.status !== 'disabled' && (
+                        <Link to={`/print/receipt/${v.id}`} className="font-semibold text-brand-700 hover:underline">
+                          Receipt
+                        </Link>
+                      )}
+                    </td>
                   </tr>
                 );
               })}
               {vouchers.data && vouchers.data.rows.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="px-4 py-6 text-center text-slate-500">
+                  <td colSpan={8} className="px-4 py-6 text-center text-slate-500">
                     No vouchers match these filters.
                   </td>
                 </tr>
