@@ -88,6 +88,16 @@ Every push to the main branch then redeploys the web app.
 Use an always-on computer (PC, mini PC, Raspberry Pi 4+) on the same network as the routers,
 with **Node.js 20 or newer** and internet access.
 
+**Ubuntu/Debian, one step:** this installs Node.js, the agent and a boot-time service, and asks for
+the two secret keys (hidden input, saved only on that computer):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/omotmam2024-coder/Hotzonex-management/claude/clever-mccarthy-1780c7/agent/deploy/install-ubuntu.sh -o install-agent.sh
+sudo bash install-agent.sh
+```
+
+Or set it up by hand:
+
 ```bash
 cd agent
 cp .env.example .env      # SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, ROUTER_SECRET_KEY
