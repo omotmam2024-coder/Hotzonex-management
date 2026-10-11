@@ -119,10 +119,9 @@ export function connectorSource(gatewayUrl: string, token: string): string {
 /** Commands the admin pastes into the router terminal. Running them again replaces the old connector. */
 export function setupScript(opts: { routerName: string; gatewayUrl: string; token: string }): string {
   const source = connectorSource(opts.gatewayUrl, opts.token);
-  const policy = 'read,write,test,policy,ftp';
+  const policy = 'read,write,test,ftp';
   return [
     `:put ${rosStr(`Installing the Hotzonex Cloud connector for router: ${opts.routerName.replace(/[\r\n]/g, ' ')} (needs RouterOS 7.19 or newer)`)}`,
-    ':do { /certificate settings set builtin-trust-anchors=trusted } on-error={}',
     '/system scheduler remove [find name="hzc-cloud"]',
     '/system script remove [find name="hzc-cloud"]',
     `/system script add name="hzc-cloud" policy=${policy} dont-require-permissions=yes source=${rosStr(source)}`,
@@ -141,6 +140,10 @@ export function setupScript(opts: { routerName: string; gatewayUrl: string; toke
 //   A|<user>|<mac>|<ip>|<uptime>|<bytes-in>|<bytes-out>   one per active session
 //   U|<comment>|<uptime>|<bytes-in>|<bytes-out>   hotspot users tagged hzc:<voucher id>
 //   UE                                            end of a complete usage report
+//   HS|<name>|<interface>|<profile>|<address-pool>|<disabled>   hotspot server   } read-only snapshot of the
+//   HP|<name>|<dns-name>|<login-by>              hotspot server profile        } router's own hotspot setup,
+//   UP|<name>|<rate-limit>|<shared-users>        hotspot user profile          } sent just before a T line
+//   HC|<users>|<active>                          counts                         }
 //   T|<job>|<found 0/1>|<servers,>|<dns name>|<board>|<version>|<uptime>   test result
 //   P|<job>|<voucher id>|added|already|conflict|error                     push result
 //   J|<job>|ok|<detail>  or  J|<job>|err|<detail> other job results
@@ -172,6 +175,20 @@ export interface TestReport {
   uptime: string;
 }
 
+/** Read-only snapshot of the hotspot setup the admin made on the router (Hotzonex never changes it). */
+export interface HotspotInfo {
+  servers: { name: string; interface: string; profile: string; address_pool: string; disabled: boolean }[];
+  server_profiles: { name: string; dns_name: string; login_by: string }[];
+  user_profiles: { name: string; rate_limit: string; shared_users: string }[];
+  users: number;
+  active: number;
+  checked_at: string;
+}
+
+export function emptyHotspotInfo(): HotspotInfo {
+  return { servers: [], server_profiles: [], user_profiles: [], users: 0, active: 0, checked_at: new Date().toISOString() };
+}
+
 export interface Report {
   connectorVersion: string | null;
   info: { board: string; version: string; identity: string; uptime: string } | null;
@@ -181,6 +198,7 @@ export interface Report {
   jobs: { job: string; ok: boolean; detail: string }[];
   removed: string[];
   errors: string[];
+  hotspot: HotspotInfo | null;
 }
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -191,7 +209,8 @@ const int = (v: string | undefined) => {
 };
 
 export function parseReport(text: string): Report {
-  const report: Report = { connectorVersion: null, info: null, usage: null, tests: [], pushes: [], jobs: [], removed: [], errors: [] };
+  const report: Report = { connectorVersion: null, info: null, usage: null, tests: [], pushes: [], jobs: [], removed: [], errors: [], hotspot: null };
+  const hs = () => (report.hotspot ??= emptyHotspotInfo());
   const sessions: ActiveRow[] = [];
   const users: UserUsage[] = [];
   let usageComplete = false;
@@ -230,6 +249,19 @@ export function parseReport(text: string): Report {
       }
       case 'UE':
         usageComplete = true;
+        break;
+      case 'HS':
+        if (f[1]) hs().servers.push({ name: f[1], interface: f[2] ?? '', profile: f[3] ?? '', address_pool: f[4] ?? '', disabled: f[5] === 'true' || f[5] === 'yes' });
+        break;
+      case 'HP':
+        if (f[1]) hs().server_profiles.push({ name: f[1], dns_name: f[2] ?? '', login_by: f[3] ?? '' });
+        break;
+      case 'UP':
+        if (f[1]) hs().user_profiles.push({ name: f[1], rate_limit: f[2] ?? '', shared_users: f[3] ?? '' });
+        break;
+      case 'HC':
+        hs().users = int(f[1]);
+        hs().active = int(f[2]);
         break;
       case 'T':
         if (f[1] && UUID_RE.test(f[1])) {
@@ -333,6 +365,19 @@ export function usageBlock(): string {
 export function testBlock(jobId: string, hotspotServer: string): string {
   return guarded(
     [
+      ':foreach i in=[/ip hotspot find] do={',
+      '  :local h [/ip hotspot get $i]',
+      '  ' + emit('"HS|"', '($h->"name")', '"|"', '($h->"interface")', '"|"', '($h->"profile")', '"|"', '($h->"address-pool")', '"|"', '($h->"disabled")'),
+      '}',
+      ':foreach i in=[/ip hotspot profile find] do={',
+      '  :local h [/ip hotspot profile get $i]',
+      '  ' + emit('"HP|"', '($h->"name")', '"|"', '($h->"dns-name")', '"|"', '[:tostr ($h->"login-by")]'),
+      '}',
+      ':foreach i in=[/ip hotspot user profile find] do={',
+      '  :local h [/ip hotspot user profile get $i]',
+      '  ' + emit('"UP|"', '($h->"name")', '"|"', '($h->"rate-limit")', '"|"', '($h->"shared-users")'),
+      '}',
+      emit('"HC|"', '[:len [/ip hotspot user find]]', '"|"', '[:len [/ip hotspot active find]]'),
       `:local s [/ip hotspot find where name=${rosStr(hotspotServer)}]`,
       ':local names ""',
       ':foreach i in=[/ip hotspot find] do={ :set names ($names . [/ip hotspot get $i name] . ",") }',
@@ -367,15 +412,15 @@ export interface ProfileSpec {
   sharedUsers: number;
 }
 
-/** Creates or updates a hotspot user profile. Safe to repeat. */
+/**
+ * Adds a plan's hotspot user profile only if the router does not have one with that name.
+ * A profile the admin already made on the router is never changed.
+ */
 export function profileCommands(p: ProfileSpec): string {
   const name = rosStr(p.name);
-  const rate = rosStr(p.rateLimit ?? '');
   return [
     `:if ([:len [/ip hotspot user profile find where name=${name}]] = 0) do={`,
-    `  /ip hotspot user profile add name=${name} shared-users=${p.sharedUsers}${p.rateLimit ? ` rate-limit=${rate}` : ''}`,
-    '} else={',
-    `  /ip hotspot user profile set [find where name=${name}] shared-users=${p.sharedUsers} rate-limit=${rate}`,
+    `  /ip hotspot user profile add name=${name} shared-users=${p.sharedUsers}${p.rateLimit ? ` rate-limit=${rosStr(p.rateLimit)}` : ''}`,
     '}',
   ].join('\n');
 }

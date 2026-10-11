@@ -178,6 +178,37 @@ test('every command block is balanced and builder ends with the marker', () => {
   assert.ok(script.trimEnd().endsWith(`:set hzcMore true\n${END_MARKER}`));
 });
 
+test('setup script changes no system settings', () => {
+  const script = setupScript({ routerName: 'R', gatewayUrl: 'https://x/functions/v1/router-gateway', token: TOKEN });
+  assert.ok(!script.includes('/certificate'));
+  const commands = script.split('\n').filter((l) => l.startsWith('/'));
+  assert.ok(commands.every((l) => /^\/system (script|scheduler) (add|remove|run)/.test(l)), commands.join('\n'));
+});
+
+test('plan profiles are only added when missing, never changed', () => {
+  const cmds = profileCommands({ name: 'hzc-1h', rateLimit: '2M/2M', sharedUsers: 1 });
+  assert.ok(cmds.includes('profile add'));
+  assert.ok(!/ set /.test(cmds));
+});
+
+test('test report carries a read-only snapshot of the router hotspot setup', () => {
+  const r = parseReport(
+    [
+      'HS|hotspot1|bridge-hotspot|hsprof1|hs-pool|false',
+      'HP|hsprof1|hotzonex.wifi|http-chap;cookie',
+      'UP|default||1',
+      'UP|1hour|2M/2M|1',
+      'HC|25|3',
+      `T|${JOB}|1|hotspot1,|hotzonex.wifi|hAP|7.19|1d`,
+    ].join('\n'),
+  );
+  assert.deepEqual(r.hotspot?.servers, [{ name: 'hotspot1', interface: 'bridge-hotspot', profile: 'hsprof1', address_pool: 'hs-pool', disabled: false }]);
+  assert.deepEqual(r.hotspot?.server_profiles, [{ name: 'hsprof1', dns_name: 'hotzonex.wifi', login_by: 'http-chap;cookie' }]);
+  assert.deepEqual(r.hotspot?.user_profiles.map((p) => p.name), ['default', '1hour']);
+  assert.equal(r.hotspot?.users, 25);
+  assert.equal(r.hotspot?.active, 3);
+});
+
 test('push block calls the helper once per voucher with quoted values', () => {
   const block = pushBlock({
     jobId: JOB,

@@ -11,27 +11,37 @@ all times are Africa/Juba (UTC+2).
 ## How it fits together
 
 ```
-Browser (staff)  ──►  Supabase (tables, login, router_jobs queue, Edge Functions)
-                               ▲
-                               │  outbound HTTPS from each router, every 30 s
-                               │  (router-gateway Edge Function)
-                               │
-                 MikroTik routers (RouterOS 7.19+, any internet: Starlink, 4G, fibre)
+Browser (staff) ──► Supabase (tables, login, router_jobs queue, Edge Functions)
+                        │                                   ▲
+   direct: router-direct calls the router's REST API        │ cloud: the router calls
+   at its public IP / DNS name with its admin login         │ router-gateway every 30 s
+                        ▼                                   │
+                 MikroTik routers (RouterOS 7)  ────────────┘
 ```
 
-- **The routers connect to the cloud by themselves.** Each router runs a small script (installed
-  once by pasting a setup script into Winbox → New Terminal) that calls the `router-gateway`
-  Edge Function every 30 seconds over HTTPS. The reply is the router's next work as RouterOS
-  commands; the router runs them and sends the results on its next call.
-- No computer on the router's network, no VPN or tunnel, no port forwarding and no public IP.
-  It works behind CGNAT (Starlink, mobile data).
-- The browser never talks to a router. It writes a job (for example "push vouchers") and the
-  router picks it up on its next call.
+Each router is added in one of two ways (Routers → Add router):
+
+| | **IP address, username and password** (direct) | **Router connects to Hotzonex Cloud** (cloud) |
+| --- | --- | --- |
+| What you enter | Public IP or DNS name, port, HTTPS on/off, admin username and password | Nothing extra: paste a setup script into Winbox once |
+| Router needs | A public IP (not behind CGNAT), the `www-ssl` (or `www`) service reachable from the internet, RouterOS 7.1+ | Internet access, RouterOS 7.19+ |
+| How work reaches it | `router-direct` Edge Function, woken when a job is queued and every minute (pg_cron + pg_net) | The router's `hzc-cloud` scheduler calls `router-gateway` and runs the commands it gets back |
+| Stored | Password encrypted (AES-256-GCM, key in Supabase Vault) | Only the SHA-256 of a random token |
+
+**Hotzonex uses the router as you set it up.** The connection test only *reads* the router's
+hotspot servers, server profiles (DNS name, login methods) and user profiles, and shows them on
+the Routers page. It never creates or changes the hotspot, its profiles, the firewall or any other
+setting. What it does write is limited to:
+
+- hotspot users for its vouchers, each tagged `comment=hzc:<voucher id>` (only tagged users are ever disabled or removed);
+- a plan's user profile **only when the router has no profile with that name** (existing profiles are never changed — set a plan's
+  "Router user profile" to one of your own profiles to use it as it is);
+- closing hotspot sessions (validity ended, voided sale, **Disconnect**).
 
 | Folder | What it is | Runs on |
 | --- | --- | --- |
 | `web/` | React 18 + TypeScript + Vite + Tailwind staff app | Vercel |
-| `supabase/` | Database migrations, seed and Edge Functions (`add-router`, `create-staff`, `router-gateway`) | Supabase |
+| `supabase/` | Migrations, seed and Edge Functions (`add-router`, `create-staff`, `router-gateway`, `router-direct`) | Supabase |
 
 ---
 
@@ -47,14 +57,18 @@ Browser (staff)  ──►  Supabase (tables, login, router_jobs queue, Edge Fun
    supabase db push                                   # runs every file in supabase/migrations
    ```
 
-4. **Edge Functions.** No secrets to set (`SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are provided
-   automatically):
+4. **Edge Functions.** No secrets to set: `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are provided
+   automatically, and the router password key is generated in Supabase Vault by a migration.
 
    ```bash
    supabase functions deploy add-router
    supabase functions deploy create-staff
-   supabase functions deploy router-gateway --no-verify-jwt   # routers have no user login; they use their token
+   supabase functions deploy router-gateway --no-verify-jwt   # called by routers (token checked inside)
+   supabase functions deploy router-direct --no-verify-jwt    # called by the database (secret checked inside)
    ```
+
+   For another Supabase project, change the `direct_worker_url` row in `app_config`
+   (migration `…_router_secrets_in_vault.sql`) to that project's URL.
 
 5. **Seed.** Open `supabase/seed.sql`, change the admin email and password at the top, and run it
    in **SQL Editor**. It creates the **HQ** site, the first admin login and three sample plans
@@ -85,22 +99,31 @@ Every push to the main branch then redeploys the web app.
 
 ## 3. Connect each router
 
-1. The router needs **RouterOS 7.19 or newer** (built-in root certificates, used to check
-   Hotzonex Cloud's HTTPS certificate) and internet access. Update in Winbox → System → Packages →
-   Check For Updates.
-2. The router needs a working hotspot (IP → Hotspot → Hotspot Setup). Note its **server name**
-   (IP → Hotspot → Servers, e.g. `hotspot1` — not the Wi-Fi name) and the **DNS name** of its
-   hotspot profile (e.g. `hotzonex.wifi`).
-3. On the website: **Routers → Add router** → name, site, hotspot server name, DNS name →
-   **Save and get setup script**.
-4. Click **Copy setup script**, open Winbox → **New Terminal**, paste and press Enter.
-5. The page shows **Online** within a minute, then the plans' hotspot profiles are created.
+First set up the hotspot on the router yourself as you like it (IP → Hotspot → Hotspot Setup).
+Note its **server name** (IP → Hotspot → Servers, e.g. `hotspot1` — not the Wi-Fi name) and the
+**DNS name** of its hotspot profile. Then on the website: **Routers → Add router** and choose:
 
-The setup script adds a script and a 10-second scheduler named `hzc-cloud` to the router. It
-contains the router's own secret token; the database keeps only its SHA-256. **Routers → Setup
-script** makes a new token (the old connector stops working until the new script is pasted).
-To disconnect a router: `/system scheduler remove [find name="hzc-cloud"]` and
-`/system script remove [find name="hzc-cloud"]`.
+**A. IP address, username and password**
+
+1. The router must be reachable from the internet: a public IP from your provider (Winbox → IP →
+   Cloud shows the public address and a free DNS name like `abc123.sn.mynetname.net`).
+   Private addresses (192.168.x.x, 10.x.x.x, 172.16–31.x.x, 100.64–127.x.x) are refused.
+2. Turn on `www-ssl` (recommended) or `www` in IP → Services and allow that port from the internet.
+   For HTTPS the router needs a trusted certificate, e.g. `/certificate enable-ssl-certificate dns-name=<your IP Cloud name>`.
+3. Enter the address, port, admin username and password → **Save and connect**. Hotzonex reads
+   the hotspot setup and shows it. The router is then checked every minute.
+
+**B. Router connects to Hotzonex Cloud** (no public IP needed)
+
+1. RouterOS 7.19 or newer (System → Packages → Check For Updates).
+2. **Save and get setup script** → **Copy setup script** → Winbox → **New Terminal** → paste → Enter.
+3. The page shows **Online** within a minute.
+
+The setup script only adds a script and a 30-second scheduler named `hzc-cloud`, with the
+`read,write,test,ftp` permissions; it changes no other setting. If the router stays "Waiting"
+after an upgrade from an older RouterOS, it may not trust certificates yet; allow that with
+`/certificate settings set builtin-trust-anchors=trusted`. To disconnect:
+`/system scheduler remove [find name="hzc-cloud"]` and `/system script remove [find name="hzc-cloud"]`.
 
 ## 5. First-day checklist
 
@@ -133,13 +156,13 @@ To disconnect a router: `/system scheduler remove [find name="hzc-cloud"]` and
 | Manager | Dashboard, Sell, Vouchers, Sales, Reports, Active Users | Own site: generate and print vouchers, sell, mark as sold, sales and reports |
 | Seller | Sell, Sales | Own site: sell and print receipts; sees only own sales for today |
 
-### Router jobs (run by the router on its next call)
+### Router jobs
 
 | Job | When | What happens on the router |
 | --- | --- | --- |
-| `test_connection` | Router added/edited, **Test again** | Checks the hotspot server exists and reads its DNS name, model and RouterOS version; warns if the DNS name differs |
-| `sync_profiles` | Plan saved, new router passes its test | Creates/updates `/ip hotspot user profile` (`rate-limit`, `shared-users`) |
-| `push_vouchers` | Vouchers generated, **Retry push** | Adds each voucher as `/ip hotspot user`: name = password = code, profile, `server`, `limit-uptime`, `limit-bytes-total`, `comment=hzc:<voucher_id>`; 80 per call |
+| `test_connection` | Router added/edited, **Test again** | Reads (never changes) the router's hotspot servers, server profiles and user profiles; checks the chosen hotspot server exists; warns if the DNS name differs or a plan's profile is missing |
+| `sync_profiles` | Plan saved, new router passes its test | Adds the plan's `/ip hotspot user profile` only if the router has none with that name; existing profiles are never changed |
+| `push_vouchers` | Vouchers generated, **Retry push** | Adds each voucher as `/ip hotspot user`: name = password = code, profile, `server`, `limit-uptime`, `limit-bytes-total`, `comment=hzc:<voucher_id>` |
 | `disable_voucher` | Admin voids a sale | Disables the tagged user and closes its sessions |
 | `disconnect_user` | **Disconnect** on Active Users | Closes that user's session |
 
@@ -193,9 +216,12 @@ that stops calling in for 2 minutes is shown offline and its user list is cleare
 - Row Level Security is on for every table; policies read the caller's role and site from `profiles`.
 - Sales and voucher status change only through `SECURITY DEFINER` database functions; the browser
   cannot insert sales or edit vouchers directly.
-- No router passwords are stored. Each router has a random 256-bit token (only its SHA-256 is in the
-  database, never readable by the browser) and checks Hotzonex Cloud's HTTPS certificate
-  (`check-certificate=yes-without-crl`), so the commands it runs can only come from Hotzonex Cloud.
+- Direct routers: the admin password is encrypted with AES-256-GCM; the key is in Supabase Vault and
+  readable only by the service role. The browser can never read `password_enc` (column grant).
+  Use HTTPS so the password does not cross the internet in clear text.
+- Cloud routers: no password is stored. Each router has a random 256-bit token (only its SHA-256 is in
+  the database) and checks Hotzonex Cloud's HTTPS certificate, so the commands it runs can only come
+  from Hotzonex Cloud. Protect the Supabase account with a strong password and two-factor sign-in.
 - The service role key never leaves Supabase (Edge Functions only).
 - Admin actions (router added/updated/removed, staff created/updated, sale voided) are written to `audit_log`.
 
@@ -213,11 +239,13 @@ that stops calling in for 2 minutes is shown offline and its user list is cleare
 
 | What you see | What to check |
 | --- | --- |
-| Router stays "Waiting for router" | The setup script was not pasted, or the router has no internet. In the router terminal run `/system script run hzc-cloud` and `/log print where topics~"script"` |
-| `failure: SSL: ... certificate` or nothing happens on RouterOS older than 7.19 | Update RouterOS (System → Packages → Check For Updates), then run `/certificate settings set builtin-trust-anchors=trusted` |
+| "… is a private address …" | Direct needs the router's public IP or DNS name. Without a public IP, use "Router connects to Hotzonex Cloud" |
+| "No reply from …" / "refused the connection" | Direct: public IP correct, `www-ssl`/`www` on, port allowed from the internet in the router firewall, not behind CGNAT |
+| "Wrong router username or password" / "may not use the REST API" | The admin login; its group needs read, write, api and rest-api |
+| "HTTPS certificate is not trusted" | Give the router a real certificate (`/certificate enable-ssl-certificate …`) or switch HTTPS off |
+| Router stays "Waiting for router" | Cloud: the setup script was not pasted, or the router has no internet. Run `/system script run hzc-cloud` and `/log print where topics~"script"` |
 | "Hotspot server … was not found on this router" | Edit the router and use one of the server names listed in the message (IP → Hotspot → Servers) |
-| Router shows Offline | It has not called in for 2 minutes: power, internet, or the `hzc-cloud` scheduler was removed (paste the setup script again) |
-| "Unknown router" in the router log | The token was replaced: **Routers → Setup script** and paste the new script |
+| Router shows Offline | Cloud: it has not called in for 2 minutes. Direct: the minute check could not reach it (the reason is shown) |
 | Batch stuck on "Push failed" | Router offline; it resumes by itself when back, or press **Retry push** |
 
 ## Development

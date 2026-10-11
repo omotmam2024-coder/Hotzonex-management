@@ -21,12 +21,30 @@ export interface SiteRow extends Site {
 
 export type RouterStatus = 'pending' | 'online' | 'offline';
 
-/** Router columns the browser may read (the connector token hash is never readable). */
+export type RouterConnection = 'cloud' | 'direct';
+
+/** Read-only snapshot of the router's own hotspot setup, from its last connection test. */
+export interface HotspotInfo {
+  servers: { name: string; interface: string; profile: string; address_pool: string; disabled: boolean }[];
+  server_profiles: { name: string; dns_name: string; login_by: string }[];
+  user_profiles: { name: string; rate_limit: string; shared_users: string }[];
+  users: number;
+  active: number;
+  checked_at: string;
+}
+
+/** Router columns the browser may read (the stored password and connector token are never readable). */
 export interface RouterInfo {
   id: string;
   created_at: string;
   site_id: string;
   name: string;
+  connection: RouterConnection;
+  host: string | null;
+  port: number | null;
+  use_https: boolean | null;
+  username: string | null;
+  hotspot_info: HotspotInfo | null;
   hotspot_server: string;
   dns_name: string;
   status: RouterStatus;
@@ -38,7 +56,7 @@ export interface RouterInfo {
 }
 
 export const ROUTER_COLUMNS =
-  'id, created_at, site_id, name, hotspot_server, dns_name, status, last_seen_at, model, ros_version, last_error, last_usage_at';
+  'id, created_at, site_id, name, connection, host, port, use_https, username, hotspot_info, hotspot_server, dns_name, status, last_seen_at, model, ros_version, last_error, last_usage_at';
 
 export type JobStatus = 'queued' | 'running' | 'done' | 'failed';
 

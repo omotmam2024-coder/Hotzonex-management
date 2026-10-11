@@ -7,6 +7,6 @@
     "dev:web": "npm --prefix web run dev",
     "build:web": "npm --prefix web run build",
     "typecheck": "npm --prefix web run typecheck",
-    "test": "node --test supabase/functions/_shared/routeros.test.ts"
+    "test": "node --test supabase/functions/_shared/*.test.ts"
   }
 }

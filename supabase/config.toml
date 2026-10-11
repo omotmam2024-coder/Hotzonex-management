@@ -29,3 +29,8 @@ verify_jwt = true
 # authenticates with the token from its setup script (checked inside the function).
 [functions.router-gateway]
 verify_jwt = false
+
+# Woken by the database (pg_net) for routers connected by IP address; it checks the
+# x-hzc-worker secret from app_config itself.
+[functions.router-direct]
+verify_jwt = false

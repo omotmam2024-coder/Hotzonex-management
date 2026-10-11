@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../auth/AuthProvider';
 import { PageHeader } from '../components/PageHeader';
-import { SetupScriptCard } from '../components/RouterSetup';
+import { HotspotSnapshot, SetupScriptCard } from '../components/RouterSetup';
 import { Alert, Badge, Button, Card, Spinner, TextInput } from '../components/ui';
 import { friendlyError } from '../lib/errors';
 import { formatJubaTime, timeAgo } from '../lib/format';
@@ -61,6 +61,8 @@ function RouterCard({
   });
 
   const [script, setScript] = useState<string | null>(null);
+  const [showHotspot, setShowHotspot] = useState(false);
+  const direct = router.connection === 'direct';
   const setup = useMutation({
     mutationFn: () => invokeFunction<{ script: string }>('add-router', { action: 'setup', router_id: router.id }),
     onSuccess: (data) => setScript(data.script),
@@ -86,6 +88,12 @@ function RouterCard({
 
       <dl className="mt-4 grid grid-cols-1 gap-x-4 gap-y-2 text-sm min-[420px]:grid-cols-2 lg:grid-cols-4">
         <div>
+          <dt className="text-slate-500">Connection</dt>
+          <dd className="break-all font-medium">
+            {direct ? `${router.use_https ? 'https' : 'http'}://${router.host ?? '?'}:${router.port ?? ''} · ${router.username ?? ''}` : 'Router calls Hotzonex Cloud'}
+          </dd>
+        </div>
+        <div>
           <dt className="text-slate-500">Users report</dt>
           <dd className="font-medium">{router.last_usage_at ? timeAgo(router.last_usage_at) : '—'}</dd>
         </div>
@@ -105,7 +113,7 @@ function RouterCard({
         </div>
       </dl>
 
-      {router.status === 'pending' && !router.last_seen_at && !script && (
+      {!direct && router.status === 'pending' && !router.last_seen_at && !script && (
         <div className="mt-3">
           <Alert tone="info">This router has not called in yet. Click “Setup script” and paste it into the router’s terminal (Winbox → New Terminal).</Alert>
         </div>
@@ -113,7 +121,9 @@ function RouterCard({
       {status === 'offline' && !router.last_error && (
         <div className="mt-3">
           <Alert tone="warning">
-            The router stopped calling in. Check that it is switched on and has internet. If it was reset or updated, paste its setup script again.
+            {direct
+              ? 'The router has not answered for a while. Check that it is switched on, has internet, and is reachable at its address.'
+              : 'The router stopped calling in. Check that it is switched on and has internet. If it was reset or updated, paste its setup script again.'}
           </Alert>
         </div>
       )}
@@ -132,6 +142,11 @@ function RouterCard({
           <SetupScriptCard script={script} />
         </div>
       )}
+      {showHotspot && router.hotspot_info && (
+        <div className="mt-3 rounded-xl bg-slate-50 p-3">
+          <HotspotSnapshot info={router.hotspot_info} hotspotServer={router.hotspot_server} />
+        </div>
+      )}
       {test?.phase === 'done' && (
         <div className="mt-3">
           <Alert tone={test.ok ? 'success' : 'error'}>{test.message}</Alert>
@@ -144,10 +159,17 @@ function RouterCard({
       )}
 
       <div className="mt-4 flex flex-wrap gap-2">
-        <Button variant="secondary" onClick={showSetup} disabled={setup.isPending}>
-          {setup.isPending ? <Spinner /> : null} Setup script
-        </Button>
-        <Button variant="secondary" onClick={() => onTest(router)} disabled={testing || router.status === 'pending'}>
+        {router.hotspot_info && (
+          <Button variant="secondary" onClick={() => setShowHotspot((v) => !v)}>
+            {showHotspot ? 'Hide hotspot setup' : 'Hotspot setup'}
+          </Button>
+        )}
+        {!direct && (
+          <Button variant="secondary" onClick={showSetup} disabled={setup.isPending}>
+            {setup.isPending ? <Spinner /> : null} Setup script
+          </Button>
+        )}
+        <Button variant="secondary" onClick={() => onTest(router)} disabled={testing || (!direct && router.status === 'pending')}>
           {testing ? (
             <>
               <Spinner /> Testing…
@@ -293,7 +315,7 @@ export function RoutersPage() {
     <div className="space-y-4">
       <PageHeader
         title="Routers"
-        subtitle="MikroTik routers connect to Hotzonex Cloud by themselves — no computer or VPN needed"
+        subtitle="MikroTik routers, connected by IP address and login, or calling Hotzonex Cloud by themselves"
         actions={
           <Link
             to="/routers/new"
