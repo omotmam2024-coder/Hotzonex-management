@@ -136,7 +136,7 @@ export function SellPage() {
         receipt: {
           code: row.code,
           siteName,
-          dnsName: router.dns_name,
+          dnsName: router.dns_name ?? '',
           planName: plan.name,
           planColor: plan.color,
           priceSsp: row.amount_ssp,

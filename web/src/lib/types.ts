@@ -45,8 +45,8 @@ export interface RouterInfo {
   use_https: boolean | null;
   username: string | null;
   hotspot_info: HotspotInfo | null;
-  hotspot_server: string;
-  dns_name: string;
+  hotspot_server: string | null;
+  dns_name: string | null;
   status: RouterStatus;
   last_seen_at: string | null;
   model: string | null;
@@ -70,6 +70,8 @@ export interface TestConnectionResult {
   model?: string | null;
   ros_version?: string | null;
   uptime?: string | null;
+  hotspot_server?: string | null;
+  dns_name?: string | null;
   warnings?: string[];
   error?: string;
   removed?: boolean;

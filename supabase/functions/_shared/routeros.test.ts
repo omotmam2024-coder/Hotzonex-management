@@ -9,6 +9,7 @@ import {
   fromRouterOsTime,
   kickBlock,
   parseReport,
+  pickHotspot,
   profileCommands,
   pushBlock,
   removeBlock,
@@ -87,7 +88,7 @@ test('time conversion both ways', () => {
 test('setup script embeds the connector as one escaped string that decodes back exactly', () => {
   const script = setupScript({ routerName: 'Home "office"', gatewayUrl: 'https://x.supabase.co/functions/v1/router-gateway', token: TOKEN });
   assertBalanced(script);
-  const line = script.split('\n').find((l) => l.startsWith('/system script add'));
+  const line = script.split('\n').find((l) => l.trimStart().startsWith('/system script add'));
   assert.ok(line);
   const start = line.indexOf('source="') + 'source='.length;
   const [source, end] = readString(line, start);
@@ -181,8 +182,37 @@ test('every command block is balanced and builder ends with the marker', () => {
 test('setup script changes no system settings', () => {
   const script = setupScript({ routerName: 'R', gatewayUrl: 'https://x/functions/v1/router-gateway', token: TOKEN });
   assert.ok(!script.includes('/certificate'));
-  const commands = script.split('\n').filter((l) => l.startsWith('/'));
+  const commands = script.split('\n').map((l) => l.trim()).filter((l) => l.startsWith('/'));
   assert.ok(commands.every((l) => /^\/system (script|scheduler) (add|remove|run)/.test(l)), commands.join('\n'));
+});
+
+test('setup script installs nothing unless a hotspot is already running', () => {
+  const script = setupScript({ routerName: 'R', gatewayUrl: 'https://x/functions/v1/router-gateway', token: TOKEN });
+  const lines = script.split('\n');
+  const check = lines.findIndex((l) => l.startsWith(':if ([:len [/ip hotspot find where disabled=no]] = 0) do={'));
+  const otherwise = lines.indexOf('} else={');
+  const install = lines.findIndex((l) => l.includes('/system script add'));
+  assert.ok(check >= 0 && check < otherwise && otherwise < install, 'install only in the else branch');
+  assert.ok(lines.slice(check, otherwise).every((l) => !l.includes('/system')), 'nothing is changed when no hotspot runs');
+});
+
+test('pickHotspot uses the chosen or first running hotspot, never a missing or disabled one', () => {
+  const info = {
+    servers: [
+      { name: 'old', interface: 'ether2', profile: 'p0', address_pool: '', disabled: true },
+      { name: 'hotspot1', interface: 'bridge', profile: 'hsprof1', address_pool: 'pool', disabled: false },
+    ],
+    server_profiles: [{ name: 'hsprof1', dns_name: 'hotzonex.wifi', login_by: 'http-chap' }],
+    user_profiles: [],
+    users: 0,
+    active: 0,
+    checked_at: '',
+  };
+  assert.deepEqual(pickHotspot(info, null), { ok: true, server: 'hotspot1', dns: 'hotzonex.wifi' });
+  assert.equal(pickHotspot(info, 'old').ok, false);
+  assert.equal(pickHotspot(info, 'HOTZONEX-WIFI').ok, false);
+  assert.equal(pickHotspot({ ...info, servers: [] }, null).ok, false);
+  assert.equal(pickHotspot({ ...info, servers: [info.servers[0]!] }, null).ok, false);
 });
 
 test('plan profiles are only added when missing, never changed', () => {

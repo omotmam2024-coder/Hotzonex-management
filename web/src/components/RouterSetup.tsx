@@ -104,7 +104,7 @@ export function RouterConnectionStatus({ routerId, onEdit }: { routerId: string;
 }
 
 /** What the router already has (read at its last check). Hotzonex uses this setup as it is. */
-export function HotspotSnapshot({ info, hotspotServer }: { info: HotspotInfo; hotspotServer: string }) {
+export function HotspotSnapshot({ info, hotspotServer }: { info: HotspotInfo; hotspotServer: string | null }) {
   const plans = usePlans();
   const profiles = new Set(info.user_profiles.map((p) => p.name));
   const activePlans = (plans.data ?? []).filter((p) => p.is_active);
@@ -150,15 +150,15 @@ export function HotspotSnapshot({ info, hotspotServer }: { info: HotspotInfo; ho
       </div>
       {activePlans.length > 0 && (
         <div>
-          <h3 className="font-semibold text-slate-800">Plans → router user profile</h3>
+          <h3 className="font-semibold text-slate-800">Hotzonex plans → user profile on the router</h3>
           <ul className="mt-1 space-y-0.5">
             {activePlans.map((p) => (
               <li key={p.id}>
                 {p.name} → <span className="font-mono">{p.router_profile_name}</span>{' '}
                 {profiles.has(p.router_profile_name) ? (
-                  <span className="text-green-700">(router’s own profile, used as it is)</span>
+                  <span className="text-green-700">(already on the router — used, not changed)</span>
                 ) : (
-                  <span className="text-amber-700">(not on the router; added when vouchers are first pushed — or set an existing profile name on the Plans page)</span>
+                  <span className="text-amber-700">(Hotzonex adds it to the router)</span>
                 )}
               </li>
             ))}

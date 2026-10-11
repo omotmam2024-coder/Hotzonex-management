@@ -2,14 +2,15 @@
 // router-direct for routers reached by IP address). Only database work lives here; talking to
 // the router is done by the caller.
 import type { SupabaseClient } from 'npm:@supabase/supabase-js@2.117.3';
-import type { ActiveRow, HotspotInfo, ProfileSpec, UserUsage } from './routeros.ts';
+import { pickHotspot, type ActiveRow, type HotspotInfo, type ProfileSpec, type UserUsage } from './routeros.ts';
 
 export interface RouterRef {
   id: string;
   name: string;
   status: 'pending' | 'online' | 'offline';
-  hotspot_server: string;
-  dns_name: string;
+  host: string | null;
+  hotspot_server: string | null;
+  dns_name: string | null;
   last_usage_at: string | null;
 }
 
@@ -56,72 +57,55 @@ export async function openJob(db: SupabaseClient, routerId: string, jobId: strin
 }
 
 export interface TestOutcome {
-  found: boolean;
-  servers: string[];
-  dns: string;
   board: string;
   version: string;
   uptime: string;
-  hotspot: HotspotInfo | null;
+  hotspot: HotspotInfo;
 }
 
 /**
- * Saves a connection test: the router's own hotspot setup (read-only snapshot), and whether the
- * chosen hotspot server exists. A router's first passing test also queues its plan profiles
- * (added only where the router has none with that name).
+ * Saves a connection test: a read-only snapshot of the router's own hotspot setup, and which of
+ * its running hotspot servers Hotzonex uses (with its DNS name). A router's first passing test also
+ * queues the plans' user profiles (added only where the router has none with that name).
  */
 export async function applyTestResult(db: SupabaseClient, router: RouterRef, job: Job, t: TestOutcome): Promise<void> {
-  const snapshot = t.hotspot ? { hotspot_info: t.hotspot } : {};
-  if (!t.found) {
-    const message =
-      `Hotspot server "${router.hotspot_server}" was not found on this router.` +
-      (t.servers.length
-        ? ` Hotspot servers on this router: ${t.servers.join(', ')}. Edit the router and enter one of these names.`
-        : ' This router has no hotspot set up yet. Create it on the router (Winbox → IP → Hotspot → Hotspot Setup); Hotzonex does not create or change it.');
-    await db.from('routers').update({ last_error: message, model: t.board || null, ros_version: t.version || null, ...snapshot }).eq('id', router.id);
-    await finishJob(db, job.id, false, { error: message });
+  const base = { model: t.board || null, ros_version: t.version || null, hotspot_info: t.hotspot };
+  const choice = pickHotspot(t.hotspot, router.hotspot_server);
+  if (!choice.ok) {
+    await db.from('routers').update({ ...base, last_error: choice.error }).eq('id', router.id);
+    await finishJob(db, job.id, false, { error: choice.error });
     return;
   }
 
   const warnings: string[] = [];
-  if (t.dns.toLowerCase() !== router.dns_name.toLowerCase()) {
-    warnings.push(
-      t.dns
-        ? `The router's hotspot DNS name is "${t.dns}", but you entered "${router.dns_name}". Cards will print "${router.dns_name}".`
-        : `The router's hotspot profile has no DNS name set. Cards will print "${router.dns_name}".`,
-    );
+  const dnsName = router.dns_name ?? (choice.dns || router.host || choice.server);
+  if (!choice.dns && !router.dns_name) {
+    warnings.push(`The router's hotspot has no DNS name set, so cards will show "${dnsName}" as the login address. You can change it on this router's page.`);
+  } else if (router.dns_name && choice.dns.toLowerCase() !== router.dns_name.toLowerCase()) {
+    warnings.push(`The router's hotspot DNS name is "${choice.dns}", but this router is set to print "${router.dns_name}" on cards.`);
   }
-  if (t.hotspot) {
-    const { data: plans } = await db.from('plans').select('name, router_profile_name').eq('is_active', true);
-    const onRouter = new Set(t.hotspot.user_profiles.map((p) => p.name));
-    const missing = (plans ?? []).filter((p) => !onRouter.has(p.router_profile_name as string));
-    if (missing.length) {
-      warnings.push(
-        `These plans use user profiles the router does not have yet, so they will be added: ${missing
-          .map((p) => `${p.name} → ${p.router_profile_name}`)
-          .join(', ')}. To use one of your own profiles instead, set its name on the Plans page.`,
-      );
-    }
+  const { data: plans } = await db.from('plans').select('name, router_profile_name').eq('is_active', true);
+  const onRouter = new Set(t.hotspot.user_profiles.map((p) => p.name));
+  const missing = (plans ?? []).filter((p) => !onRouter.has(p.router_profile_name as string));
+  if (missing.length) {
+    warnings.push(
+      `Hotzonex will add a user profile for these plans: ${missing.map((p) => p.name).join(', ')}. The router's existing profiles are not changed.`,
+    );
   }
 
   const wasPending = router.status === 'pending';
   await db
     .from('routers')
-    .update({
-      status: 'online',
-      last_seen_at: new Date().toISOString(),
-      model: t.board || null,
-      ros_version: t.version || null,
-      last_error: null,
-      ...snapshot,
-    })
+    .update({ ...base, status: 'online', last_seen_at: new Date().toISOString(), last_error: null, hotspot_server: choice.server, dns_name: dnsName })
     .eq('id', router.id);
   router.status = 'online';
+  router.hotspot_server = choice.server;
+  router.dns_name = dnsName;
   if (wasPending) {
     await db.from('audit_log').insert({ user_id: job.created_by, action: 'router.added', details: { router_id: router.id, name: router.name } });
     await db.from('router_jobs').insert({ router_id: router.id, type: 'sync_profiles', payload: {}, created_by: job.created_by });
   }
-  await finishJob(db, job.id, true, { model: t.board, ros_version: t.version, uptime: t.uptime, warnings });
+  await finishJob(db, job.id, true, { model: t.board, ros_version: t.version, uptime: t.uptime, hotspot_server: choice.server, dns_name: dnsName, warnings });
 }
 
 /** Records one round of push results and keeps running totals on the job. */

@@ -90,7 +90,7 @@ function RouterCard({
         <div>
           <dt className="text-slate-500">Connection</dt>
           <dd className="break-all font-medium">
-            {direct ? `${router.use_https ? 'https' : 'http'}://${router.host ?? '?'}:${router.port ?? ''} · ${router.username ?? ''}` : 'Router calls Hotzonex Cloud'}
+            {direct ? `${router.host ?? '?'}:${router.port ?? ''} · ${router.username ?? ''}` : `${router.host ? `${router.host} · ` : ''}connected by script`}
           </dd>
         </div>
         <div>
@@ -99,11 +99,11 @@ function RouterCard({
         </div>
         <div>
           <dt className="text-slate-500">Hotspot</dt>
-          <dd className="font-medium">{router.hotspot_server}</dd>
+          <dd className="font-medium">{router.hotspot_server ?? 'read at first check'}</dd>
         </div>
         <div>
           <dt className="text-slate-500">DNS name</dt>
-          <dd className="break-all font-medium">{router.dns_name}</dd>
+          <dd className="break-all font-medium">{router.dns_name ?? '—'}</dd>
         </div>
         <div>
           <dt className="text-slate-500">Model · RouterOS</dt>

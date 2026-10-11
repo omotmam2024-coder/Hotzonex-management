@@ -196,7 +196,7 @@ function PlanEditor({ initial, onClose }: { initial: PlanForm; onClose: (saved: 
           <Field label="Shared users" hint="Devices that may use one code at the same time">
             <TextInput inputMode="numeric" value={form.sharedUsers} onChange={(e) => set('sharedUsers', e.target.value.replace(/\D/g, ''))} />
           </Field>
-          <Field label="Router user profile" hint="Name of a hotspot user profile on your routers. If a router already has it, it is used as it is; if not, it is added with this plan’s speed.">
+          <Field label="Router user profile" hint="Hotzonex adds this user profile, with this plan’s speed, to routers that do not have it. Profiles already on a router are never changed.">
             <TextInput
               value={form.profileName}
               onChange={(e) => setForm((f) => ({ ...f, profileName: e.target.value, profileTouched: true }))}

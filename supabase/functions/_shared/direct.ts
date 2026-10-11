@@ -115,16 +115,14 @@ const n = (v: unknown) => {
 };
 
 export interface DirectTest {
-  found: boolean;
-  dns: string;
   board: string;
   version: string;
   uptime: string;
   hotspot: HotspotInfo;
 }
 
-/** Reads the router's own hotspot setup (no changes) and checks the chosen hotspot server exists. */
-export async function directTest(client: RestClient, hotspotServer: string): Promise<DirectTest> {
+/** Reads the router's own hotspot setup without changing anything. */
+export async function directTest(client: RestClient): Promise<DirectTest> {
   const [resource, servers, serverProfiles, userProfiles, users, active] = await Promise.all([
     client.get<Json>('/system/resource'),
     client.get<Json[]>('/ip/hotspot'),
@@ -147,9 +145,7 @@ export async function directTest(client: RestClient, hotspotServer: string): Pro
     users: users.length,
     active: active.length,
   };
-  const server = hotspot.servers.find((h) => h.name === hotspotServer);
-  const dns = server ? (hotspot.server_profiles.find((p) => p.name === server.profile)?.dns_name ?? '') : '';
-  return { found: Boolean(server), dns, board: s(resource['board-name']), version: s(resource.version), uptime: s(resource.uptime), hotspot };
+  return { board: s(resource['board-name']), version: s(resource.version), uptime: s(resource.uptime), hotspot };
 }
 
 /** Adds a plan's user profile only when the router has none with that name. Returns true if added. */

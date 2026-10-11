@@ -99,37 +99,38 @@ Every push to the main branch then redeploys the web app.
 
 ## 3. Connect each router
 
-First set up the hotspot on the router yourself as you like it (IP → Hotspot → Hotspot Setup).
-Note its **server name** (IP → Hotspot → Servers, e.g. `hotspot1` — not the Wi-Fi name) and the
-**DNS name** of its hotspot profile. Then on the website: **Routers → Add router** and choose:
+First set up the hotspot on the router yourself, as you like it (IP → Hotspot → Hotspot Setup).
+Hotzonex uses that hotspot as it is and never changes it or its profiles. Plans, vouchers and
+sales are then managed in Hotzonex.
 
-**A. IP address, username and password**
+On the website: **Routers → Add router** and fill in, like a MikroTik app:
+**Address**, **Port**, **Username**, **Password**, **Comment** → **Connect**.
 
-1. The router must be reachable from the internet: a public IP from your provider (Winbox → IP →
-   Cloud shows the public address and a free DNS name like `abc123.sn.mynetname.net`).
-   Private addresses (192.168.x.x, 10.x.x.x, 172.16–31.x.x, 100.64–127.x.x) are refused.
-2. Turn on `www-ssl` (recommended) or `www` in IP → Services and allow that port from the internet.
-   For HTTPS the router needs a trusted certificate, e.g. `/certificate enable-ssl-certificate dns-name=<your IP Cloud name>`.
-3. Enter the address, port, admin username and password → **Save and connect**. Hotzonex reads
-   the hotspot setup and shows it. The router is then checked every minute.
+- **Private address** (e.g. `192.168.88.1` — the usual case, also behind Starlink/4G):
+  that address only works inside the router's own network, so Hotzonex shows a one-time setup
+  script. Copy it, open Winbox → **New Terminal**, paste, press Enter. The script first checks that
+  a hotspot is already **running**; if not, it stops and changes nothing. Then it lists the hotspot
+  and the number of user profiles it found, and installs a script and a 30-second scheduler named
+  `hzc-cloud` (permissions `read,write,test,ftp`) so the router talks to Hotzonex Cloud. Needs
+  RouterOS 7.19+. The password is not stored for these routers.
+- **Public IP or DNS name**: Hotzonex logs in to the router's REST API directly with the username
+  and password (stored encrypted). The `www` service (port 80) or `www-ssl` (port 443, needs a
+  trusted certificate) must be reachable from the internet.
 
-**B. Router connects to Hotzonex Cloud** (no public IP needed)
+Either way the first check only **reads** the router's hotspot servers, server profiles and user
+profiles. Hotzonex picks the running hotspot server and its DNS name automatically (you can change
+both on the router's edit page) and shows what it found under **Hotspot setup**.
 
-1. RouterOS 7.19 or newer (System → Packages → Check For Updates).
-2. **Save and get setup script** → **Copy setup script** → Winbox → **New Terminal** → paste → Enter.
-3. The page shows **Online** within a minute.
-
-The setup script only adds a script and a 30-second scheduler named `hzc-cloud`, with the
-`read,write,test,ftp` permissions; it changes no other setting. If the router stays "Waiting"
-after an upgrade from an older RouterOS, it may not trust certificates yet; allow that with
-`/certificate settings set builtin-trust-anchors=trusted`. To disconnect:
-`/system scheduler remove [find name="hzc-cloud"]` and `/system script remove [find name="hzc-cloud"]`.
+If the router stays "Waiting" after an upgrade from an older RouterOS, it may not trust
+certificates yet: `/certificate settings set builtin-trust-anchors=trusted`. To disconnect a
+script-connected router: `/system scheduler remove [find name="hzc-cloud"]` and
+`/system script remove [find name="hzc-cloud"]`.
 
 ## 5. First-day checklist
 
 1. Log in as the admin.
 2. **Routers → Sites:** add your sites (Gorom, Jebel Iraq, Sub-Office…).
-3. **Routers → Add router** for each site → paste its setup script into the router. It must show *Online* with the model and RouterOS version.
+3. **Routers → Add router** for each site (address, username, password) → paste the setup script if one is shown. It must show *Online* with the model, RouterOS version and hotspot.
 4. **Plans:** check prices, time, validity, speed and colours. Each save updates the router profiles.
 5. **Staff:** create managers and sellers (each with a site).
 6. **Vouchers → Generate vouchers:** wait for the batch to show **Ready**.

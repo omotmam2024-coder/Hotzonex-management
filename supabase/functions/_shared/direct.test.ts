@@ -71,14 +71,13 @@ test('wrong password gives a plain error', async () => {
 
 test('connection test reads the hotspot setup without writing anything', async () => {
   reset();
-  const t = await directTest(client(), 'hotspot1');
-  assert.equal(t.found, true);
-  assert.equal(t.dns, 'hotzonex.wifi');
+  const t = await directTest(client());
+  assert.equal(t.hotspot.servers[0]?.name, 'hotspot1');
+  assert.equal(t.hotspot.server_profiles[0]?.dns_name, 'hotzonex.wifi');
   assert.equal(t.version, '7.19.6 (stable)');
   assert.deepEqual(t.hotspot.user_profiles.map((p) => p.name), ['default', 'mine']);
   assert.equal(t.hotspot.users, 1);
   assert.deepEqual(writes, []);
-  assert.equal((await directTest(client(), 'HOTZONEX-WIFI')).found, false);
 });
 
 test('existing profiles are left alone; missing ones are added', async () => {

@@ -116,18 +116,28 @@ export function connectorSource(gatewayUrl: string, token: string): string {
   ].join('\n');
 }
 
-/** Commands the admin pastes into the router terminal. Running them again replaces the old connector. */
+/**
+ * Commands the admin pastes into the router terminal. It first checks that the router already has
+ * a running hotspot and lists what it found; without one it stops and changes nothing. The hotspot
+ * and its profiles are never changed. Running it again replaces the old connector.
+ */
 export function setupScript(opts: { routerName: string; gatewayUrl: string; token: string }): string {
   const source = connectorSource(opts.gatewayUrl, opts.token);
   const policy = 'read,write,test,ftp';
   return [
-    `:put ${rosStr(`Installing the Hotzonex Cloud connector for router: ${opts.routerName.replace(/[\r\n]/g, ' ')} (needs RouterOS 7.19 or newer)`)}`,
-    '/system scheduler remove [find name="hzc-cloud"]',
-    '/system script remove [find name="hzc-cloud"]',
-    `/system script add name="hzc-cloud" policy=${policy} dont-require-permissions=yes source=${rosStr(source)}`,
-    `/system scheduler add name="hzc-cloud" interval=30s start-time=startup policy=${policy} on-event="/system script run hzc-cloud"`,
-    '/system script run hzc-cloud',
-    ':put "Hotzonex Cloud connector installed. The router shows Online on the website within a minute."',
+    `:put ${rosStr(`Hotzonex Cloud: checking router ${opts.routerName.replace(/[\r\n]/g, ' ')} (needs RouterOS 7.19 or newer)...`)}`,
+    ':if ([:len [/ip hotspot find where disabled=no]] = 0) do={',
+    '  :put "Hotzonex Cloud: no running hotspot found. Set up the hotspot first (IP > Hotspot > Hotspot Setup), then paste this script again. Nothing was changed."',
+    '} else={',
+    '  :foreach i in=[/ip hotspot find where disabled=no] do={ :put ("Hotzonex Cloud: hotspot " . [/ip hotspot get $i name] . " is running on " . [/ip hotspot get $i interface]) }',
+    '  :put ("Hotzonex Cloud: " . [:len [/ip hotspot user profile find]] . " user profiles found. They will not be changed.")',
+    '  /system scheduler remove [find name="hzc-cloud"]',
+    '  /system script remove [find name="hzc-cloud"]',
+    `  /system script add name="hzc-cloud" policy=${policy} dont-require-permissions=yes source=${rosStr(source)}`,
+    `  /system scheduler add name="hzc-cloud" interval=30s start-time=startup policy=${policy} on-event="/system script run hzc-cloud"`,
+    '  /system script run hzc-cloud',
+    '  :put "Hotzonex Cloud: connector installed. The router shows Online on the website within a minute."',
+    '}',
     '',
   ].join('\n');
 }
@@ -187,6 +197,32 @@ export interface HotspotInfo {
 
 export function emptyHotspotInfo(): HotspotInfo {
   return { servers: [], server_profiles: [], user_profiles: [], users: 0, active: 0, checked_at: new Date().toISOString() };
+}
+
+export type HotspotChoice = { ok: true; server: string; dns: string } | { ok: false; error: string };
+
+/**
+ * Which of the router's own hotspot servers Hotzonex uses: the one chosen for this router, or
+ * else the first running one. The hotspot must already exist and be enabled on the router;
+ * Hotzonex never creates or changes it.
+ */
+export function pickHotspot(info: HotspotInfo, wanted: string | null): HotspotChoice {
+  const names = info.servers.map((h) => h.name).join(', ');
+  if (!info.servers.length) {
+    return { ok: false, error: 'No hotspot is set up on this router. Set it up on the router first (Winbox → IP → Hotspot → Hotspot Setup), then check again.' };
+  }
+  const server = wanted ? info.servers.find((h) => h.name === wanted) : info.servers.find((h) => !h.disabled);
+  if (wanted && !server) {
+    return { ok: false, error: `Hotspot server "${wanted}" was not found on this router. Hotspot servers on this router: ${names}. Edit the router and choose one of them.` };
+  }
+  if (!server) {
+    return { ok: false, error: `The hotspot on this router is switched off (${names}). Enable it on the router (IP → Hotspot → Servers), then check again.` };
+  }
+  if (server.disabled) {
+    return { ok: false, error: `Hotspot server "${server.name}" is switched off on this router. Enable it (IP → Hotspot → Servers), then check again.` };
+  }
+  const dns = info.server_profiles.find((p) => p.name === server.profile)?.dns_name ?? '';
+  return { ok: true, server: server.name, dns };
 }
 
 export interface Report {

@@ -83,8 +83,7 @@ async function runJob(db: SupabaseClient, router: DirectRouter, client: RestClie
   switch (job.type) {
     case 'test_connection': {
       try {
-        const t = await directTest(client, router.hotspot_server);
-        await applyTestResult(db, router, job, { ...t, servers: t.hotspot.servers.map((h) => h.name) });
+        await applyTestResult(db, router, job, await directTest(client));
       } catch (err) {
         const msg = message(err);
         await db
@@ -118,7 +117,7 @@ async function runJob(db: SupabaseClient, router: DirectRouter, client: RestClie
         await ensureProfileExists(client, profileOf(chunk.plan));
         const opts = {
           profile: chunk.plan.router_profile_name,
-          server: router.hotspot_server,
+          server: router.hotspot_server ?? 'all',
           limitUptime: toRouterOsTime(chunk.plan.uptime_seconds),
           limitBytes: chunk.plan.data_limit_mb ? String(chunk.plan.data_limit_mb * 1024 * 1024) : null,
         };

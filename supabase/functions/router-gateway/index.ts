@@ -27,6 +27,7 @@ import {
 import {
   disableBlock,
   disconnectBlock,
+  emptyHotspotInfo,
   kickBlock,
   parseReport,
   pushBlock,
@@ -61,7 +62,10 @@ async function sha256Hex(value: string): Promise<string> {
 async function handleResults(db: SupabaseClient, router: RouterRef, report: Report, out: ScriptBuilder): Promise<void> {
   for (const t of report.tests) {
     const job = await openJob(db, router.id, t.job);
-    if (job) await applyTestResult(db, router, job, { ...t, hotspot: report.hotspot });
+    if (job) {
+      const hotspot = report.hotspot ?? { ...emptyHotspotInfo(), servers: t.servers.map((name) => ({ name, interface: '', profile: '', address_pool: '', disabled: false })) };
+      await applyTestResult(db, router, job, { board: t.board, version: t.version, uptime: t.uptime, hotspot });
+    }
   }
 
   const pushesByJob = new Map<string, Report['pushes']>();
@@ -117,7 +121,7 @@ async function handleResults(db: SupabaseClient, router: RouterRef, report: Repo
 async function jobBlock(db: SupabaseClient, router: RouterRef, job: Job): Promise<string | null> {
   switch (job.type) {
     case 'test_connection':
-      return testBlock(job.id, router.hotspot_server);
+      return testBlock(job.id, router.hotspot_server ?? '');
 
     case 'sync_profiles': {
       const plans = await plansForSync(db, job);
@@ -134,7 +138,7 @@ async function jobBlock(db: SupabaseClient, router: RouterRef, job: Job): Promis
       return pushBlock({
         jobId: job.id,
         profile: profileOf(chunk.plan),
-        server: router.hotspot_server,
+        server: router.hotspot_server ?? 'all',
         limitUptime: toRouterOsTime(chunk.plan.uptime_seconds),
         limitBytes: chunk.plan.data_limit_mb ? String(chunk.plan.data_limit_mb * 1024 * 1024) : null,
         vouchers: chunk.vouchers,
@@ -218,7 +222,7 @@ Deno.serve(async (req) => {
     const db = serviceClient();
     const { data: router } = await db
       .from('routers')
-      .select('id, name, status, hotspot_server, dns_name, last_usage_at')
+      .select('id, name, status, host, hotspot_server, dns_name, last_usage_at')
       .eq('token_hash', await sha256Hex(token))
       .eq('connection', 'cloud')
       .maybeSingle<RouterRef>();
