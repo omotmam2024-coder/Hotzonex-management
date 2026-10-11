@@ -20,6 +20,8 @@ import {
   readUsage,
   removeExpired,
   removeLeftoverProfiles,
+  removeProfileIfUnused,
+  removeVoucherUsers,
   restorePortalDirect,
   RestClient,
   RouterError,
@@ -30,11 +32,15 @@ import {
   applyPortalInstalled,
   applyPortalRestored,
   applyPushResults,
+  applyRouterRemovals,
   applyTestResult,
   applyUsage,
   clearDisconnected,
   finishJob,
+  finishProfileRemoval,
+  finishVoucherDelete,
   JOB_COLUMNS,
+  jobVouchers,
   markRemoved,
   MAX_SENDS,
   nextPushChunk,
@@ -45,6 +51,7 @@ import {
   portalTarget,
   profileOf,
   resumeUnfinishedPushes,
+  retireRemovedProfiles,
   str,
   type Job,
   type RouterRef,
@@ -140,6 +147,13 @@ async function runJob(db: SupabaseClient, router: DirectRouter, client: RestClie
     }
 
     case 'sync_profiles': {
+      // A plan deleted in Hotzonex: its profile goes from the router too (unless users are on it).
+      const removeProfile = str(job.payload.remove_profile);
+      if (removeProfile) {
+        const r = await removeProfileIfUnused(client, removeProfile);
+        await finishProfileRemoval(db, router, job, r.users);
+        return true;
+      }
       // A router with its own profiles keeps them (they are its plans); Hotzonex adds profiles only
       // to a router that has none, and removes the ones it added earlier that nothing uses.
       let added = 0;
@@ -189,6 +203,11 @@ async function runJob(db: SupabaseClient, router: DirectRouter, client: RestClie
     }
 
     case 'disable_voucher': {
+      // Vouchers deleted in Hotzonex: deleted from the router, then from Hotzonex.
+      if (job.payload.delete === true) {
+        await finishVoucherDelete(db, job, await removeVoucherUsers(client, jobVouchers(job)));
+        return true;
+      }
       const voucherId = str(job.payload.voucher_id);
       const code = str(job.payload.code);
       if (!voucherId || !code) {
@@ -312,12 +331,17 @@ async function checkRouter(db: SupabaseClient, router: DirectRouter, client: Res
     router.status = 'online';
 
     // The router's user profiles, kept current: a new MikroTicket profile becomes a plan (database trigger).
+    // A profile deleted on the router takes its plan with it (or switches it off when it has sales).
     const known = router.hotspot_info?.user_profiles ?? [];
-    if (JSON.stringify(known) !== JSON.stringify(usage.userProfiles)) {
+    if (usage.userProfiles.length && JSON.stringify(known) !== JSON.stringify(usage.userProfiles)) {
       const info = { ...(router.hotspot_info ?? emptyHotspotInfo()), user_profiles: usage.userProfiles };
       const { error: infoError } = await db.from('routers').update({ hotspot_info: info }).eq('id', router.id);
       if (infoError) console.error(`Profiles not saved for ${router.name}: ${infoError.message}`);
-      else router.hotspot_info = info;
+      else {
+        router.hotspot_info = info;
+        const retired = await retireRemovedProfiles(db, router, known.map((p) => p.name), usage.userProfiles.map((p) => p.name));
+        if (Object.keys(retired).length) console.log(`${router.name}: profiles removed on the router: ${JSON.stringify(retired)}`);
+      }
     }
 
     const result = await applyUsage(db, router, usage);
@@ -328,6 +352,12 @@ async function checkRouter(db: SupabaseClient, router: DirectRouter, client: Res
       p_users: usage.allUsers,
     });
     if (loginsError) console.error(`Router logins not recorded for ${router.name}: ${loginsError.message}`);
+    // Hotspot users deleted on the router are deleted in Hotzonex too.
+    try {
+      await applyRouterRemovals(db, router, new Set(usage.allUsers.map((u) => u.name)));
+    } catch (err) {
+      console.error(`Removed users not synced for ${router.name}: ${message(err)}`);
+    }
     if (result) {
       // Each kick and removal on its own: one that fails is tried again next minute and does not
       // make the router look offline.

@@ -323,6 +323,42 @@ export async function removeLeftoverProfiles(client: RestClient, keep: Set<strin
   return removed;
 }
 
+/**
+ * Deletes vouchers' hotspot users from the router (closing their sessions first). Only a user that
+ * still carries the voucher's tag is removed; one that is already gone counts as removed.
+ */
+export async function removeVoucherUsers(client: RestClient, vouchers: { id: string; code: string }[]): Promise<number> {
+  if (!vouchers.length) return 0;
+  const users = await client.get<Json[]>('/ip/hotspot/user', { '.proplist': '.id,name,comment' });
+  const byTag = new Map(users.map((u) => [`${s(u.name)}|${s(u.comment)}`, s(u['.id'])]));
+  let removed = 0;
+  for (const v of vouchers) {
+    const id = byTag.get(`${v.code}|hzc:${v.id}`);
+    await closeSessions(client, v.code, null);
+    if (id) {
+      await ignoreGone(client.post('/ip/hotspot/user/remove', { '.id': id }));
+      removed++;
+    }
+  }
+  return removed;
+}
+
+/**
+ * Deletes a user profile from the router, but only while no hotspot user is on it. Returns how many
+ * users are on it (0 means it is gone now, or was not there).
+ */
+export async function removeProfileIfUnused(client: RestClient, name: string): Promise<{ removed: boolean; users: number }> {
+  const [profiles, users] = await Promise.all([
+    client.get<Json[]>('/ip/hotspot/user/profile', { '.proplist': '.id,name' }),
+    client.get<Json[]>('/ip/hotspot/user', { '.proplist': 'profile' }),
+  ]);
+  const onIt = users.filter((u) => s(u.profile) === name).length;
+  const profile = profiles.find((p) => s(p.name) === name);
+  if (onIt > 0 || !profile) return { removed: false, users: onIt };
+  await ignoreGone(client.post('/ip/hotspot/user/profile/remove', { '.id': s(profile['.id']) }));
+  return { removed: true, users: 0 };
+}
+
 /** Removes an expired voucher user if it is offline and still carries the voucher's tag. Returns true when gone. */
 export async function removeExpired(client: RestClient, v: { id: string; code: string }): Promise<boolean> {
   const online = await client.get<Json[]>('/ip/hotspot/active', { user: v.code, '.proplist': '.id' });

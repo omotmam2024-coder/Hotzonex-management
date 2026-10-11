@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { keepPreviousData, useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useAuth } from '../auth/AuthProvider';
 import { PageHeader } from '../components/PageHeader';
 import { Alert, Badge, Button, Card, Field, Select, Spinner, TextInput } from '../components/ui';
 import { friendlyError } from '../lib/errors';
 import { formatJubaTime, formatNumber } from '../lib/format';
+import { invokeFunction } from '../lib/functions';
 import { usePlans, useRouters } from '../lib/queries';
 import { supabase } from '../lib/supabase';
 import type { Voucher, VoucherStatus } from '../lib/types';
@@ -19,6 +21,23 @@ const STATUS_BADGE: Record<VoucherStatus, { color: 'green' | 'red' | 'gray' | 'b
   expired: { color: 'red', label: 'Expired' },
   disabled: { color: 'red', label: 'Disabled' },
 };
+
+/** Sold and in-use vouchers have sales, so they stay; the rest can be deleted (from the router too). */
+const DELETABLE: VoucherStatus[] = ['unused', 'disabled', 'expired'];
+
+interface DeleteResult {
+  deleted: number;
+  removing: number;
+  kept: number;
+}
+
+function deleteMessage(r: DeleteResult): string {
+  const parts = [];
+  if (r.deleted) parts.push(`${r.deleted} deleted`);
+  if (r.removing) parts.push(`${r.removing} switched off and being deleted from the router (gone from this list once the router has removed them; if the router is offline, as soon as it is back)`);
+  if (r.kept) parts.push(`${r.kept} kept because they have a sale`);
+  return parts.length ? `${parts.join('; ')}.` : 'Nothing to delete.';
+}
 
 interface BatchOption {
   id: string;
@@ -39,6 +58,10 @@ export function VouchersPage() {
   const code = params.get('code') ?? '';
   const page = Math.max(0, Number(params.get('page') ?? '0') || 0);
   const [codeInput, setCodeInput] = useState(code);
+  const { profile } = useAuth();
+  const isAdmin = profile?.role === 'admin';
+  const queryClient = useQueryClient();
+  const [selected, setSelected] = useState<Set<string>>(new Set());
 
   useEffect(() => setCodeInput(code), [code]);
 
@@ -90,11 +113,37 @@ export function VouchersPage() {
     },
   });
 
+  // A new page or filter starts with nothing selected.
+  useEffect(() => setSelected(new Set()), [routerId, planId, status, batchId, code, page]);
+
+  const remove = useMutation({
+    mutationFn: async (ids: string[]) => {
+      if (!window.confirm(`Delete ${ids.length} voucher${ids.length === 1 ? '' : 's'}? They are deleted from the router too and cannot be sold or used any more.`)) return null;
+      return invokeFunction<DeleteResult>('delete-items', { action: 'delete_vouchers', ids });
+    },
+    onSuccess: (r) => {
+      if (!r) return;
+      setSelected(new Set());
+      void queryClient.invalidateQueries({ queryKey: ['vouchers'] });
+      void queryClient.invalidateQueries({ queryKey: ['batch-options'] });
+    },
+  });
+
   const planById = new Map((plans.data ?? []).map((p) => [p.id, p]));
   const routerById = new Map((routers.data ?? []).map((r) => [r.id, r]));
   const total = vouchers.data?.total ?? 0;
   const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const hasFilters = Boolean(routerId || planId || status || batchId || code);
+  const rows = vouchers.data?.rows ?? [];
+  const deletable = rows.filter((v) => DELETABLE.includes(v.status));
+  const allPicked = deletable.length > 0 && deletable.every((v) => selected.has(v.id));
+  const toggle = (id: string) =>
+    setSelected((cur) => {
+      const next = new Set(cur);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
 
   return (
     <div className="space-y-4">
@@ -169,6 +218,8 @@ export function VouchersPage() {
       </Card>
 
       {vouchers.error && <Alert tone="error">{friendlyError(vouchers.error)}</Alert>}
+      {remove.error && <Alert tone="error">{remove.error.message}</Alert>}
+      {remove.data && <Alert tone="success">{deleteMessage(remove.data)}</Alert>}
 
       <Card className="!p-0">
         <div className="flex items-center justify-between px-4 py-3 text-sm text-slate-600">
@@ -176,7 +227,12 @@ export function VouchersPage() {
             {vouchers.isFetching && <Spinner className="mr-2 h-4 w-4 align-[-2px] text-brand-600" />}
             {formatNumber(total)} voucher{total === 1 ? '' : 's'}
           </span>
-          <span>
+          <span className="flex items-center gap-3">
+            {isAdmin && selected.size > 0 && (
+              <Button variant="danger" disabled={remove.isPending} onClick={() => remove.mutate([...selected])}>
+                {remove.isPending ? <Spinner /> : null} Delete {selected.size}
+              </Button>
+            )}
             Page {page + 1} of {pages}
           </span>
         </div>
@@ -184,6 +240,18 @@ export function VouchersPage() {
           <table className="w-full min-w-[700px] text-left text-sm">
             <thead className="border-y border-slate-200 bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
               <tr>
+                {isAdmin && (
+                  <th className="w-10 px-4 py-2">
+                    <input
+                      type="checkbox"
+                      className="h-5 w-5"
+                      aria-label="Select all unsold vouchers on this page"
+                      checked={allPicked}
+                      disabled={!deletable.length}
+                      onChange={() => setSelected(allPicked ? new Set() : new Set(deletable.map((v) => v.id)))}
+                    />
+                  </th>
+                )}
                 <th className="px-4 py-2">Code</th>
                 <th className="px-4 py-2">Plan</th>
                 <th className="px-4 py-2">Status</th>
@@ -197,11 +265,24 @@ export function VouchersPage() {
               </tr>
             </thead>
             <tbody>
-              {(vouchers.data?.rows ?? []).map((v) => {
+              {rows.map((v) => {
                 const plan = planById.get(v.plan_id);
                 const badge = STATUS_BADGE[v.status];
                 return (
                   <tr key={v.id} className="border-b border-slate-100 last:border-0">
+                    {isAdmin && (
+                      <td className="px-4 py-2">
+                        <input
+                          type="checkbox"
+                          className="h-5 w-5"
+                          aria-label={`Select ${v.code}`}
+                          title={DELETABLE.includes(v.status) ? undefined : 'Sold vouchers are kept for the sales records'}
+                          checked={selected.has(v.id)}
+                          disabled={!DELETABLE.includes(v.status)}
+                          onChange={() => toggle(v.id)}
+                        />
+                      </td>
+                    )}
                     <td className="px-4 py-2 font-mono text-base font-semibold tracking-wider">{v.code}</td>
                     <td className="px-4 py-2">
                       <span className="flex items-center gap-2">
@@ -228,7 +309,7 @@ export function VouchersPage() {
               })}
               {vouchers.data && vouchers.data.rows.length === 0 && (
                 <tr>
-                  <td colSpan={8} className="px-4 py-6 text-center text-slate-500">
+                  <td colSpan={isAdmin ? 9 : 8} className="px-4 py-6 text-center text-slate-500">
                     No vouchers match these filters.
                   </td>
                 </tr>

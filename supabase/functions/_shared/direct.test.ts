@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { after, before, test } from 'node:test';
-import { closeSessions, directTest, removeLeftoverProfiles, disableVoucher, ensureProfileExists, installPortalDirect, pushVoucher, readUsage, removeExpired, restorePortalDirect, RestClient, RouterError, userComments } from './direct.ts';
+import { closeSessions, directTest, removeLeftoverProfiles, disableVoucher, ensureProfileExists, installPortalDirect, pushVoucher, readUsage, removeExpired, removeProfileIfUnused, removeVoucherUsers, restorePortalDirect, RestClient, RouterError, userComments } from './direct.ts';
 
 type Row = Record<string, string>;
 const state: Record<string, Row[]> = {};
@@ -185,4 +185,25 @@ test('profiles Hotzonex added earlier are removed only when no plan and no user 
   assert.deepEqual(state['/ip/hotspot/user/profile']!.map((p) => p.name), ['default', 'profile_1Hr-se:-co:1000', 'hzc-1d', 'hzc-1w']);
   const usage = await readUsage(client());
   assert.deepEqual(usage.userProfiles.map((p) => p.name), ['default', 'profile_1Hr-se:-co:1000', 'hzc-1d', 'hzc-1w']);
+});
+
+test('vouchers deleted in Hotzonex leave the router; profiles go only while no user is on them', async () => {
+  reset();
+  const W = 'bbbbbbbb-bbbb-4ccc-8ddd-eeeeeeeeeeee';
+  state['/ip/hotspot/user']!.push(
+    { '.id': '*B', name: '12345678', profile: 'mine', comment: `hzc:${V}` },
+    { '.id': '*C', name: '87654321', profile: 'mine', comment: 'someone else' },
+  );
+  state['/ip/hotspot/active']!.push({ '.id': '*D', user: '12345678', 'mac-address': 'AA:BB:CC:DD:EE:FF' });
+  // Tagged user removed (its session closed first); same code with another tag left alone; gone one counts as done.
+  assert.equal(await removeVoucherUsers(client(), [{ id: V, code: '12345678' }, { id: W, code: '87654321' }, { id: W, code: '00000000' }]), 1);
+  assert.deepEqual(state['/ip/hotspot/user']!.map((u) => u.name), ['11112222', '87654321']);
+  assert.equal(state['/ip/hotspot/active']!.length, 0);
+
+  assert.deepEqual(await removeProfileIfUnused(client(), 'mine'), { removed: false, users: 1 });
+  assert.ok(state['/ip/hotspot/user/profile']!.some((p) => p.name === 'mine'), 'kept while a user is on it');
+  state['/ip/hotspot/user'] = state['/ip/hotspot/user']!.filter((u) => u.profile !== 'mine');
+  assert.deepEqual(await removeProfileIfUnused(client(), 'mine'), { removed: true, users: 0 });
+  assert.deepEqual(state['/ip/hotspot/user/profile']!.map((p) => p.name), ['default']);
+  assert.deepEqual(await removeProfileIfUnused(client(), 'mine'), { removed: false, users: 0 }, 'already gone');
 });

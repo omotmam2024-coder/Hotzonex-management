@@ -306,3 +306,195 @@ export async function applyPortalRestored(db: SupabaseClient, router: RouterRef,
   await db.from('portal_configs').update({ installed_at: null, installed_dir: null }).eq('router_id', router.id);
   await finishJob(db, job.id, true, { restored_dir: dir });
 }
+
+// ---------------------------------------------------------------------------
+// Deletes: what is removed on the router is removed in Hotzonex, and the other way round
+// ---------------------------------------------------------------------------
+
+type Page<T> = (from: number, to: number) => PromiseLike<{ data: T[] | null; error: { message: string } | null }>;
+
+/** Every row of a query, 1000 at a time (the API returns at most 1000 rows per request). */
+async function allRows<T>(page: Page<T>): Promise<T[]> {
+  const out: T[] = [];
+  for (let from = 0; ; from += 1000) {
+    const { data, error } = await page(from, from + 999);
+    if (error) throw new Error(error.message);
+    out.push(...(data ?? []));
+    if (!data || data.length < 1000) return out;
+  }
+}
+
+function chunks<T>(list: T[], size: number): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < list.length; i += size) out.push(list.slice(i, i + size));
+  return out;
+}
+
+/** Ids among these vouchers that have a sale (sold vouchers stay in Hotzonex for the sales records). */
+export async function vouchersWithSales(db: SupabaseClient, ids: string[]): Promise<Set<string>> {
+  const sold = new Set<string>();
+  for (const part of chunks(ids, 200)) {
+    const { data, error } = await db.from('sales').select('voucher_id').in('voucher_id', part);
+    if (error) throw new Error(`Could not check sales: ${error.message}`);
+    for (const s of data ?? []) sold.add(s.voucher_id as string);
+  }
+  return sold;
+}
+
+/** Deletes unsold vouchers from Hotzonex, and their batches once a batch has no vouchers left. */
+export async function deleteVoucherRows(db: SupabaseClient, ids: string[]): Promise<number> {
+  if (!ids.length) return 0;
+  const sold = await vouchersWithSales(db, ids);
+  const free = ids.filter((id) => !sold.has(id));
+  const batches = new Set<string>();
+  let deleted = 0;
+  for (const part of chunks(free, 200)) {
+    const { data, error } = await db.from('vouchers').delete().in('id', part).select('batch_id');
+    if (error) throw new Error(`Could not delete vouchers: ${error.message}`);
+    deleted += data?.length ?? 0;
+    for (const v of data ?? []) batches.add(v.batch_id as string);
+  }
+  for (const batchId of batches) {
+    const { count } = await db.from('vouchers').select('id', { count: 'exact', head: true }).eq('batch_id', batchId);
+    if (count === 0) await db.from('voucher_batches').delete().eq('id', batchId);
+  }
+  return deleted;
+}
+
+export interface RemovalResult {
+  vouchers_deleted: number;
+  vouchers_disabled: number;
+  records_deleted: number;
+}
+
+/**
+ * Hotspot users deleted on the router (in Winbox, MikroTicket, …) are deleted in Hotzonex too:
+ *  - a Hotzonex voucher that was on the router is deleted; one that was sold is kept for the sales
+ *    records, but switched off (it can no longer be used);
+ *  - an unused MikroTicket voucher drops out of Hotzonex's records (used ones stay: they are sales).
+ * `names` is the router's complete user list; an empty list is treated as a failed read.
+ */
+export async function applyRouterRemovals(db: SupabaseClient, router: RouterRef, names: Set<string>): Promise<RemovalResult | null> {
+  if (!names.size) return null;
+
+  const onRouter = await allRows<{ id: string; code: string; status: string }>((from, to) =>
+    db.from('vouchers').select('id, code, status').eq('router_id', router.id).eq('on_router', true).order('id').range(from, to),
+  );
+  const gone = onRouter.filter((v) => !names.has(v.code));
+  const sold = await vouchersWithSales(db, gone.map((v) => v.id));
+  const vouchersDeleted = await deleteVoucherRows(db, gone.filter((v) => !sold.has(v.id)).map((v) => v.id));
+  const keep = gone.filter((v) => sold.has(v.id));
+  for (const part of chunks(keep, 200)) {
+    const ids = part.map((v) => v.id);
+    await db.from('vouchers').update({ on_router: false }).in('id', ids);
+    await db.from('vouchers').update({ status: 'disabled' }).in('id', ids).in('status', ['unused', 'sold', 'active']);
+  }
+
+  const unusedRecords = await allRows<{ id: string; username: string }>((from, to) =>
+    db.from('router_logins').select('id, username').eq('router_id', router.id).eq('used', false).order('id').range(from, to),
+  );
+  const staleRecords = unusedRecords.filter((l) => !names.has(l.username)).map((l) => l.id);
+  let recordsDeleted = 0;
+  for (const part of chunks(staleRecords, 200)) {
+    const { data, error } = await db.from('router_logins').delete().in('id', part).eq('used', false).select('id');
+    if (error) throw new Error(`Could not delete router records: ${error.message}`);
+    recordsDeleted += data?.length ?? 0;
+  }
+
+  const result = { vouchers_deleted: vouchersDeleted, vouchers_disabled: keep.length, records_deleted: recordsDeleted };
+  if (vouchersDeleted || keep.length || recordsDeleted) {
+    await db.from('audit_log').insert({
+      tenant_id: router.tenant_id,
+      user_id: null,
+      action: 'router.users_removed',
+      details: { router_id: router.id, name: router.name, ...result, codes: gone.slice(0, 50).map((v) => v.code) },
+    });
+  }
+  return result;
+}
+
+const isOwnProfileName = (n: string) => Boolean(n) && n !== 'default' && !n.startsWith('hzc-');
+
+/**
+ * A plan whose profile is gone: deleted when nothing in Hotzonex refers to it, otherwise switched
+ * off (vouchers and sales keep their plan). Kept as it is while another router of the business
+ * still has the profile. Call after saving the router's new profile list.
+ */
+export async function retirePlan(db: SupabaseClient, tenantId: string, plan: { id: string; router_profile_name: string }): Promise<'deleted' | 'switched_off' | 'kept'> {
+  const { data: routers } = await db.from('routers').select('hotspot_info').eq('tenant_id', tenantId);
+  const elsewhere = (routers ?? []).some((r) =>
+    ((r.hotspot_info as HotspotInfo | null)?.user_profiles ?? []).some((p) => p.name === plan.router_profile_name),
+  );
+  if (elsewhere) return 'kept';
+
+  const refs = await Promise.all([
+    db.from('vouchers').select('id', { count: 'exact', head: true }).eq('plan_id', plan.id),
+    db.from('voucher_batches').select('id', { count: 'exact', head: true }).eq('plan_id', plan.id),
+    db.from('sales').select('id', { count: 'exact', head: true }).eq('plan_id', plan.id),
+    db.from('router_logins').select('id', { count: 'exact', head: true }).eq('plan_id', plan.id).eq('used', true),
+  ]);
+  if (refs.some((r) => r.error || (r.count ?? 0) > 0)) {
+    await db.from('plans').update({ is_active: false }).eq('id', plan.id);
+    return 'switched_off';
+  }
+  const { error } = await db.from('plans').delete().eq('id', plan.id);
+  if (error) {
+    await db.from('plans').update({ is_active: false }).eq('id', plan.id);
+    return 'switched_off';
+  }
+  return 'deleted';
+}
+
+/** Plans of the router owner's profiles that disappeared from the router are retired (see retirePlan). */
+export async function retireRemovedProfiles(db: SupabaseClient, router: RouterRef, before: string[], after: string[]): Promise<Record<string, string>> {
+  if (!after.length) return {};
+  const now = new Set(after);
+  const vanished = before.filter((n) => isOwnProfileName(n) && !now.has(n));
+  const out: Record<string, string> = {};
+  if (!vanished.length) return out;
+  const { data: plans } = await db.from('plans').select('id, router_profile_name').eq('tenant_id', router.tenant_id).in('router_profile_name', vanished);
+  for (const p of (plans ?? []) as { id: string; router_profile_name: string }[]) out[p.router_profile_name] = await retirePlan(db, router.tenant_id, p);
+  return out;
+}
+
+/** Finishes a "delete these vouchers" job once the router no longer has them. */
+export async function finishVoucherDelete(db: SupabaseClient, job: Job, removedOnRouter: number): Promise<void> {
+  const ids = jobVouchers(job).map((v) => v.id);
+  const deleted = await deleteVoucherRows(db, ids);
+  await finishJob(db, job.id, true, { removed_on_router: removedOnRouter, deleted });
+}
+
+/** The vouchers of a "delete these vouchers" job (disable_voucher with delete: true). */
+export function jobVouchers(job: Job): { id: string; code: string }[] {
+  const list = Array.isArray(job.payload.vouchers) ? (job.payload.vouchers as unknown[]) : [];
+  return list
+    .map((v) => (v && typeof v === 'object' ? (v as Record<string, unknown>) : {}))
+    .map((v) => ({ id: str(v.id) ?? '', code: str(v.code) ?? '' }))
+    .filter((v) => v.id && v.code);
+}
+
+/**
+ * Finishes a "delete this plan's profile" job (sync_profiles with remove_profile). With hotspot
+ * users still on the profile the router keeps it, and so does Hotzonex (switched off).
+ */
+export async function finishProfileRemoval(db: SupabaseClient, router: RouterRef, job: Job, usersOnIt: number): Promise<void> {
+  const name = str(job.payload.remove_profile) ?? '';
+  if (usersOnIt > 0) {
+    await finishJob(db, job.id, false, {
+      error: `${usersOnIt} hotspot user(s) on ${router.name} still use profile "${name}", so it was kept and the plan stays switched off. Delete those users on the router first, then delete the plan again.`,
+    });
+    return;
+  }
+  const { data } = await db.from('routers').select('hotspot_info').eq('id', router.id).maybeSingle();
+  const info = data?.hotspot_info as HotspotInfo | null;
+  if (info) {
+    await db
+      .from('routers')
+      .update({ hotspot_info: { ...info, user_profiles: info.user_profiles.filter((p) => p.name !== name) } })
+      .eq('id', router.id);
+  }
+  const planId = str(job.payload.plan_id);
+  const { data: plan } = planId ? await db.from('plans').select('id, router_profile_name').eq('id', planId).maybeSingle() : { data: null };
+  const outcome = plan ? await retirePlan(db, router.tenant_id, plan as { id: string; router_profile_name: string }) : 'deleted';
+  await finishJob(db, job.id, true, { removed_profile: name, plan: outcome });
+}

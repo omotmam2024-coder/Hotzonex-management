@@ -14,7 +14,10 @@ import {
   applyUsage,
   clearDisconnected,
   finishJob,
+  finishProfileRemoval,
+  finishVoucherDelete,
   JOB_COLUMNS,
+  jobVouchers,
   markRemoved,
   MAX_SENDS,
   nextPushChunk,
@@ -38,6 +41,8 @@ import {
   parseReport,
   pushBlock,
   removeBlock,
+  removeProfileBlock,
+  removeVouchersBlock,
   restorePortalBlock,
   scriptBuilder,
   syncProfilesBlock,
@@ -97,7 +102,11 @@ async function handleResults(db: SupabaseClient, router: RouterRef, report: Repo
       continue;
     }
     const nums = r.detail.split(',').map((x) => Number(x) || 0);
-    if (job.type === 'disable_voucher') {
+    if (job.type === 'disable_voucher' && job.payload.delete === true) {
+      await finishVoucherDelete(db, job, nums[0] ?? 0);
+    } else if (job.type === 'sync_profiles' && str(job.payload.remove_profile)) {
+      await finishProfileRemoval(db, router, job, nums[0] ?? 0);
+    } else if (job.type === 'disable_voucher') {
       await finishJob(db, job.id, true, {
         disabled: (nums[0] ?? 0) > 0,
         sessions_closed: nums[1] ?? 0,
@@ -139,6 +148,9 @@ async function jobBlock(db: SupabaseClient, router: RouterRef, job: Job): Promis
       return testBlock(job.id, router.hotspot_server ?? '');
 
     case 'sync_profiles': {
+      // A plan deleted in Hotzonex: its profile goes from the router too (unless users are on it).
+      const removeProfile = str(job.payload.remove_profile);
+      if (removeProfile) return removeProfileBlock(job.id, removeProfile);
       // A router with its own profiles keeps them; Hotzonex adds profiles only to a router that has none.
       const { data: info } = await db.from('routers').select('hotspot_info').eq('id', router.id).maybeSingle();
       if (ownProfiles(info?.hotspot_info as HotspotInfo | null).length > 0) {
@@ -167,6 +179,15 @@ async function jobBlock(db: SupabaseClient, router: RouterRef, job: Job): Promis
     }
 
     case 'disable_voucher': {
+      // Vouchers deleted in Hotzonex: deleted from the router, then from Hotzonex.
+      if (job.payload.delete === true) {
+        const vouchers = jobVouchers(job);
+        if (!vouchers.length) {
+          await finishVoucherDelete(db, job, 0);
+          return null;
+        }
+        return removeVouchersBlock(job.id, vouchers);
+      }
       const voucherId = str(job.payload.voucher_id);
       const code = str(job.payload.code);
       if (!voucherId || !code) {

@@ -523,6 +523,34 @@ export function disableBlock(jobId: string, voucherId: string, code: string): st
   );
 }
 
+/** Deletes vouchers' hotspot users (only those still carrying the voucher's tag) and their sessions. */
+export function removeVouchersBlock(jobId: string, vouchers: { id: string; code: string }[]): string {
+  const lines = [':local n 0'];
+  for (const v of vouchers) {
+    const where = `name=${rosStr(v.code)} and comment=${rosStr(`hzc:${v.id}`)}`;
+    lines.push(
+      `/ip hotspot active remove [find where user=${rosStr(v.code)}]`,
+      `:set n ($n + [:len [/ip hotspot user find where ${where}]])`,
+      `/ip hotspot user remove [find where ${where}]`,
+    );
+  }
+  lines.push(emit(rosStr(`J|${jobId}|ok|`), '$n'));
+  return guarded(lines.join('\n'), `J|${jobId}|err|The router could not delete the vouchers.`);
+}
+
+/** Deletes a user profile only while no hotspot user is on it; reports how many users are on it. */
+export function removeProfileBlock(jobId: string, profile: string): string {
+  const name = rosStr(profile);
+  return guarded(
+    [
+      `:local n [:len [/ip hotspot user find where profile=${name}]]`,
+      `:if ($n = 0) do={ /ip hotspot user profile remove [find where name=${name}] }`,
+      emit(rosStr(`J|${jobId}|ok|`), '$n'),
+    ].join('\n'),
+    `J|${jobId}|err|The router could not delete profile ${profile.replace(/[^0-9A-Za-z _:.-]/g, '')}.`,
+  );
+}
+
 /** Closes a user's sessions; with a MAC address only that device. */
 export function disconnectBlock(jobId: string, code: string, mac: string | null): string {
   const where = `user=${rosStr(code)}${mac ? ` and mac-address=${rosStr(mac.toUpperCase())}` : ''}`;

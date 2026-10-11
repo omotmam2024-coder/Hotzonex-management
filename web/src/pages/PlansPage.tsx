@@ -4,6 +4,8 @@ import { PageHeader } from '../components/PageHeader';
 import { Alert, Badge, Button, Card, Checkbox, Field, Select, Spinner, TextInput } from '../components/ui';
 import { friendlyError } from '../lib/errors';
 import { formatDuration, formatSSP } from '../lib/format';
+import { invokeFunction } from '../lib/functions';
+import { RouterTimeoutError, waitForJob } from '../lib/jobs';
 import { parseMikroticketProfile, profileLabel } from '../lib/mikroticket';
 import { usePlans, useRouters } from '../lib/queries';
 import { supabase } from '../lib/supabase';
@@ -344,6 +346,35 @@ export function PlansPage() {
   const routerProfiles = useRouterProfiles();
   const [editing, setEditing] = useState<PlanForm | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const queryClient = useQueryClient();
+  const remove = useMutation({
+    mutationFn: async (p: Plan) => {
+      if (
+        !window.confirm(
+          `Delete plan ${p.name}? Its profile is deleted from your routers too. If hotspot users still use that profile, the router keeps it and the plan is only switched off.`,
+        )
+      )
+        return null;
+      const r = await invokeFunction<{ deleted?: boolean; removing?: number; job_ids?: string[] }>('delete-items', { action: 'delete_plan', id: p.id });
+      if (r.deleted) return `${p.name} deleted.`;
+      // The routers delete the profile first; the plan goes once they have.
+      try {
+        const jobs = await Promise.all((r.job_ids ?? []).map((id) => waitForJob(id)));
+        const failed = jobs.find((j) => j.status === 'failed');
+        if (failed) throw new Error(String((failed.result as { error?: string } | null)?.error ?? 'The router could not delete the profile.'));
+        return `${p.name} deleted, and its profile removed from the router.`;
+      } catch (err) {
+        if (err instanceof RouterTimeoutError) {
+          return `${p.name} is switched off. Its profile is deleted from the router as soon as the router is reachable, then the plan disappears.`;
+        }
+        throw err;
+      }
+    },
+    onSuccess: (text) => {
+      if (text) setNotice(text);
+    },
+    onSettled: () => void queryClient.invalidateQueries({ queryKey: ['plans'] }),
+  });
   const usedProfiles = new Set((plans.data ?? []).map((p) => p.router_profile_name));
   // Profiles on the router that are not plans yet (no price in their name, e.g. Guest): the admin can make them plans.
   const withoutPlan = routerProfiles.filter((r) => isOwnProfile(r.name) && !usedProfiles.has(r.name));
@@ -385,6 +416,7 @@ export function PlansPage() {
       />
 
       {notice && <Alert tone="success">{notice}</Alert>}
+      {remove.error && <Alert tone="error">{remove.error.message}</Alert>}
       {editing && (
         <PlanEditor
           key={editing.id ?? 'new'}
@@ -450,16 +482,29 @@ export function PlansPage() {
                   {profileLabel(p.router_profile_name)}
                 </dd>
               </dl>
-              <Button
-                variant="secondary"
-                className="mt-4 w-full"
-                onClick={() => {
-                  setNotice(null);
-                  setEditing(toForm(p, routerProfiles));
-                }}
-              >
-                Edit
-              </Button>
+              <div className="mt-4 flex gap-2">
+                <Button
+                  variant="secondary"
+                  className="flex-1"
+                  onClick={() => {
+                    setNotice(null);
+                    remove.reset();
+                    setEditing(toForm(p, routerProfiles));
+                  }}
+                >
+                  Edit
+                </Button>
+                <Button
+                  variant="danger"
+                  disabled={remove.isPending}
+                  onClick={() => {
+                    setNotice(null);
+                    remove.mutate(p);
+                  }}
+                >
+                  {remove.isPending && remove.variables?.id === p.id ? <Spinner /> : null} Delete
+                </Button>
+              </div>
             </div>
           </Card>
         ))}

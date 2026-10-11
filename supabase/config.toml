@@ -41,3 +41,6 @@ verify_jwt = false
 
 [functions.tunnel]
 verify_jwt = false
+
+[functions.delete-items]
+verify_jwt = true

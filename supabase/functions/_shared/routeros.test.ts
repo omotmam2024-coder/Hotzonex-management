@@ -15,6 +15,8 @@ import {
   profileCommands,
   pushBlock,
   removeBlock,
+  removeProfileBlock,
+  removeVouchersBlock,
   rosStr,
   scriptBuilder,
   setupScript,
@@ -169,6 +171,8 @@ test('every command block is balanced and builder ends with the marker', () => {
     disconnectBlock(JOB, '12345678', 'aa:bb:cc:dd:ee:ff'),
     kickBlock(['12345678']),
     removeBlock([{ id: V1, code: '12345678' }]),
+    removeVouchersBlock(JOB, [{ id: V1, code: '12345678' }, { id: JOB, code: '87654321' }]),
+    removeProfileBlock(JOB, 'profile_1Hr-se:-co:1000-ut:0d 01:00:00'),
   ];
   for (const b of blocks) assertBalanced(b);
 
@@ -272,4 +276,14 @@ test('portal install downloads every page before switching the login folder, and
   const restore = restorePortalBlock(JOB, 'hsprof1', 'flash/hotspot');
   assertBalanced(restore);
   assert.match(restore, /html-directory="flash\/hotspot"/);
+});
+
+test('deleting vouchers removes only tagged users; a profile goes only while no user is on it', () => {
+  const v = removeVouchersBlock(JOB, [{ id: V1, code: '12345678' }]);
+  assert.ok(v.includes(`/ip hotspot user remove [find where name="12345678" and comment="hzc:${V1}"]`));
+  assert.ok(v.includes('/ip hotspot active remove [find where user="12345678"]'));
+  assert.ok(v.includes(`"J|${JOB}|ok|" . $n`));
+  const p = removeProfileBlock(JOB, 'Guest');
+  assert.ok(p.includes(':local n [:len [/ip hotspot user find where profile="Guest"]]'));
+  assert.ok(p.includes(':if ($n = 0) do={ /ip hotspot user profile remove [find where name="Guest"] }'));
 });
