@@ -31,6 +31,17 @@ function handler(req: IncomingMessage, res: ServerResponse) {
   req.on('data', (c) => (raw += c));
   req.on('end', () => {
     if (path === '/system/resource') return send(200, { 'board-name': 'hAP ax2', version: '7.19.6 (stable)', uptime: '1d2h' });
+    // Filtered reads come as JSON "print" commands, like RouterOS expects; URL query strings are not used.
+    if (url.search) return send(400, { error: 400, message: 'Bad Request', detail: 'query strings are not decoded reliably' });
+    if (req.method === 'POST' && path.endsWith('/print')) {
+      const rows = state[path.slice(0, -'/print'.length)];
+      if (!rows) return send(404, { error: 404, message: 'Not Found' });
+      const body = JSON.parse(raw || '{}') as { '.query'?: string[]; '.proplist'?: string[] };
+      const words = (body['.query'] ?? []).map((w) => [w.slice(0, w.indexOf('=')), w.slice(w.indexOf('=') + 1)] as const);
+      const picked = rows.filter((r) => words.every(([k, v]) => r[k] === v));
+      const props = body['.proplist'];
+      return send(200, props ? picked.map((r) => Object.fromEntries(props.filter((k) => k in r).map((k) => [k, r[k]]))) : picked);
+    }
     const idMatch = /^(.*)\/(\*[0-9A-Z]+)$/.exec(path);
     const table = idMatch ? idMatch[1]! : path;
     const rows = state[table];
@@ -85,6 +96,11 @@ test('existing profiles are left alone; missing ones are added', async () => {
   assert.equal(await ensureProfileExists(client(), { name: 'mine', rateLimit: '9M/9M', sharedUsers: 5 }), false);
   assert.equal(state['/ip/hotspot/user/profile']![1]!['rate-limit'], '1M/1M');
   assert.equal(await ensureProfileExists(client(), { name: 'hzc-1h', rateLimit: '2M/2M', sharedUsers: 1 }), true);
+  assert.deepEqual(writes, ['PUT /ip/hotspot/user/profile']);
+  // MikroTicket names have spaces and colons; they are found, never added twice.
+  const mt = 'profile_1Hr-se:-co:1000-ut:0d 01:00:00-vl:1d 12:00:00';
+  state['/ip/hotspot/user/profile']!.push({ '.id': '*9', name: mt, 'shared-users': '1' });
+  assert.equal(await ensureProfileExists(client(), { name: mt, rateLimit: null, sharedUsers: 1 }), false);
   assert.deepEqual(writes, ['PUT /ip/hotspot/user/profile']);
 });
 

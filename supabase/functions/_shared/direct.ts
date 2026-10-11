@@ -48,8 +48,20 @@ export class RestClient {
     this.authHeader = `Basic ${btoa(binary)}`;
   }
 
+  /**
+   * Reads a menu. Filters and field lists go in a JSON "print" request: RouterOS does not decode
+   * URL query strings reliably (commas in .proplist and spaces in names come through mangled).
+   */
   get<T = Json[]>(path: string, query?: Record<string, string>): Promise<T> {
-    return this.request<T>('GET', path, undefined, query);
+    if (!query) return this.request<T>('GET', path);
+    const body: Json = {};
+    const words: string[] = [];
+    for (const [k, v] of Object.entries(query)) {
+      if (k === '.proplist') body['.proplist'] = v.split(',');
+      else words.push(`${k}=${v}`);
+    }
+    if (words.length) body['.query'] = words;
+    return this.request<T>('POST', `${path}/print`, body);
   }
   put<T = Json>(path: string, body: Json): Promise<T> {
     return this.request<T>('PUT', path, body);
@@ -64,9 +76,8 @@ export class RestClient {
     return this.request<void>('DELETE', path);
   }
 
-  private async request<T>(method: string, path: string, body?: Json, query?: Record<string, string>): Promise<T> {
+  private async request<T>(method: string, path: string, body?: Json): Promise<T> {
     const url = new URL(this.baseUrl + path);
-    if (query) for (const [k, v] of Object.entries(query)) url.searchParams.set(k, v);
     const where = `${this.target.host}:${this.target.port}`;
     const relay = this.target.relay;
 
@@ -167,9 +178,15 @@ export async function directTest(client: RestClient): Promise<DirectTest> {
 
 /** Adds a plan's user profile only when the router has none with that name. Returns true if added. */
 export async function ensureProfileExists(client: RestClient, p: ProfileSpec): Promise<boolean> {
-  const existing = await client.get<Json[]>('/ip/hotspot/user/profile', { name: p.name });
+  const existing = await client.get<Json[]>('/ip/hotspot/user/profile', { name: p.name, '.proplist': 'name' });
   if (existing.length) return false;
-  await client.put('/ip/hotspot/user/profile', { name: p.name, 'shared-users': String(p.sharedUsers), ...(p.rateLimit ? { 'rate-limit': p.rateLimit } : {}) });
+  try {
+    await client.put('/ip/hotspot/user/profile', { name: p.name, 'shared-users': String(p.sharedUsers), ...(p.rateLimit ? { 'rate-limit': p.rateLimit } : {}) });
+  } catch (err) {
+    // Already there (e.g. made by MikroTicket): it is used as it is, never changed.
+    if (err instanceof RouterError && err.kind === 'api' && /already/i.test(err.message)) return false;
+    throw err;
+  }
   return true;
 }
 
