@@ -19,6 +19,7 @@ import {
   MAX_SENDS,
   nextPushChunk,
   openJob,
+  ownProfiles,
   plansForSync,
   portalFilesUrl,
   portalTarget,
@@ -43,6 +44,7 @@ import {
   testBlock,
   toRouterOsTime,
   usageBlock,
+  type HotspotInfo,
   type Report,
   type ScriptBuilder,
 } from '../_shared/routeros.ts';
@@ -137,6 +139,12 @@ async function jobBlock(db: SupabaseClient, router: RouterRef, job: Job): Promis
       return testBlock(job.id, router.hotspot_server ?? '');
 
     case 'sync_profiles': {
+      // A router with its own profiles keeps them; Hotzonex adds profiles only to a router that has none.
+      const { data: info } = await db.from('routers').select('hotspot_info').eq('id', router.id).maybeSingle();
+      if (ownProfiles(info?.hotspot_info as HotspotInfo | null).length > 0) {
+        await finishJob(db, job.id, true, { profiles: 0, note: 'The router has its own profiles; nothing was added.' });
+        return null;
+      }
       const plans = await plansForSync(db, router, job);
       if (!plans.length) {
         await finishJob(db, job.id, true, { profiles: 0 });

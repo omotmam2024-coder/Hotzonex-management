@@ -19,6 +19,7 @@ import {
   pushVoucher,
   readUsage,
   removeExpired,
+  removeLeftoverProfiles,
   restorePortalDirect,
   RestClient,
   RouterError,
@@ -37,6 +38,8 @@ import {
   markRemoved,
   MAX_SENDS,
   nextPushChunk,
+  ownProfiles,
+  planProfileNames,
   plansForSync,
   portalFilesUrl,
   portalTarget,
@@ -47,7 +50,7 @@ import {
   type RouterRef,
 } from '../_shared/jobs.ts';
 import { PORTAL_FILES } from '../_shared/portal.ts';
-import { toRouterOsTime } from '../_shared/routeros.ts';
+import { emptyHotspotInfo, toRouterOsTime, type HotspotInfo } from '../_shared/routeros.ts';
 import { relayRestUrl } from '../_shared/tunnel.ts';
 
 interface DirectRouter extends RouterRef {
@@ -59,10 +62,11 @@ interface DirectRouter extends RouterRef {
   username: string | null;
   password_enc: string | null;
   last_error: string | null;
+  hotspot_info: HotspotInfo | null;
 }
 
 const ROUTER_COLUMNS =
-  'id, tenant_id, name, status, connection, tunnel_ip, hotspot_server, dns_name, last_usage_at, host, port, use_https, username, password_enc, last_error';
+  'id, tenant_id, name, status, connection, tunnel_ip, hotspot_server, dns_name, last_usage_at, host, port, use_https, username, password_enc, last_error, hotspot_info';
 const BUDGET_MS = 100_000; // stay well inside the Edge Function time limit
 const LEASE_MS = BUDGET_MS + 30_000; // one worker per router at a time; expires if a worker is stopped
 const STALE_RUNNING_MS = 5 * 60_000;
@@ -136,10 +140,17 @@ async function runJob(db: SupabaseClient, router: DirectRouter, client: RestClie
     }
 
     case 'sync_profiles': {
-      const plans = await plansForSync(db, router, job);
+      // A router with its own profiles keeps them (they are its plans); Hotzonex adds profiles only
+      // to a router that has none, and removes the ones it added earlier that nothing uses.
       let added = 0;
-      for (const p of plans) if (await ensureProfileExists(client, profileOf(p))) added++;
-      await finishJob(db, job.id, true, { profiles: plans.length, added });
+      let plans = 0;
+      if (ownProfiles(router.hotspot_info).length === 0) {
+        const list = await plansForSync(db, router, job);
+        plans = list.length;
+        for (const p of list) if (await ensureProfileExists(client, profileOf(p))) added++;
+      }
+      const removed = await removeLeftoverProfiles(client, await planProfileNames(db, router));
+      await finishJob(db, job.id, true, { profiles: plans, added, removed });
       return true;
     }
 
@@ -299,6 +310,15 @@ async function checkRouter(db: SupabaseClient, router: DirectRouter, client: Res
       })
       .eq('id', router.id);
     router.status = 'online';
+
+    // The router's user profiles, kept current: a new MikroTicket profile becomes a plan (database trigger).
+    const known = router.hotspot_info?.user_profiles ?? [];
+    if (JSON.stringify(known) !== JSON.stringify(usage.userProfiles)) {
+      const info = { ...(router.hotspot_info ?? emptyHotspotInfo()), user_profiles: usage.userProfiles };
+      const { error: infoError } = await db.from('routers').update({ hotspot_info: info }).eq('id', router.id);
+      if (infoError) console.error(`Profiles not saved for ${router.name}: ${infoError.message}`);
+      else router.hotspot_info = info;
+    }
 
     const result = await applyUsage(db, router, usage);
     // User counts and first logins of every hotspot user (MikroTicket vouchers too), for the reports.

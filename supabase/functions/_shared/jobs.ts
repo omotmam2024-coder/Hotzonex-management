@@ -41,6 +41,22 @@ export const PLAN_COLUMNS = 'id, uptime_seconds, rate_limit, data_limit_mb, shar
 export const MAX_SENDS = 3;
 
 export const str = (v: unknown) => (typeof v === 'string' ? v : null);
+
+/**
+ * User profiles the router owner made (MikroTicket's, the admin's own): not RouterOS's "default" and
+ * not one Hotzonex added (hzc-…). A router with any of these keeps its own profiles: Hotzonex adds
+ * none of its own to it (same rule as public.router_own_profiles in the database).
+ */
+export function ownProfiles(info: Pick<HotspotInfo, 'user_profiles'> | null | undefined): string[] {
+  return (info?.user_profiles ?? []).map((p) => p.name).filter((n) => n && n !== 'default' && !n.startsWith('hzc-'));
+}
+
+/** Profile names of every plan of the router's business (switched-off plans too). */
+export async function planProfileNames(db: SupabaseClient, router: RouterRef): Promise<Set<string>> {
+  const { data, error } = await db.from('plans').select('router_profile_name').eq('tenant_id', router.tenant_id);
+  if (error) throw new Error(`Could not load plans: ${error.message}`);
+  return new Set((data ?? []).map((p) => p.router_profile_name as string));
+}
 export const profileOf = (p: PlanRow): ProfileSpec => ({ name: p.router_profile_name, rateLimit: p.rate_limit, sharedUsers: p.shared_users });
 
 export async function finishJob(db: SupabaseClient, jobId: string, ok: boolean, result: Record<string, unknown>): Promise<void> {
@@ -89,9 +105,11 @@ export async function applyTestResult(db: SupabaseClient, router: RouterRef, job
   const { data: plans } = await db.from('plans').select('name, router_profile_name').eq('tenant_id', router.tenant_id).eq('is_active', true);
   const onRouter = new Set(t.hotspot.user_profiles.map((p) => p.name));
   const missing = (plans ?? []).filter((p) => !onRouter.has(p.router_profile_name as string));
-  if (missing.length) {
+  // A router with its own profiles keeps them: its profiles become plans; nothing is added to it.
+  const usesOwnProfiles = ownProfiles(t.hotspot).length > 0;
+  if (missing.length && !usesOwnProfiles) {
     warnings.push(
-      `Hotzonex will add a user profile for these plans: ${missing.map((p) => p.name).join(', ')}. The router's existing profiles are not changed.`,
+      `This router has no user profiles yet, so Hotzonex will add one for each plan: ${missing.map((p) => p.name).join(', ')}.`,
     );
   }
 
@@ -105,7 +123,7 @@ export async function applyTestResult(db: SupabaseClient, router: RouterRef, job
   router.dns_name = dnsName;
   if (wasPending) {
     await db.from('audit_log').insert({ tenant_id: router.tenant_id, user_id: job.created_by, action: 'router.added', details: { router_id: router.id, name: router.name } });
-    await db.from('router_jobs').insert({ router_id: router.id, type: 'sync_profiles', payload: {}, created_by: job.created_by });
+    if (!usesOwnProfiles) await db.from('router_jobs').insert({ router_id: router.id, type: 'sync_profiles', payload: {}, created_by: job.created_by });
   }
   await finishJob(db, job.id, true, { model: t.board, ros_version: t.version, uptime: t.uptime, hotspot_server: choice.server, dns_name: dnsName, warnings });
 }

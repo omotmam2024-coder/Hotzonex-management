@@ -269,12 +269,16 @@ export interface RouterUser {
  * Who is online, the counters of used voucher users (same shape as the cloud report), and every
  * hotspot user on the router (for the user counts and the router-login sales).
  */
-export async function readUsage(client: RestClient): Promise<{ sessions: ActiveRow[]; users: UserUsage[]; allUsers: RouterUser[]; info: Json }> {
-  const [info, active, users] = await Promise.all([
+export async function readUsage(
+  client: RestClient,
+): Promise<{ sessions: ActiveRow[]; users: UserUsage[]; allUsers: RouterUser[]; userProfiles: HotspotInfo['user_profiles']; info: Json }> {
+  const [info, active, users, profiles] = await Promise.all([
     client.get<Json>('/system/resource'),
     client.get<Json[]>('/ip/hotspot/active', { '.proplist': 'user,mac-address,address,uptime,bytes-in,bytes-out' }),
     client.get<Json[]>('/ip/hotspot/user', { '.proplist': 'name,profile,comment,uptime,bytes-in,bytes-out' }),
+    client.get<Json[]>('/ip/hotspot/user/profile', { '.proplist': 'name,rate-limit,shared-users' }),
   ]);
+  const userProfiles = profiles.map((h) => ({ name: s(h.name), rate_limit: s(h['rate-limit']), shared_users: s(h['shared-users']) }));
   const unique = new Map<string, ActiveRow>();
   for (const a of active) {
     const code = s(a.user);
@@ -296,7 +300,27 @@ export async function readUsage(client: RestClient): Promise<{ sessions: ActiveR
   const allUsers = users
     .filter((u) => s(u.name))
     .map((u) => ({ name: s(u.name), profile: s(u.profile), uptime: fromRouterOsTime(s(u.uptime)), comment: s(u.comment) }));
-  return { sessions: [...unique.values()], users: usage, allUsers, info };
+  return { sessions: [...unique.values()], users: usage, allUsers, userProfiles, info };
+}
+
+/**
+ * Removes user profiles Hotzonex added earlier (hzc-…) that no plan uses any more and no hotspot
+ * user is on. The router owner's own profiles are never touched. Returns the removed names.
+ */
+export async function removeLeftoverProfiles(client: RestClient, keep: Set<string>): Promise<string[]> {
+  const [profiles, users] = await Promise.all([
+    client.get<Json[]>('/ip/hotspot/user/profile', { '.proplist': '.id,name' }),
+    client.get<Json[]>('/ip/hotspot/user', { '.proplist': 'profile' }),
+  ]);
+  const inUse = new Set(users.map((u) => s(u.profile)));
+  const removed: string[] = [];
+  for (const p of profiles) {
+    const name = s(p.name);
+    if (!name.startsWith('hzc-') || keep.has(name) || inUse.has(name)) continue;
+    await ignoreGone(client.post('/ip/hotspot/user/profile/remove', { '.id': s(p['.id']) }));
+    removed.push(name);
+  }
+  return removed;
 }
 
 /** Removes an expired voucher user if it is offline and still carries the voucher's tag. Returns true when gone. */

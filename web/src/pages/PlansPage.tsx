@@ -98,25 +98,6 @@ function slugProfile(name: string): string {
 
 const wholeNumber = (v: string) => (/^\d+$/.test(v) ? Number(v) : NaN);
 
-/** A plan row for a router profile made by MikroTicket, using the details in its name. */
-function planFromRouterProfile(r: RouterProfile, color: string) {
-  const mt = parseMikroticketProfile(r.name);
-  if (!mt || mt.price <= 0) return null;
-  const shared = Number(r.shared_users);
-  return {
-    name: mt.label,
-    price_ssp: mt.price,
-    uptime_seconds: mt.uptimeSeconds,
-    validity_seconds: mt.validitySeconds,
-    rate_limit: RATE_RE.test(r.rate_limit) ? r.rate_limit : null,
-    data_limit_mb: null,
-    shared_users: shared >= 1 && shared <= 50 ? shared : 1,
-    color,
-    router_profile_name: r.name,
-    is_active: true,
-  };
-}
-
 /** Every user profile found on the routers at their last check, without duplicates. */
 function useRouterProfiles(): RouterProfile[] {
   const routers = useRouters();
@@ -124,6 +105,9 @@ function useRouterProfiles(): RouterProfile[] {
   for (const r of routers.data ?? []) for (const up of r.hotspot_info?.user_profiles ?? []) if (!byName.has(up.name)) byName.set(up.name, up);
   return [...byName.values()];
 }
+
+/** Profiles the router owner made: not RouterOS's "default" and not one Hotzonex added (hzc-…). */
+const isOwnProfile = (name: string) => Boolean(name) && name !== 'default' && !name.startsWith('hzc-');
 
 function PlanEditor({
   initial,
@@ -137,7 +121,10 @@ function PlanEditor({
   onClose: (saved: boolean) => void;
 }) {
   const queryClient = useQueryClient();
-  const [form, setForm] = useState<PlanForm>(initial.profileMode === 'router' && !routerProfiles.length ? { ...initial, profileMode: 'new' } : initial);
+  // Hotzonex makes its own profile only when the routers have none of their own.
+  const canMakeProfile = !routerProfiles.some((r) => isOwnProfile(r.name)) || initial.profileMode === 'new';
+  const choices = routerProfiles.filter((r) => isOwnProfile(r.name) || r.name === 'default' || r.name === initial.profileName);
+  const [form, setForm] = useState<PlanForm>(initial.profileMode === 'router' && !choices.length ? { ...initial, profileMode: 'new' } : initial);
   const set = <K extends keyof PlanForm>(key: K, value: PlanForm[K]) => setForm((f) => ({ ...f, [key]: value }));
   const routerProfile = form.profileMode === 'router' ? routerProfiles.find((r) => r.name === form.profileName) : undefined;
 
@@ -285,18 +272,18 @@ function PlanEditor({
                 ? `Uses the router's own profile as it is: speed ${routerProfile.rate_limit || 'no limit'}, ${routerProfile.shared_users || 1} device(s) per code. Hotzonex never changes it.`
                 : form.profileMode === 'new'
                   ? 'Hotzonex adds this profile, with the speed and shared users above, to routers that do not have it.'
-                  : 'Choose one of the profiles on your router, e.g. the ones MikroTicket made.'
+                  : 'Choose one of the profiles on your router, e.g. the ones MikroTicket made. Hotzonex adds its own profile only to a router that has none.'
             }
           >
             <Select value={form.profileMode === 'new' ? NEW_PROFILE : form.profileName} onChange={(e) => chooseProfile(e.target.value)}>
               {form.profileMode === 'router' && !routerProfile && <option value={form.profileName}>Choose a profile…</option>}
-              {routerProfiles.map((r) => (
+              {choices.map((r) => (
                 <option key={r.name} value={r.name} disabled={usedProfiles.has(r.name) && r.name !== initial.profileName}>
                   {profileLabel(r.name)}
                   {usedProfiles.has(r.name) && r.name !== initial.profileName ? ' — used by another plan' : ''}
                 </option>
               ))}
-              <option value={NEW_PROFILE}>+ New profile (Hotzonex adds it to the router)</option>
+              {canMakeProfile && <option value={NEW_PROFILE}>+ New profile (Hotzonex adds it to the router)</option>}
             </Select>
           </Field>
           {form.profileMode === 'new' && (
@@ -354,42 +341,36 @@ function PlanEditor({
 
 export function PlansPage() {
   const plans = usePlans();
-  const queryClient = useQueryClient();
   const routerProfiles = useRouterProfiles();
   const [editing, setEditing] = useState<PlanForm | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const usedProfiles = new Set((plans.data ?? []).map((p) => p.router_profile_name));
-  const usedNames = new Set((plans.data ?? []).map((p) => p.name.toLowerCase()));
-  const importable = routerProfiles
-    .filter((r) => !usedProfiles.has(r.name))
-    .map((r, i) => planFromRouterProfile(r, SWATCHES[i % SWATCHES.length] ?? '#16a34a'))
-    .filter((p): p is NonNullable<typeof p> => p !== null && !usedNames.has(p.name.toLowerCase()));
+  // Profiles on the router that are not plans yet (no price in their name, e.g. Guest): the admin can make them plans.
+  const withoutPlan = routerProfiles.filter((r) => isOwnProfile(r.name) && !usedProfiles.has(r.name));
 
-  const importPlans = useMutation({
-    mutationFn: async () => {
-      const { error } = await supabase.from('plans').insert(importable);
-      if (error) throw new Error(friendlyError(error));
-      return importable.length;
-    },
-    onSuccess: (n) => {
-      setNotice(`${n} plan(s) added from your router's MikroTicket profiles. Vouchers of these plans use those profiles as they are.`);
-      void queryClient.invalidateQueries({ queryKey: ['plans'] });
-    },
-  });
+  function planFor(r: RouterProfile): PlanForm {
+    const mt = parseMikroticketProfile(r.name);
+    const up = mt ? splitDuration(mt.uptimeSeconds) : null;
+    return {
+      ...NEW_PLAN,
+      name: mt?.label ?? r.name.slice(0, 40),
+      price: mt && mt.price > 0 ? String(mt.price) : '',
+      ...(up ? { uptimeAmount: up.amount, uptimeUnit: up.unit } : {}),
+      hasValidity: mt ? mt.validitySeconds !== null : true,
+      profileName: r.name,
+      profileTouched: true,
+      profileMode: 'router',
+    };
+  }
 
   return (
     <div className="space-y-4">
       <PageHeader
         title="Plans"
-        subtitle="Price plans for vouchers. Each plan uses a user profile on your router, such as the ones MikroTicket made."
+        subtitle="Your router's user profiles are your plans: each MikroTicket profile (with a price and a time) becomes a plan by itself, and new ones are picked up within a minute. Hotzonex adds its own profiles only to a router that has none."
         actions={
           !editing && (
             <div className="flex flex-wrap gap-2">
-              {importable.length > 0 && (
-                <Button variant="secondary" disabled={importPlans.isPending} onClick={() => importPlans.mutate()}>
-                  {importPlans.isPending && <Spinner />} Import {importable.length} MikroTicket profile{importable.length === 1 ? '' : 's'}
-                </Button>
-              )}
               <Button
                 onClick={() => {
                   setNotice(null);
@@ -402,7 +383,6 @@ export function PlansPage() {
           )
         }
       />
-      {importPlans.error && <Alert tone="error">{importPlans.error.message}</Alert>}
 
       {notice && <Alert tone="success">{notice}</Alert>}
       {editing && (
@@ -416,6 +396,27 @@ export function PlansPage() {
             if (saved) setNotice('Plan saved. Profiles already on the router are used as they are and never changed; a new profile is added to routers within a few seconds.');
           }}
         />
+      )}
+
+      {!editing && withoutPlan.length > 0 && (
+        <Card>
+          <h2 className="font-bold text-slate-900">Other profiles on your router</h2>
+          <p className="text-sm text-slate-600">These have no price in their name, so they are not plans yet. Give one a price to sell it.</p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {withoutPlan.map((r) => (
+              <Button
+                key={r.name}
+                variant="secondary"
+                onClick={() => {
+                  setNotice(null);
+                  setEditing(planFor(r));
+                }}
+              >
+                {profileLabel(r.name)} → make a plan
+              </Button>
+            ))}
+          </div>
+        </Card>
       )}
 
       {plans.isLoading && <Spinner className="h-8 w-8 text-brand-600" />}

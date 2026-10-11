@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { after, before, test } from 'node:test';
-import { closeSessions, directTest, disableVoucher, ensureProfileExists, installPortalDirect, pushVoucher, readUsage, removeExpired, restorePortalDirect, RestClient, RouterError, userComments } from './direct.ts';
+import { closeSessions, directTest, removeLeftoverProfiles, disableVoucher, ensureProfileExists, installPortalDirect, pushVoucher, readUsage, removeExpired, restorePortalDirect, RestClient, RouterError, userComments } from './direct.ts';
 
 type Row = Record<string, string>;
 const state: Record<string, Row[]> = {};
@@ -168,4 +168,21 @@ test('portal install downloads every page first, then switches the profile by na
   await restorePortalDirect(client(), 'hsprof1', 'flash/hotspot');
   assert.equal(state['/ip/hotspot/profile']![0]!['html-directory'], 'flash/hotspot');
   await assert.rejects(installPortalDirect(client(), 'nope', 'https://x', ['login.html']), /was not found/);
+});
+
+test('profiles Hotzonex added earlier are removed only when no plan and no user needs them', async () => {
+  reset();
+  state['/ip/hotspot/user/profile'] = [
+    { '.id': '*1', name: 'default' },
+    { '.id': '*2', name: 'profile_1Hr-se:-co:1000' },
+    { '.id': '*3', name: 'hzc-2h' },
+    { '.id': '*4', name: 'hzc-1d' },
+    { '.id': '*5', name: 'hzc-1w' },
+  ];
+  state['/ip/hotspot/user'] = [{ '.id': '*A', name: '11112222', profile: 'hzc-1d', comment: 'my own user', uptime: '0s' }];
+  const removed = await removeLeftoverProfiles(client(), new Set(['hzc-1w']));
+  assert.deepEqual(removed, ['hzc-2h']);
+  assert.deepEqual(state['/ip/hotspot/user/profile']!.map((p) => p.name), ['default', 'profile_1Hr-se:-co:1000', 'hzc-1d', 'hzc-1w']);
+  const usage = await readUsage(client());
+  assert.deepEqual(usage.userProfiles.map((p) => p.name), ['default', 'profile_1Hr-se:-co:1000', 'hzc-1d', 'hzc-1w']);
 });
