@@ -16,9 +16,10 @@ const VOID_WINDOW_MS = 24 * 3600 * 1000;
 export interface SaleListRow {
   sale_id: string;
   sold_at: string;
-  voucher_id: string;
+  /** null for a router voucher (e.g. MikroTicket) counted when it was activated on the router. */
+  voucher_id: string | null;
   code: string;
-  plan_id: string;
+  plan_id: string | null;
   plan_name: string;
   plan_color: string;
   amount_ssp: number;
@@ -219,7 +220,7 @@ export function SalesPage() {
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
         <Card>
-          <div className="text-sm text-slate-500">Vouchers sold</div>
+          <div className="text-sm text-slate-500">Vouchers sold / activated</div>
           <div className="text-3xl font-extrabold tabular-nums">{formatNumber(first?.total_sold ?? 0)}</div>
         </Card>
         <Card>
@@ -234,6 +235,12 @@ export function SalesPage() {
         )}
       </div>
 
+      {!isSeller && (
+        <p className="text-sm text-slate-600">
+          Includes every activated voucher: Hotzonex vouchers when sold or at their first login, and MikroTicket (router) vouchers at the moment they were
+          first used on the router, at their plan's price.
+        </p>
+      )}
       {sales.error && <Alert tone="error">{friendlyError(sales.error)}</Alert>}
 
       <Card className="!p-0">
@@ -254,7 +261,7 @@ export function SalesPage() {
             </thead>
             <tbody>
               {rows.map((s) => {
-                const canVoid = isAdmin && !s.voided_at && Date.now() - new Date(s.sold_at).getTime() < VOID_WINDOW_MS;
+                const canVoid = isAdmin && s.voucher_id !== null && !s.voided_at && Date.now() - new Date(s.sold_at).getTime() < VOID_WINDOW_MS;
                 return (
                   <tr key={s.sale_id} className={`border-b border-slate-100 last:border-0 ${s.voided_at ? 'bg-red-50/50' : ''}`}>
                     <td className="whitespace-nowrap px-4 py-2">{formatJubaTime(s.sold_at)}</td>

@@ -485,17 +485,18 @@ export function ReportsPage() {
             </table>
           </Section>
 
-          <Section title="Users who logged in on the router">
+          <Section title="Router vouchers activated or online">
             <p className="mb-2 text-sm text-slate-600">
-              Hotspot users seen online in this period, including MikroTicket vouchers. A user's <strong>first login</strong> counts as a sale at its plan's
-              price; users who had logged in before are listed without a price.
+              MikroTicket and other router vouchers activated or seen online in this period. A voucher counts as a sale, at its plan's price, when it is
+              <strong> activated</strong> (first used on the router), even if it logged in and out between two checks. Vouchers already used before
+              Hotzonex started watching the router are listed without a price.
             </p>
             <table className="w-full text-left text-sm">
               <thead>
                 <tr>
                   <th className={th}>User</th>
                   <th className={th}>Plan</th>
-                  <th className={th}>First login</th>
+                  <th className={th}>Activated</th>
                   <th className={`${th} text-right`}>Sale</th>
                 </tr>
               </thead>
