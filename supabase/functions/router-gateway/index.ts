@@ -137,7 +137,7 @@ async function jobBlock(db: SupabaseClient, router: RouterRef, job: Job): Promis
       return testBlock(job.id, router.hotspot_server ?? '');
 
     case 'sync_profiles': {
-      const plans = await plansForSync(db, job);
+      const plans = await plansForSync(db, router, job);
       if (!plans.length) {
         await finishJob(db, job.id, true, { profiles: 0 });
         return null;
@@ -255,7 +255,7 @@ Deno.serve(async (req) => {
     const db = serviceClient();
     const { data: router } = await db
       .from('routers')
-      .select('id, name, status, host, hotspot_server, dns_name, last_usage_at')
+      .select('id, tenant_id, name, status, host, hotspot_server, dns_name, last_usage_at')
       .eq('token_hash', await sha256Hex(token))
       .eq('connection', 'cloud')
       .maybeSingle<RouterRef>();

@@ -18,9 +18,13 @@ export interface Caller {
   id: string;
   role: 'admin' | 'manager' | 'seller';
   siteId: string | null;
+  /** The caller's business; everything the caller does stays inside it. */
+  tenantId: string;
+  /** Runs Hotzonex Cloud itself: may add businesses. */
+  isPlatformAdmin: boolean;
 }
 
-/** Resolves the logged-in staff member from the request's JWT and requires an active admin. */
+/** Resolves the logged-in staff member from the request's JWT and requires an active admin of an active business. */
 export async function requireAdmin(req: Request, admin: SupabaseClient): Promise<Caller> {
   const token = req.headers.get('Authorization')?.replace(/^Bearer\s+/i, '');
   if (!token) throw new HttpError(401, 'Please log in again.');
@@ -30,16 +34,32 @@ export async function requireAdmin(req: Request, admin: SupabaseClient): Promise
 
   const { data: profile, error } = await admin
     .from('profiles')
-    .select('id, role, site_id, is_active')
+    .select('id, role, site_id, is_active, tenant_id, tenants(is_active)')
     .eq('id', userData.user.id)
     .maybeSingle();
   if (error) throw new Error(`Profile lookup failed: ${error.message}`);
   if (!profile || !profile.is_active) throw new HttpError(403, 'Your staff account is not active.');
+  const tenant = profile.tenants as unknown as { is_active: boolean } | null;
+  if (!tenant?.is_active) throw new HttpError(403, 'This business is switched off. Contact Hotzonex Cloud.');
   if (profile.role !== 'admin') throw new HttpError(403, 'Only admins can do this.');
-  return { id: profile.id, role: profile.role, siteId: profile.site_id };
+
+  const { data: platform, error: platformError } = await admin
+    .from('platform_admins')
+    .select('user_id')
+    .eq('user_id', profile.id)
+    .maybeSingle();
+  if (platformError) throw new Error(`Platform admin lookup failed: ${platformError.message}`);
+  return { id: profile.id, role: profile.role, siteId: profile.site_id, tenantId: profile.tenant_id, isPlatformAdmin: !!platform };
 }
 
-export async function audit(admin: SupabaseClient, userId: string, action: string, details: Record<string, unknown>): Promise<void> {
-  const { error } = await admin.from('audit_log').insert({ user_id: userId, action, details });
+/** Like requireAdmin, but only for the people who run Hotzonex Cloud itself. */
+export async function requirePlatformAdmin(req: Request, admin: SupabaseClient): Promise<Caller> {
+  const caller = await requireAdmin(req, admin);
+  if (!caller.isPlatformAdmin) throw new HttpError(403, 'Only Hotzonex Cloud platform admins can do this.');
+  return caller;
+}
+
+export async function audit(admin: SupabaseClient, caller: Pick<Caller, 'id' | 'tenantId'>, action: string, details: Record<string, unknown>): Promise<void> {
+  const { error } = await admin.from('audit_log').insert({ tenant_id: caller.tenantId, user_id: caller.id, action, details });
   if (error) console.error(`Audit log write failed: ${error.message}`);
 }

@@ -15,12 +15,15 @@
 //   → { router_id, job_id, connection, script? }      (script for cloud routers)
 // POST { action: "update", router_id, …same fields (password blank = keep), hotspot_server?, dns_name? }
 //   → { router_id, job_id, connection, script? }
-// POST { action: "setup", router_id }  (cloud and tunnel routers) → { script }   (new token / new tunnel key)
-// POST { action: "tunnel_server" }  → { ready, relay_url, endpoint, command }   (creates the relay secret once)
+// POST { action: "setup", router_id, new_key? }  (cloud and tunnel routers) → { script }   (new token / new tunnel key;
+//   a connected tunnel router needs new_key: true, because the new key disconnects it until the script is pasted)
+// POST { action: "tunnel_server" }  → { ready, relay_url, endpoint, command? }   (creates the relay secret once;
+//   the install command, which holds the secret, only for platform admins: the tunnel server is shared)
+// Every router, site and job stays inside the caller's business.
 // POST { action: "tunnel_switch", router_id, port, username, password }  → { router_id, job_id, connection, script }
 //   moves a script-connected router to the tunnel (its script removes the hzc-cloud scheduler).
 import type { SupabaseClient } from 'npm:@supabase/supabase-js@2.117.3';
-import { audit, requireAdmin, serviceClient } from '../_shared/auth.ts';
+import { audit, type Caller, requireAdmin, serviceClient } from '../_shared/auth.ts';
 import { HttpError, readBody, serveJson } from '../_shared/cors.ts';
 import { encryptSecret } from '../_shared/crypto.ts';
 import { setupScript } from '../_shared/routeros.ts';
@@ -62,7 +65,7 @@ function parseHost(raw: string): string {
   return host;
 }
 
-async function parseFields(admin: SupabaseClient, body: Record<string, unknown>): Promise<RouterFields> {
+async function parseFields(admin: SupabaseClient, caller: Caller, body: Record<string, unknown>): Promise<RouterFields> {
   const host = parseHost(text(body, 'host', 'Address', 253));
   const port = body.port === undefined || body.port === null || body.port === '' ? 80 : Number(body.port);
   if (!Number.isInteger(port) || port < 1 || port > 65535) throw new HttpError(400, 'Port must be a number from 1 to 65535.');
@@ -72,7 +75,7 @@ async function parseFields(admin: SupabaseClient, body: Record<string, unknown>)
   // The only active site is used when none is chosen.
   let siteId = typeof body.site_id === 'string' ? body.site_id : '';
   if (!siteId) {
-    const { data: sites } = await admin.from('sites').select('id').eq('is_active', true).limit(2);
+    const { data: sites } = await admin.from('sites').select('id').eq('tenant_id', caller.tenantId).eq('is_active', true).limit(2);
     if (sites?.length !== 1) throw new HttpError(400, 'Choose a site.');
     siteId = sites[0]!.id as string;
   }
@@ -98,6 +101,7 @@ async function encryptPassword(admin: SupabaseClient, password: string): Promise
 function dbError(error: { code?: string; message: string }, name: string): never {
   if (error.code === '23505') throw new HttpError(409, `A router named "${name}" already exists. Use a different comment.`);
   if (error.code === '23503') throw new HttpError(400, 'The chosen site does not exist.');
+  if (error.code === '55000' || error.code === '42501') throw new HttpError(400, error.message);
   throw new Error(error.message);
 }
 
@@ -180,28 +184,37 @@ serveJson(async (req) => {
   if (action === 'setup') {
     const routerId = typeof body.router_id === 'string' ? body.router_id : '';
     if (!UUID_RE.test(routerId)) throw new HttpError(400, 'Router not found.');
-    const { data: router } = await admin.from('routers').select('id, name, connection, tunnel_ip, port').eq('id', routerId).maybeSingle();
+    const { data: router } = await admin
+      .from('routers')
+      .select('id, name, connection, tunnel_ip, port, status')
+      .eq('id', routerId)
+      .eq('tenant_id', caller.tenantId)
+      .maybeSingle();
     if (!router) throw new HttpError(404, 'Router not found.');
     if (router.connection === 'tunnel') {
       const t = await tunnelServer(admin);
-      if (!tunnelReady(t)) throw new HttpError(400, 'The tunnel server is not set up yet. Open Routers → Tunnel server.');
+      if (!tunnelReady(t)) throw new HttpError(400, 'The tunnel server is not set up yet. Ask Hotzonex Cloud to set it up.');
+      // Only the router keeps its private key, so a script always comes with a new key.
+      if (router.status === 'online' && body.new_key !== true) {
+        throw new HttpError(409, `${router.name} is connected. A new script gives it a new tunnel key, and it stays offline until you paste the new script on it.`);
+      }
       const prepared = await prepareTunnel(admin, t, router, (router.port as number | null) ?? 80);
       const { error } = await admin.from('routers').update(prepared.changes).eq('id', routerId);
       if (error) throw new Error(error.message);
-      await audit(admin, caller.id, 'router.tunnel_script', { router_id: routerId, name: router.name });
+      await audit(admin, caller, 'router.tunnel_script', { router_id: routerId, name: router.name });
       return { script: prepared.script };
     }
     if (router.connection !== 'cloud') throw new HttpError(400, 'This router is connected by IP address and does not use a setup script.');
     const token = newToken();
     const { error } = await admin.from('routers').update({ token_hash: await sha256Hex(token) }).eq('id', routerId);
     if (error) throw new Error(error.message);
-    await audit(admin, caller.id, 'router.setup_script', { router_id: routerId, name: router.name });
+    await audit(admin, caller, 'router.setup_script', { router_id: routerId, name: router.name });
     return { script: setupScript({ routerName: router.name, gatewayUrl: gatewayUrl(), token }) };
   }
 
   if (action === 'tunnel_server') {
     const t = await tunnelServer(admin);
-    if (!t.secret) {
+    if (!t.secret && caller.isPlatformAdmin) {
       t.secret = newToken();
       const { error } = await admin.from('app_config').insert({ key: 'tunnel_relay_secret', value: t.secret });
       if (error) {
@@ -215,18 +228,23 @@ serveJson(async (req) => {
       ready: tunnelReady(t),
       relay_url: t.relayUrl,
       endpoint: t.endpoint,
-      command: `curl -fsSL "${base}/functions/v1/tunnel?f=install" | sudo HZC_SECRET=${t.secret} bash`,
+      ...(caller.isPlatformAdmin ? { command: `curl -fsSL "${base}/functions/v1/tunnel?f=install" | sudo HZC_SECRET=${t.secret} bash` } : {}),
     };
   }
 
   if (action === 'tunnel_switch') {
     const routerId = typeof body.router_id === 'string' ? body.router_id : '';
     if (!UUID_RE.test(routerId)) throw new HttpError(400, 'Router not found.');
-    const { data: router } = await admin.from('routers').select('id, name, connection, tunnel_ip').eq('id', routerId).maybeSingle();
+    const { data: router } = await admin
+      .from('routers')
+      .select('id, name, connection, tunnel_ip')
+      .eq('id', routerId)
+      .eq('tenant_id', caller.tenantId)
+      .maybeSingle();
     if (!router) throw new HttpError(404, 'Router not found.');
     if (router.connection === 'direct') throw new HttpError(400, 'This router is reached at its public address and does not need the tunnel.');
     const t = await tunnelServer(admin);
-    if (!tunnelReady(t)) throw new HttpError(400, 'The tunnel server is not set up yet. Open Routers → Tunnel server.');
+    if (!tunnelReady(t)) throw new HttpError(400, 'The tunnel server is not set up yet. Ask Hotzonex Cloud to set it up.');
     const port = body.port === undefined || body.port === null || body.port === '' ? 80 : Number(body.port);
     if (!Number.isInteger(port) || port < 1 || port > 65535) throw new HttpError(400, 'Port must be a number from 1 to 65535.');
     const username = text(body, 'username', 'Username', 64);
@@ -242,15 +260,15 @@ serveJson(async (req) => {
     // Jobs waiting for the old connector are run through the tunnel instead.
     await admin.from('router_jobs').update({ status: 'queued', started_at: null }).eq('router_id', routerId).eq('status', 'running');
     const jobId = await queueTest(admin, routerId, caller.id, 'tunnel');
-    await audit(admin, caller.id, 'router.tunnel_switch', { router_id: routerId, name: router.name, tunnel_ip: prepared.changes.tunnel_ip });
+    await audit(admin, caller, 'router.tunnel_switch', { router_id: routerId, name: router.name, tunnel_ip: prepared.changes.tunnel_ip });
     return { router_id: routerId, job_id: jobId, connection: 'tunnel', script: prepared.script };
   }
 
   if (action !== 'create' && action !== 'update') throw new HttpError(400, 'Unknown action.');
-  const fields = await parseFields(admin, body);
+  const fields = await parseFields(admin, caller, body);
   const password = typeof body.password === 'string' ? body.password : '';
   if (password.length > 128) throw new HttpError(400, 'Router password is too long.');
-  const { data: site } = await admin.from('sites').select('id').eq('id', fields.site_id).maybeSingle();
+  const { data: site } = await admin.from('sites').select('id').eq('id', fields.site_id).eq('tenant_id', caller.tenantId).maybeSingle();
   if (!site) throw new HttpError(400, 'The chosen site does not exist.');
   const t = fields.connection === 'cloud' ? await tunnelServer(admin) : null;
   if (t && tunnelReady(t)) fields.connection = 'tunnel';
@@ -260,7 +278,12 @@ serveJson(async (req) => {
 
   if (action === 'create') {
     // A router with this name that never connected (still "pending") is replaced, so the admin can simply try again.
-    const { data: waiting } = await admin.from('routers').select('id, status').eq('name', fields.name).maybeSingle();
+    const { data: waiting } = await admin
+      .from('routers')
+      .select('id, status')
+      .eq('tenant_id', caller.tenantId)
+      .eq('name', fields.name)
+      .maybeSingle();
     if (waiting?.status === 'pending') await admin.from('routers').delete().eq('id', waiting.id);
 
     if (direct && !password) throw new HttpError(400, 'Password is required.');
@@ -310,7 +333,12 @@ serveJson(async (req) => {
   // update
   const routerId = typeof body.router_id === 'string' ? body.router_id : '';
   if (!UUID_RE.test(routerId)) throw new HttpError(400, 'Router not found.');
-  const { data: existing } = await admin.from('routers').select('id, connection, password_enc, token_hash').eq('id', routerId).maybeSingle();
+  const { data: existing } = await admin
+    .from('routers')
+    .select('id, connection, password_enc, token_hash')
+    .eq('id', routerId)
+    .eq('tenant_id', caller.tenantId)
+    .maybeSingle();
   if (!existing) throw new HttpError(404, 'Router not found.');
   // A private address keeps its current way of connecting; moving to the tunnel is "tunnel_switch".
   if (fields.connection !== 'direct') fields.connection = existing.connection === 'tunnel' ? 'tunnel' : 'cloud';
@@ -354,7 +382,7 @@ serveJson(async (req) => {
     .in('status', ['queued', 'running']);
   const jobId = await queueTest(admin, routerId, caller.id, 'update');
 
-  await audit(admin, caller.id, 'router.updated', {
+  await audit(admin, caller, 'router.updated', {
     router_id: routerId,
     name: fields.name,
     connection: fields.connection,

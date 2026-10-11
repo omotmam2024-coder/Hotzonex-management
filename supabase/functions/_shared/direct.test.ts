@@ -40,11 +40,20 @@ function handler(req: IncomingMessage, res: ServerResponse) {
     if (req.method === 'POST' && path.endsWith('/set')) {
       const rows = state[path.slice(0, -'/set'.length)] ?? [];
       const body = JSON.parse(raw) as Row;
-      const row = rows.find((r) => r.name === body.numbers || r['.id'] === body.numbers);
+      const key = body.numbers ?? body['.id'];
+      const row = rows.find((r) => r.name === key || r['.id'] === key);
       if (!row) return send(400, { error: 400, message: 'Bad Request', detail: 'no such item' });
-      const { numbers: _n, ...changes } = body;
+      const { numbers: _n, '.id': _i, ...changes } = body;
       Object.assign(row, changes);
       writes.push(`SET ${path} ${JSON.stringify(changes)}`);
+      return send(200, []);
+    }
+    if (req.method === 'POST' && path.endsWith('/remove')) {
+      const rows = state[path.slice(0, -'/remove'.length)] ?? [];
+      const ids = String((JSON.parse(raw) as Row)['.id'] ?? '').split(',');
+      if (ids.some((id) => !rows.some((r) => r['.id'] === id))) return send(400, { error: 400, message: 'Bad Request', detail: 'no such item' });
+      for (const id of ids) rows.splice(rows.findIndex((r) => r['.id'] === id), 1);
+      writes.push(`REMOVE ${path} ${ids.join(',')}`);
       return send(200, []);
     }
     if (req.method === 'POST' && path.endsWith('/print')) {
@@ -71,11 +80,8 @@ function handler(req: IncomingMessage, res: ServerResponse) {
       rows.push({ '.id': `*${rows.length + 10}`, ...body });
       return send(201, body);
     }
-    const i = rows.findIndex((r) => r['.id'] === idMatch?.[2]);
-    if (i < 0) return send(404, { error: 404, message: 'Not Found' });
-    if (req.method === 'PATCH') Object.assign(rows[i]!, JSON.parse(raw));
-    if (req.method === 'DELETE') rows.splice(i, 1);
-    return send(200, {});
+    // Ids in URL paths are not used: RouterOS does not decode them reliably.
+    return send(400, { error: 400, message: 'Bad Request', detail: 'missing or invalid resource identifier' });
   });
 }
 

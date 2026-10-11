@@ -230,10 +230,20 @@ export async function userComments(client: RestClient): Promise<Map<string, stri
   return new Map(users.map((u) => [s(u.name), s(u.comment)]));
 }
 
+/** Something that is already gone (session ended, user removed) counts as done. */
+async function ignoreGone(p: Promise<unknown>): Promise<void> {
+  try {
+    await p;
+  } catch (err) {
+    if (err instanceof RouterError && (err.kind === 'not_found' || /no such item/i.test(err.message))) return;
+    throw err;
+  }
+}
+
 export async function disableVoucher(client: RestClient, voucherId: string, code: string): Promise<{ disabled: boolean; sessions: number }> {
   const users = await client.get<Json[]>('/ip/hotspot/user', { name: code, '.proplist': '.id,comment,disabled' });
   const user = users.find((u) => s(u.comment) === `hzc:${voucherId}`);
-  if (user && s(user.disabled) !== 'true') await client.patch(`/ip/hotspot/user/${encodeURIComponent(s(user['.id']))}`, { disabled: 'yes' });
+  if (user && s(user.disabled) !== 'true') await ignoreGone(client.post('/ip/hotspot/user/set', { '.id': s(user['.id']), disabled: 'yes' }));
   const sessions = await closeSessions(client, code, null);
   return { disabled: Boolean(user), sessions };
 }
@@ -242,13 +252,8 @@ export async function closeSessions(client: RestClient, code: string, mac: strin
   const sessions = (await client.get<Json[]>('/ip/hotspot/active', { user: code, '.proplist': '.id,mac-address' })).filter(
     (a) => !mac || s(a['mac-address']).toLowerCase() === mac.toLowerCase(),
   );
-  for (const a of sessions) {
-    try {
-      await client.delete(`/ip/hotspot/active/${encodeURIComponent(s(a['.id']))}`);
-    } catch (err) {
-      if (!(err instanceof RouterError && err.kind === 'not_found')) throw err;
-    }
-  }
+  // Menu commands with the id in the body: RouterOS does not reliably decode ids in URL paths.
+  if (sessions.length) await ignoreGone(client.post('/ip/hotspot/active/remove', { '.id': sessions.map((a) => s(a['.id'])).join(',') }));
   return sessions.length;
 }
 
@@ -300,13 +305,7 @@ export async function removeExpired(client: RestClient, v: { id: string; code: s
   if (online.length) return false;
   const users = await client.get<Json[]>('/ip/hotspot/user', { name: v.code, '.proplist': '.id,comment' });
   const user = users.find((u) => s(u.comment) === `hzc:${v.id}`);
-  if (user) {
-    try {
-      await client.delete(`/ip/hotspot/user/${encodeURIComponent(s(user['.id']))}`);
-    } catch (err) {
-      if (!(err instanceof RouterError && err.kind === 'not_found')) throw err;
-    }
-  }
+  if (user) await ignoreGone(client.post('/ip/hotspot/user/remove', { '.id': s(user['.id']) }));
   return true;
 }
 

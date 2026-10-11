@@ -20,11 +20,11 @@ Deno.serve(async (req) => {
 
   try {
     const db = serviceClient();
-    const { data: router } = await db.from('routers').select('id').eq('id', routerId).maybeSingle();
+    const { data: router } = await db.from('routers').select('id, tenant_id').eq('id', routerId).maybeSingle();
     if (!router) return reply('Not found.', 404);
     const [{ data: cfg }, { data: plans }] = await Promise.all([
       db.from('portal_configs').select('template, settings').eq('router_id', routerId).maybeSingle(),
-      db.from('plans').select('name, price_ssp, uptime_seconds, color').eq('is_active', true).order('price_ssp'),
+      db.from('plans').select('name, price_ssp, uptime_seconds, color').eq('tenant_id', router.tenant_id).eq('is_active', true).order('price_ssp'),
     ]);
     const body = renderPortalFile(file as PortalFile, (cfg?.template as PortalTemplate) ?? 'classic', cfg?.settings ?? {}, (plans ?? []) as PortalPlan[]);
     return reply(body, 200, file.endsWith('.js') ? 'application/javascript; charset=utf-8' : 'text/html; charset=utf-8');

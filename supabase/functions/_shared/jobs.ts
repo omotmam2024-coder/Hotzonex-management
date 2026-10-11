@@ -6,6 +6,8 @@ import { pickHotspot, type ActiveRow, type HotspotInfo, type ProfileSpec, type U
 
 export interface RouterRef {
   id: string;
+  /** The business the router belongs to: plans and records come from it only. */
+  tenant_id: string;
   name: string;
   status: 'pending' | 'online' | 'offline';
   host: string | null;
@@ -84,7 +86,7 @@ export async function applyTestResult(db: SupabaseClient, router: RouterRef, job
   } else if (router.dns_name && choice.dns.toLowerCase() !== router.dns_name.toLowerCase()) {
     warnings.push(`The router's hotspot DNS name is "${choice.dns}", but this router is set to print "${router.dns_name}" on cards.`);
   }
-  const { data: plans } = await db.from('plans').select('name, router_profile_name').eq('is_active', true);
+  const { data: plans } = await db.from('plans').select('name, router_profile_name').eq('tenant_id', router.tenant_id).eq('is_active', true);
   const onRouter = new Set(t.hotspot.user_profiles.map((p) => p.name));
   const missing = (plans ?? []).filter((p) => !onRouter.has(p.router_profile_name as string));
   if (missing.length) {
@@ -102,7 +104,7 @@ export async function applyTestResult(db: SupabaseClient, router: RouterRef, job
   router.hotspot_server = choice.server;
   router.dns_name = dnsName;
   if (wasPending) {
-    await db.from('audit_log').insert({ user_id: job.created_by, action: 'router.added', details: { router_id: router.id, name: router.name } });
+    await db.from('audit_log').insert({ tenant_id: router.tenant_id, user_id: job.created_by, action: 'router.added', details: { router_id: router.id, name: router.name } });
     await db.from('router_jobs').insert({ router_id: router.id, type: 'sync_profiles', payload: {}, created_by: job.created_by });
   }
   await finishJob(db, job.id, true, { model: t.board, ros_version: t.version, uptime: t.uptime, hotspot_server: choice.server, dns_name: dnsName, warnings });
@@ -189,9 +191,9 @@ export async function nextPushChunk(db: SupabaseClient, router: RouterRef, job: 
 }
 
 /** Plans whose profiles a sync_profiles job covers (one plan, or every active plan). */
-export async function plansForSync(db: SupabaseClient, job: Job): Promise<PlanRow[]> {
+export async function plansForSync(db: SupabaseClient, router: RouterRef, job: Job): Promise<PlanRow[]> {
   const planId = str(job.payload.plan_id);
-  let q = db.from('plans').select(PLAN_COLUMNS);
+  let q = db.from('plans').select(PLAN_COLUMNS).eq('tenant_id', router.tenant_id);
   q = planId ? q.eq('id', planId) : q.eq('is_active', true);
   const { data, error } = await q;
   if (error) throw new Error(`Could not load plans: ${error.message}`);

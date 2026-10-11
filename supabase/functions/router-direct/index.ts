@@ -62,8 +62,9 @@ interface DirectRouter extends RouterRef {
 }
 
 const ROUTER_COLUMNS =
-  'id, name, status, connection, tunnel_ip, hotspot_server, dns_name, last_usage_at, host, port, use_https, username, password_enc, last_error';
+  'id, tenant_id, name, status, connection, tunnel_ip, hotspot_server, dns_name, last_usage_at, host, port, use_https, username, password_enc, last_error';
 const BUDGET_MS = 100_000; // stay well inside the Edge Function time limit
+const LEASE_MS = BUDGET_MS + 30_000; // one worker per router at a time; expires if a worker is stopped
 const STALE_RUNNING_MS = 5 * 60_000;
 const PUSH_CHUNK = 50;
 
@@ -120,6 +121,11 @@ async function runJob(db: SupabaseClient, router: DirectRouter, client: RestClie
         await applyTestResult(db, router, job, await directTest(client));
       } catch (err) {
         const msg = message(err);
+        // Not reachable yet (for example the tunnel script is not pasted yet): show why, try again next minute.
+        if (transient(err) && job.attempts < MAX_SENDS) {
+          await db.from('routers').update({ last_error: msg }).eq('id', router.id);
+          throw err;
+        }
         await db
           .from('routers')
           .update({ last_error: msg, ...(router.status === 'online' ? { status: 'offline' } : {}) })
@@ -130,7 +136,7 @@ async function runJob(db: SupabaseClient, router: DirectRouter, client: RestClie
     }
 
     case 'sync_profiles': {
-      const plans = await plansForSync(db, job);
+      const plans = await plansForSync(db, router, job);
       let added = 0;
       for (const p of plans) if (await ensureProfileExists(client, profileOf(p))) added++;
       await finishJob(db, job.id, true, { profiles: plans.length, added });
@@ -259,9 +265,14 @@ async function runJobs(db: SupabaseClient, router: DirectRouter, client: RestCli
       if (!done) return;
     } catch (err) {
       const msg = message(err);
-      if (transient(err) && job.attempts < MAX_SENDS) {
+      // A voided voucher must be switched off whenever the router is back, however long it is away.
+      const keepTrying = job.type === 'disable_voucher';
+      if (transient(err) && (keepTrying || job.attempts < MAX_SENDS)) {
         // Router unreachable for now: try again on the next wake-up.
-        await db.from('router_jobs').update({ status: 'queued', started_at: null, result: { ...(job.result ?? {}), last_error: msg } }).eq('id', job.id);
+        await db
+          .from('router_jobs')
+          .update({ status: 'queued', started_at: null, attempts: keepTrying ? job.attempts - 1 : job.attempts, result: { ...(job.result ?? {}), last_error: msg } })
+          .eq('id', job.id);
         return;
       }
       await finishJob(db, job.id, false, { ...(job.result ?? {}), error: msg });
@@ -274,7 +285,7 @@ async function runJobs(db: SupabaseClient, router: DirectRouter, client: RestCli
 // Minute tick: status and users report
 // ---------------------------------------------------------------------------
 
-async function checkRouter(db: SupabaseClient, router: DirectRouter, client: RestClient): Promise<boolean> {
+async function checkRouter(db: SupabaseClient, router: DirectRouter, client: RestClient, deadline: number): Promise<boolean> {
   try {
     const usage = await readUsage(client);
     await db
@@ -298,9 +309,25 @@ async function checkRouter(db: SupabaseClient, router: DirectRouter, client: Res
     });
     if (loginsError) console.error(`Router logins not recorded for ${router.name}: ${loginsError.message}`);
     if (result) {
-      for (const k of result.kick ?? []) await closeSessions(client, k.code, null);
+      // Each kick and removal on its own: one that fails is tried again next minute and does not
+      // make the router look offline.
+      for (const k of result.kick ?? []) {
+        if (Date.now() > deadline) break;
+        try {
+          await closeSessions(client, k.code, null);
+        } catch (err) {
+          console.warn(`${router.name}: could not disconnect ${k.code}: ${message(err)}`);
+        }
+      }
       const removed: string[] = [];
-      for (const r of (result.remove ?? []).slice(0, 100)) if (await removeExpired(client, r)) removed.push(r.id);
+      for (const r of (result.remove ?? []).slice(0, 100)) {
+        if (Date.now() > deadline) break;
+        try {
+          if (await removeExpired(client, r)) removed.push(r.id);
+        } catch (err) {
+          console.warn(`${router.name}: could not remove ${r.code}: ${message(err)}`);
+        }
+      }
       await markRemoved(db, router, removed);
     }
     await resumeUnfinishedPushes(db, router);
@@ -317,6 +344,24 @@ async function checkRouter(db: SupabaseClient, router: DirectRouter, client: Res
 }
 
 async function serveRouter(db: SupabaseClient, router: DirectRouter, relay: Relay | null, tick: boolean, deadline: number): Promise<string> {
+  // Another worker is busy with this router (a long push, or the previous minute's check):
+  // it also picks up newly queued jobs, so this one stops here.
+  const now = new Date();
+  const { data: leased } = await db
+    .from('routers')
+    .update({ worker_lease_until: new Date(now.getTime() + LEASE_MS).toISOString() })
+    .eq('id', router.id)
+    .or(`worker_lease_until.is.null,worker_lease_until.lt."${now.toISOString()}"`)
+    .select('id');
+  if (!leased?.length) return `${router.name}: busy`;
+  try {
+    return await serveLeased(db, router, relay, tick, deadline);
+  } finally {
+    await db.from('routers').update({ worker_lease_until: null }).eq('id', router.id);
+  }
+}
+
+async function serveLeased(db: SupabaseClient, router: DirectRouter, relay: Relay | null, tick: boolean, deadline: number): Promise<string> {
   let client: RestClient;
   try {
     client = await clientFor(db, router, relay);
@@ -325,7 +370,7 @@ async function serveRouter(db: SupabaseClient, router: DirectRouter, relay: Rela
     return `${router.name}: ${message(err)}`;
   }
   if (tick && router.status !== 'pending') {
-    const reachable = await checkRouter(db, router, client);
+    const reachable = await checkRouter(db, router, client, deadline);
     if (!reachable) return `${router.name}: offline`;
   }
   await runJobs(db, router, client, deadline);
