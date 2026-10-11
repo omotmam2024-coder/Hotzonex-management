@@ -1,7 +1,8 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { HotspotSetup, RouterConnectionStatus, SetupScriptCard } from '../components/RouterSetup';
+import { useTunnelServer } from '../components/TunnelServer';
 import { Alert, Button, Spinner } from '../components/ui';
 import { friendlyError } from '../lib/errors';
 import { invokeFunction } from '../lib/functions';
@@ -27,7 +28,7 @@ type Phase =
   | { kind: 'idle' }
   | { kind: 'saving' }
   | { kind: 'testing'; routerId: string }
-  | { kind: 'setup'; routerId: string; script: string; host: string }
+  | { kind: 'setup'; routerId: string; script: string; host: string; connection: RouterConnection }
   | { kind: 'success'; routerId: string; result: TestConnectionResult }
   | { kind: 'failed'; message: string; routerId?: string };
 
@@ -53,6 +54,9 @@ export function RouterFormPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [phase, setPhase] = useState<Phase>({ kind: 'idle' });
   const [formError, setFormError] = useState<string | null>(null);
+  const [searchParams] = useSearchParams();
+  const tunnelServer = useTunnelServer();
+  const tunnelReady = Boolean(tunnelServer.data?.ready);
 
   const existing = useQuery({
     queryKey: ['router', id],
@@ -86,7 +90,9 @@ export function RouterFormPage() {
   }, [form.site_id, activeSites]);
 
   const set = <K extends keyof FormState>(key: K, value: FormState[K]) => setForm((f) => ({ ...f, [key]: value }));
-  const hasPassword = isEdit && existing.data?.connection === 'direct';
+  const hasPassword = isEdit && (existing.data?.connection === 'direct' || existing.data?.connection === 'tunnel');
+  // Moving a script-connected router to the tunnel (no scheduler on the router).
+  const switchToTunnel = isEdit && existing.data?.connection === 'cloud' && tunnelReady && searchParams.get('tunnel') === '1';
 
   function validate(): string | null {
     if (!form.host.trim()) return 'Enter the router address, for example 192.168.88.1.';
@@ -94,6 +100,7 @@ export function RouterFormPage() {
     if (!Number.isInteger(port) || port < 1 || port > 65535) return 'Port must be a number from 1 to 65535.';
     if (!form.username.trim()) return 'Enter the router username.';
     if (!form.site_id) return 'Choose a site.';
+    if (switchToTunnel && !form.password) return 'Enter the router password. Hotzonex logs in to the router through the tunnel.';
     return null;
   }
 
@@ -107,7 +114,7 @@ export function RouterFormPage() {
     let routerId = id;
     try {
       const res = await invokeFunction<{ router_id: string; job_id: string; connection: RouterConnection; script?: string }>('add-router', {
-        action: isEdit ? 'update' : 'create',
+        action: switchToTunnel ? 'tunnel_switch' : isEdit ? 'update' : 'create',
         router_id: id,
         host: form.host.trim(),
         port: Number(form.port || '80'),
@@ -120,7 +127,7 @@ export function RouterFormPage() {
       routerId = res.router_id;
       setForm((f) => ({ ...f, password: '' }));
       if (res.script) {
-        setPhase({ kind: 'setup', routerId: res.router_id, script: res.script, host: form.host.trim() });
+        setPhase({ kind: 'setup', routerId: res.router_id, script: res.script, host: form.host.trim(), connection: res.connection });
         return;
       }
       // Direct routers are checked straight away; script-connected ones on their next call.
@@ -159,13 +166,21 @@ export function RouterFormPage() {
     return (
       <div className="max-w-2xl space-y-4">
         {header('Connect router')}
-        <Alert tone="info">
-          <strong>{phase.host}</strong> is an address inside your router’s own network, so Hotzonex Cloud cannot open it from the internet. Connect the router
-          once with this script: it checks that your hotspot is already set up and running, then lets the router talk to Hotzonex Cloud. It does not change
-          your hotspot or its profiles.
-        </Alert>
+        {phase.connection === 'tunnel' ? (
+          <Alert tone="info">
+            <strong>{phase.host}</strong> is an address inside your router’s own network, so Hotzonex reaches the router through your tunnel server. Paste
+            this script into the router once: it checks that your hotspot is set up and running, then opens a WireGuard tunnel that stays up by itself. No
+            scheduler is added, and your hotspot and its profiles are not changed.
+          </Alert>
+        ) : (
+          <Alert tone="info">
+            <strong>{phase.host}</strong> is an address inside your router’s own network, so Hotzonex Cloud cannot open it from the internet. Connect the
+            router once with this script: it checks that your hotspot is already set up and running, then lets the router talk to Hotzonex Cloud. It does not
+            change your hotspot or its profiles.
+          </Alert>
+        )}
         <RouterConnectionStatus routerId={phase.routerId} onEdit={() => navigate(`/routers/${phase.routerId}/edit`)} />
-        <SetupScriptCard script={phase.script} />
+        <SetupScriptCard script={phase.script} kind={phase.connection === 'tunnel' ? 'tunnel' : 'cloud'} />
         <HotspotSetup routerId={phase.routerId} />
         <Button variant="secondary" onClick={() => navigate('/routers')}>
           Back to routers
@@ -199,9 +214,22 @@ export function RouterFormPage() {
 
   return (
     <div className="max-w-3xl">
-      {header(isEdit ? 'Edit Router' : 'New Router')}
+      {header(switchToTunnel ? 'Switch to tunnel' : isEdit ? 'Edit Router' : 'New Router')}
 
       <form onSubmit={handleSubmit} className="space-y-6" noValidate>
+        {switchToTunnel && (
+          <Alert tone="info">
+            Hotzonex will reach this router through your tunnel server instead of the <code>hzc-cloud</code> scheduler. Enter the router’s login and the port
+            of its <strong>www</strong> service (Winbox → IP → Services → www; yours may be 87), then paste the tunnel script you get next. The script removes
+            the scheduler.
+          </Alert>
+        )}
+        {!isEdit && tunnelReady && (
+          <p className="text-sm text-slate-600">
+            Your tunnel server is ready: a router at a local address (like 192.168.88.1) is connected through it, with no scheduler. Port = the router’s{' '}
+            <strong>www</strong> service port (Winbox → IP → Services).
+          </p>
+        )}
         <div className="flex gap-3">
           <Outlined label="Address" className="flex-1">
             <input className={inputClass} value={form.host} onChange={(e) => set('host', e.target.value)} placeholder="192.168.88.1" autoComplete="off" disabled={busy} />
@@ -286,6 +314,8 @@ export function RouterFormPage() {
             <>
               <Spinner /> {phase.kind === 'saving' ? 'Saving…' : 'Connecting…'}
             </>
+          ) : switchToTunnel ? (
+            'Switch to tunnel'
           ) : isEdit ? (
             'Save'
           ) : (

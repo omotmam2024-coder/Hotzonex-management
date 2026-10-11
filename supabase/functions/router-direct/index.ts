@@ -1,5 +1,7 @@
-// router-direct: runs work for routers added by IP address / DNS name with an admin login
-// (connection = 'direct'). Hotzonex calls each router's RouterOS REST API over the internet.
+// router-direct: runs work for routers Hotzonex calls itself, with the router's admin login:
+//   connection = 'direct' : at a public IP address / DNS name (RouterOS REST API over the internet)
+//   connection = 'tunnel' : through the admin's tunnel server (WireGuard + HTTPS relay on a VPS),
+//                           for routers without a public IP. Nothing is scheduled on the router.
 //
 // Woken by the database (pg_net), never by browsers:
 //   - right after a job is queued for a direct router   { router_id }
@@ -46,8 +48,11 @@ import {
 } from '../_shared/jobs.ts';
 import { PORTAL_FILES } from '../_shared/portal.ts';
 import { toRouterOsTime } from '../_shared/routeros.ts';
+import { relayRestUrl } from '../_shared/tunnel.ts';
 
 interface DirectRouter extends RouterRef {
+  connection: 'direct' | 'tunnel';
+  tunnel_ip: string | null;
   host: string | null;
   port: number | null;
   use_https: boolean | null;
@@ -56,7 +61,8 @@ interface DirectRouter extends RouterRef {
   last_error: string | null;
 }
 
-const ROUTER_COLUMNS = 'id, name, status, hotspot_server, dns_name, last_usage_at, host, port, use_https, username, password_enc, last_error';
+const ROUTER_COLUMNS =
+  'id, name, status, connection, tunnel_ip, hotspot_server, dns_name, last_usage_at, host, port, use_https, username, password_enc, last_error';
 const BUDGET_MS = 100_000; // stay well inside the Edge Function time limit
 const STALE_RUNNING_MS = 5 * 60_000;
 const PUSH_CHUNK = 50;
@@ -68,16 +74,37 @@ function json(body: unknown, status = 200): Response {
 const transient = (err: unknown) => err instanceof RouterError && (err.kind === 'timeout' || err.kind === 'unreachable');
 const message = (err: unknown) => (err instanceof Error ? err.message : String(err));
 
-async function clientFor(db: SupabaseClient, router: DirectRouter): Promise<RestClient> {
+interface Relay {
+  url: string;
+  secret: string;
+}
+
+async function loadRelay(db: SupabaseClient): Promise<Relay | null> {
+  const { data } = await db.from('app_config').select('key, value').in('key', ['tunnel_relay_url', 'tunnel_relay_secret']);
+  const get = (k: string) => (data ?? []).find((r) => r.key === k)?.value as string | undefined;
+  const url = get('tunnel_relay_url');
+  const secret = get('tunnel_relay_secret');
+  return url && secret ? { url, secret } : null;
+}
+
+async function clientFor(db: SupabaseClient, router: DirectRouter, relay: Relay | null): Promise<RestClient> {
   if (!router.host || !router.username || !router.password_enc) throw new RouterError('auth', 'The router address, username or password is missing. Edit the router.');
   const { data: key, error } = await db.rpc('router_secret_key');
   if (error || typeof key !== 'string') throw new Error('The router password key could not be read.');
+  const port = router.port ?? (router.use_https ? 443 : 80);
+  let via: { baseUrl: string; secret: string } | undefined;
+  if (router.connection === 'tunnel') {
+    if (!router.tunnel_ip) throw new RouterError('unreachable', 'This router has no tunnel address. Open the router and show its tunnel script again.');
+    if (!relay) throw new RouterError('unreachable', 'The tunnel server is not set up yet. Open Routers → Tunnel server.');
+    via = { baseUrl: relayRestUrl(relay.url, router.tunnel_ip, port), secret: relay.secret };
+  }
   return new RestClient({
-    host: router.host,
-    port: router.port ?? (router.use_https ? 443 : 80),
-    useHttps: Boolean(router.use_https),
+    host: router.connection === 'tunnel' ? (router.tunnel_ip ?? router.host) : router.host,
+    port,
+    useHttps: router.connection === 'tunnel' ? false : Boolean(router.use_https),
     username: router.username,
     password: await decryptSecret(router.password_enc, key),
+    relay: via,
   });
 }
 
@@ -282,10 +309,10 @@ async function checkRouter(db: SupabaseClient, router: DirectRouter, client: Res
   }
 }
 
-async function serveRouter(db: SupabaseClient, router: DirectRouter, tick: boolean, deadline: number): Promise<string> {
+async function serveRouter(db: SupabaseClient, router: DirectRouter, relay: Relay | null, tick: boolean, deadline: number): Promise<string> {
   let client: RestClient;
   try {
-    client = await clientFor(db, router);
+    client = await clientFor(db, router, relay);
   } catch (err) {
     await db.from('routers').update({ last_error: message(err) }).eq('id', router.id);
     return `${router.name}: ${message(err)}`;
@@ -310,11 +337,13 @@ Deno.serve(async (req) => {
   const deadline = Date.now() + BUDGET_MS;
 
   try {
-    let q = db.from('routers').select(ROUTER_COLUMNS).eq('connection', 'direct');
+    let q = db.from('routers').select(ROUTER_COLUMNS).in('connection', ['direct', 'tunnel']);
     if (routerId) q = q.eq('id', routerId);
     const { data, error } = await q;
     if (error) throw new Error(error.message);
-    const results = await Promise.all(((data ?? []) as DirectRouter[]).map((r) => serveRouter(db, r, routerId === null, deadline)));
+    const routers = (data ?? []) as DirectRouter[];
+    const relay = routers.some((r) => r.connection === 'tunnel') ? await loadRelay(db) : null;
+    const results = await Promise.all(routers.map((r) => serveRouter(db, r, relay, routerId === null, deadline)));
     return json({ routers: results });
   } catch (err) {
     console.error(message(err));

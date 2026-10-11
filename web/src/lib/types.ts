@@ -21,7 +21,7 @@ export interface SiteRow extends Site {
 
 export type RouterStatus = 'pending' | 'online' | 'offline';
 
-export type RouterConnection = 'cloud' | 'direct';
+export type RouterConnection = 'cloud' | 'direct' | 'tunnel';
 
 /** Read-only snapshot of the router's own hotspot setup, from its last connection test. */
 export interface HotspotInfo {
@@ -41,6 +41,8 @@ export interface RouterInfo {
   name: string;
   connection: RouterConnection;
   host: string | null;
+  /** Tunnel connection: the router's address on the tunnel server (10.99.0.x). */
+  tunnel_ip: string | null;
   port: number | null;
   use_https: boolean | null;
   username: string | null;
@@ -56,7 +58,7 @@ export interface RouterInfo {
 }
 
 export const ROUTER_COLUMNS =
-  'id, created_at, site_id, name, connection, host, port, use_https, username, hotspot_info, hotspot_server, dns_name, status, last_seen_at, model, ros_version, last_error, last_usage_at';
+  'id, created_at, site_id, name, connection, host, tunnel_ip, port, use_https, username, hotspot_info, hotspot_server, dns_name, status, last_seen_at, model, ros_version, last_error, last_usage_at';
 
 export type JobStatus = 'queued' | 'running' | 'done' | 'failed';
 

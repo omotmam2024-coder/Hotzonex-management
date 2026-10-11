@@ -4,6 +4,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../auth/AuthProvider';
 import { PageHeader } from '../components/PageHeader';
 import { HotspotSnapshot, SetupScriptCard } from '../components/RouterSetup';
+import { TunnelServerCard, useTunnelServer } from '../components/TunnelServer';
 import { Alert, Badge, Button, Card, Spinner, TextInput } from '../components/ui';
 import { friendlyError } from '../lib/errors';
 import { formatJubaTime, timeAgo } from '../lib/format';
@@ -63,13 +64,18 @@ function RouterCard({
   const [script, setScript] = useState<string | null>(null);
   const [showHotspot, setShowHotspot] = useState(false);
   const direct = router.connection === 'direct';
+  const tunnel = router.connection === 'tunnel';
+  const cloud = router.connection === 'cloud';
+  const tunnelServer = useTunnelServer();
   const setup = useMutation({
     mutationFn: () => invokeFunction<{ script: string }>('add-router', { action: 'setup', router_id: router.id }),
     onSuccess: (data) => setScript(data.script),
   });
   function showSetup() {
     const replaces = router.last_seen_at
-      ? `This makes a new setup script for ${router.name}. The connector already on the router stops working until you paste the new script. Continue?`
+      ? tunnel
+        ? `This makes a new tunnel script for ${router.name} with a new key. The tunnel stops working until you paste the new script. Continue?`
+        : `This makes a new setup script for ${router.name}. The connector already on the router stops working until you paste the new script. Continue?`
       : null;
     if (!replaces || window.confirm(replaces)) setup.mutate();
   }
@@ -90,7 +96,11 @@ function RouterCard({
         <div>
           <dt className="text-slate-500">Connection</dt>
           <dd className="break-all font-medium">
-            {direct ? `${router.host ?? '?'}:${router.port ?? ''} · ${router.username ?? ''}` : `${router.host ? `${router.host} · ` : ''}connected by script`}
+            {direct
+              ? `${router.host ?? '?'}:${router.port ?? ''} · ${router.username ?? ''}`
+              : tunnel
+                ? `tunnel ${router.tunnel_ip ?? '?'}:${router.port ?? ''} · ${router.username ?? ''} · no scheduler`
+                : `${router.host ? `${router.host} · ` : ''}connected by script (scheduler)`}
           </dd>
         </div>
         <div>
@@ -115,7 +125,22 @@ function RouterCard({
 
       {!direct && router.status === 'pending' && !router.last_seen_at && !script && (
         <div className="mt-3">
-          <Alert tone="info">This router has not called in yet. Click “Setup script” and paste it into the router’s terminal (Winbox → New Terminal).</Alert>
+          <Alert tone="info">
+            {tunnel
+              ? 'This router is not connected through the tunnel yet. Click “Tunnel script” and paste it into the router’s terminal (Winbox → New Terminal).'
+              : 'This router has not called in yet. Click “Setup script” and paste it into the router’s terminal (Winbox → New Terminal).'}
+          </Alert>
+        </div>
+      )}
+      {cloud && tunnelServer.data?.ready && (
+        <div className="mt-3">
+          <Alert tone="info">
+            This router uses the <code>hzc-cloud</code> scheduler. Your tunnel server is ready:{' '}
+            <Link to={`/routers/${router.id}/edit?tunnel=1`} className="font-semibold underline">
+              switch it to the tunnel
+            </Link>{' '}
+            so nothing is scheduled on the router.
+          </Alert>
         </div>
       )}
       {status === 'offline' && !router.last_error && (
@@ -123,7 +148,9 @@ function RouterCard({
           <Alert tone="warning">
             {direct
               ? 'The router has not answered for a while. Check that it is switched on, has internet, and is reachable at its address.'
-              : 'The router stopped calling in. Check that it is switched on and has internet. If it was reset or updated, paste its setup script again.'}
+              : tunnel
+                ? 'The router does not answer through the tunnel. Check that it is switched on and has internet, and that the tunnel server is running.'
+                : 'The router stopped calling in. Check that it is switched on and has internet. If it was reset or updated, paste its setup script again.'}
           </Alert>
         </div>
       )}
@@ -139,7 +166,7 @@ function RouterCard({
       )}
       {script && (
         <div className="mt-3">
-          <SetupScriptCard script={script} />
+          <SetupScriptCard script={script} kind={tunnel ? 'tunnel' : 'cloud'} />
         </div>
       )}
       {showHotspot && router.hotspot_info && (
@@ -166,10 +193,10 @@ function RouterCard({
         )}
         {!direct && (
           <Button variant="secondary" onClick={showSetup} disabled={setup.isPending}>
-            {setup.isPending ? <Spinner /> : null} Setup script
+            {setup.isPending ? <Spinner /> : null} {tunnel ? 'Tunnel script' : 'Setup script'}
           </Button>
         )}
-        <Button variant="secondary" onClick={() => onTest(router)} disabled={testing || (!direct && router.status === 'pending')}>
+        <Button variant="secondary" onClick={() => onTest(router)} disabled={testing || (cloud && router.status === 'pending')}>
           {testing ? (
             <>
               <Spinner /> Testing…
@@ -315,7 +342,7 @@ export function RoutersPage() {
     <div className="space-y-4">
       <PageHeader
         title="Routers"
-        subtitle="MikroTik routers, connected by IP address and login, or calling Hotzonex Cloud by themselves"
+        subtitle="MikroTik routers, reached at a public IP, through your tunnel server, or calling Hotzonex Cloud by themselves"
         actions={
           <Link
             to="/routers/new"
@@ -326,6 +353,7 @@ export function RoutersPage() {
         }
       />
 
+      <TunnelServerCard />
       {routers.isLoading && <Spinner className="h-8 w-8 text-brand-600" />}
       {routers.error && <Alert tone="error">{friendlyError(routers.error)}</Alert>}
       {routers.data?.length === 0 && (

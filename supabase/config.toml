@@ -38,3 +38,6 @@ verify_jwt = false
 # Login-portal pages, downloaded by the routers themselves (no user login; public page content only).
 [functions.portal]
 verify_jwt = false
+
+[functions.tunnel]
+verify_jwt = false

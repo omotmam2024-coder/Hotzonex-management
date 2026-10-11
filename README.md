@@ -121,6 +121,21 @@ Either way the first check only **reads** the router's hotspot servers, server p
 profiles. Hotzonex picks the running hotspot server and its DNS name automatically (you can change
 both on the router's edit page) and shows what it found under **Hotspot setup**.
 
+**No scheduler on the router: tunnel server (recommended for routers without a public IP).**
+Rent the smallest Ubuntu VPS (about US$4–6/month; one serves all routers), allow UDP 51820 and
+TCP 80/443 in the provider's firewall, then copy the install command from **Routers → Tunnel
+server** and paste it on the VPS. It installs WireGuard and an HTTPS relay (Caddy, free certificate
+on `<ip>.sslip.io`), keeps the router list in sync with Hotzonex and registers itself; the card turns
+**Ready**. From then on a router at a private address is connected with a one-time **tunnel
+script**: after checking that the hotspot is running it adds only a WireGuard interface `wg-hzc`
+(one peer: the VPS), its address `10.99.0.x`, and one firewall rule letting `10.99.0.1` reach the
+`www` port — all tagged `hotzonex-tunnel` — and removes any old `hzc-cloud` scheduler. WireGuard
+keeps the tunnel up by itself; Hotzonex checks the router every minute through the relay with the
+router's own login (stored encrypted). Port = the router's `www` service port. A router already
+connected by script shows **switch it to the tunnel** on the Routers page.
+To remove the tunnel from a router: `/ip firewall filter remove [find comment="hotzonex-tunnel"]`,
+`/ip address remove [find comment="hotzonex-tunnel"]`, `/interface wireguard remove [find name="wg-hzc"]`.
+
 If the router stays "Waiting" after an upgrade from an older RouterOS, it may not trust
 certificates yet: `/certificate settings set builtin-trust-anchors=trusted`. To disconnect a
 script-connected router: `/system scheduler remove [find name="hzc-cloud"]` and

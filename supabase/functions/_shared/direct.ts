@@ -10,6 +10,8 @@ export interface DirectTarget {
   useHttps: boolean;
   username: string;
   password: string;
+  /** Tunnel routers: the relay URL to use instead of http(s)://host:port/rest, and its secret header. */
+  relay?: { baseUrl: string; secret: string };
 }
 
 export type RouterErrorKind = 'auth' | 'forbidden' | 'unreachable' | 'timeout' | 'tls' | 'not_found' | 'api';
@@ -39,7 +41,7 @@ export class RestClient {
     const scheme = target.useHttps ? 'https' : 'http';
     const defaultPort = target.useHttps ? 443 : 80;
     const host = target.host.includes(':') ? `[${target.host}]` : target.host;
-    this.baseUrl = `${scheme}://${host}${target.port === defaultPort ? '' : `:${target.port}`}/rest`;
+    this.baseUrl = target.relay?.baseUrl ?? `${scheme}://${host}${target.port === defaultPort ? '' : `:${target.port}`}/rest`;
     const bytes = new TextEncoder().encode(`${target.username}:${target.password}`);
     let binary = '';
     for (const b of bytes) binary += String.fromCharCode(b);
@@ -66,17 +68,25 @@ export class RestClient {
     const url = new URL(this.baseUrl + path);
     if (query) for (const [k, v] of Object.entries(query)) url.searchParams.set(k, v);
     const where = `${this.target.host}:${this.target.port}`;
+    const relay = this.target.relay;
 
     let res: Response;
     try {
       res = await fetch(url, {
         method,
-        headers: { Authorization: this.authHeader, Accept: 'application/json', ...(body ? { 'Content-Type': 'application/json' } : {}) },
+        headers: {
+          Authorization: this.authHeader,
+          Accept: 'application/json',
+          ...(body ? { 'Content-Type': 'application/json' } : {}),
+          ...(relay ? { 'X-Hzc-Relay': relay.secret } : {}),
+        },
         body: body ? JSON.stringify(body) : undefined,
         signal: AbortSignal.timeout(this.timeoutMs),
       });
     } catch (err) {
       const msg = err instanceof Error ? `${err.name} ${err.message}` : String(err);
+      if (relay && /timeout|timed out|abort/i.test(msg)) throw new RouterError('timeout', `No reply from the router through the tunnel (${where}). Check that it has internet.`);
+      if (relay) throw new RouterError('unreachable', `The tunnel server could not be reached. Check that the VPS is running. ${msg.slice(0, 120)}`);
       if (/timeout|timed out|abort/i.test(msg)) {
         throw new RouterError('timeout', `No reply from ${where}. The router must be reachable from the internet at this address (public IP or DNS name), with the ${this.target.useHttps ? 'www-ssl' : 'www'} service on this port.`);
       }
@@ -89,6 +99,10 @@ export class RestClient {
     }
 
     const text = await res.text();
+    if (relay && (res.status === 502 || res.status === 504)) {
+      throw new RouterError('timeout', `The router is not connected to the tunnel (${where}). Check that it has internet and that the tunnel script was pasted.`);
+    }
+    if (relay && res.status === 404 && !text.startsWith('{')) throw new RouterError('api', 'The tunnel server refused the request. Run the install command on the VPS again.');
     if (res.status === 401) throw new RouterError('auth', 'Wrong router username or password.');
     if (res.status === 403) throw new RouterError('forbidden', `User ${this.target.username} may not use the REST API. Its group needs the read, write, api and rest-api policies.`);
     if (!res.ok) {
