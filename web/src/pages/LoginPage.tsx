@@ -37,7 +37,7 @@ export function LoginPage() {
     <div className="flex min-h-full items-center justify-center bg-brand-900 p-4">
       <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl">
         <div className="mb-6 flex flex-col items-center text-center">
-          <img src="/favicon.svg" alt="" className="h-14 w-14" />
+          <img src="/logo.png" alt="Hotzonex WiFi" className="h-28 w-auto" />
           <h1 className="mt-3 text-2xl font-bold text-slate-900">Hotzonex Cloud</h1>
           <p className="text-slate-600">Staff login</p>
         </div>

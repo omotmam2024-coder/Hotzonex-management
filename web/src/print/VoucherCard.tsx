@@ -1,4 +1,5 @@
 import { formatDuration, formatSSP } from '../lib/format';
+import type { PrintBrand } from './brand';
 import type { SheetLayout } from './layouts';
 import { QrCode } from './QrCode';
 import { loginAddress, loginUrl } from './voucherLinks';
@@ -16,7 +17,7 @@ export interface CardData {
 const FONT = 'Arial, Helvetica, sans-serif';
 
 /** One cut-out voucher card. All sizes are physical (mm / pt) so print output is exact. */
-export function VoucherCard({ card, layout }: { card: CardData; layout: SheetLayout }) {
+export function VoucherCard({ card, layout, brand }: { card: CardData; layout: SheetLayout; brand: PrintBrand }) {
   return (
     <div
       style={{
@@ -33,8 +34,11 @@ export function VoucherCard({ card, layout }: { card: CardData; layout: SheetLay
     >
       <div style={{ height: `${layout.barMm}mm`, background: card.planColor, flexShrink: 0, printColorAdjust: 'exact', WebkitPrintColorAdjust: 'exact' }} />
       <div style={{ padding: `${layout.padMm * 0.6}mm ${layout.padMm}mm ${layout.padMm}mm`, display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
-        <div style={{ fontSize: `${layout.sitePt}pt`, lineHeight: 1.2, fontWeight: 700, textTransform: 'uppercase', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-          Hotzonex WiFi · {card.siteName}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1mm', minWidth: 0 }}>
+          {brand.logoUrl && <img src={brand.logoUrl} alt="" style={{ height: `${layout.logoMm}mm`, width: 'auto', flexShrink: 0 }} />}
+          <div style={{ fontSize: `${layout.sitePt}pt`, lineHeight: 1.2, fontWeight: 700, textTransform: 'uppercase', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            {brand.logoUrl ? card.siteName : `${brand.name} · ${card.siteName}`}
+          </div>
         </div>
         <div
           style={{

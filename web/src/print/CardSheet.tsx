@@ -1,8 +1,9 @@
 import { LAYOUTS, PAGE_MARGIN_MM, SHEET_HEIGHT_MM, SHEET_WIDTH_MM, type CardsPerPage } from './layouts';
+import type { PrintBrand } from './brand';
 import { VoucherCard, type CardData } from './VoucherCard';
 
 /** Splits cards into A4 pages; each page is a fixed grid, so no card is ever split across pages. */
-export function CardSheet({ cards, perPage }: { cards: CardData[]; perPage: CardsPerPage }) {
+export function CardSheet({ cards, perPage, brand }: { cards: CardData[]; perPage: CardsPerPage; brand: PrintBrand }) {
   const layout = LAYOUTS[perPage];
   const pages: CardData[][] = [];
   for (let i = 0; i < cards.length; i += perPage) pages.push(cards.slice(i, i + perPage));
@@ -30,7 +31,7 @@ export function CardSheet({ cards, perPage }: { cards: CardData[]; perPage: Card
             }}
           >
             {page.map((card) => (
-              <VoucherCard key={card.id} card={card} layout={layout} />
+              <VoucherCard key={card.id} card={card} layout={layout} brand={brand} />
             ))}
           </div>
         </div>

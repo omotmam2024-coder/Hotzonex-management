@@ -1,9 +1,11 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Alert, Button, Spinner } from '../components/ui';
 import { friendlyError } from '../lib/errors';
 import { supabase } from '../lib/supabase';
+import { useAuth } from '../auth/AuthProvider';
+import { brandOf } from '../print/brand';
 import { Receipt, type ReceiptData, type ReceiptWidth } from '../print/Receipt';
 
 const WIDTH_KEY = 'hzc.receiptWidth';
@@ -70,6 +72,7 @@ export function PrintReceiptPage() {
   const passed = (location.state as { receipt?: ReceiptData } | null)?.receipt;
   const [width, setWidth] = useState<ReceiptWidth>(savedWidth);
   const printedOnce = useRef(false);
+  const { business } = useAuth();
 
   const receipt = useQuery({
     queryKey: ['receipt', voucherId],
@@ -87,13 +90,14 @@ export function PrintReceiptPage() {
     }
   }
 
-  // ?print=1 opens the print window as soon as the receipt is ready.
-  useEffect(() => {
-    if (data && params.get('print') === '1' && !printedOnce.current) {
+  // ?print=1 opens the print window as soon as the receipt (with its logo) is ready.
+  const autoPrint = params.get('print') === '1';
+  const onReady = useCallback(() => {
+    if (autoPrint && !printedOnce.current) {
       printedOnce.current = true;
       setTimeout(() => window.print(), 300);
     }
-  }, [data, params]);
+  }, [autoPrint]);
 
   return (
     <div className="min-h-full bg-slate-200 pb-8 print:min-h-0 print:bg-white print:pb-0">
@@ -126,7 +130,7 @@ export function PrintReceiptPage() {
             <Alert tone="error">{friendlyError(receipt.error)}</Alert>
           </div>
         )}
-        {data && <Receipt data={data} width={width} />}
+        {data && <Receipt data={data} width={width} brand={brandOf(business)} onReady={onReady} />}
       </div>
     </div>
   );

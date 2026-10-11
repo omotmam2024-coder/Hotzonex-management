@@ -6,6 +6,8 @@ import { Alert, Button, Spinner } from '../components/ui';
 import { friendlyError } from '../lib/errors';
 import { formatNumber } from '../lib/format';
 import { supabase } from '../lib/supabase';
+import { useAuth } from '../auth/AuthProvider';
+import { brandOf } from '../print/brand';
 import { CardSheet } from '../print/CardSheet';
 import { LAYOUTS, type CardsPerPage } from '../print/layouts';
 import type { CardData } from '../print/VoucherCard';
@@ -73,6 +75,7 @@ async function loadCards(params: URLSearchParams): Promise<CardData[]> {
 
 export function PrintSheetPage() {
   const [params] = useSearchParams();
+  const { business } = useAuth();
   const requested = Number(params.get('per'));
   const cards = useQuery({ queryKey: ['print-sheet', params.toString()], queryFn: () => loadCards(params), staleTime: 0, gcTime: 0 });
   const [marking, setMarking] = useState(false);
@@ -183,7 +186,7 @@ export function PrintSheetPage() {
             <Alert tone="warning">No cards to print. Only vouchers that are already on the router can be printed.</Alert>
           </div>
         )}
-        {list.length > 0 && <CardSheet cards={list} perPage={perPage} />}
+        {list.length > 0 && <CardSheet cards={list} perPage={perPage} brand={brandOf(business)} />}
       </div>
     </div>
   );

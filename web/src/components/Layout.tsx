@@ -7,7 +7,7 @@ import { Icon } from './Icon';
 function Brand() {
   return (
     <div className="flex items-center gap-2">
-      <img src="/favicon.svg" alt="" className="h-8 w-8" />
+      <img src="/icon-192.png" alt="" className="h-9 w-9" />
       <span className="text-lg font-bold tracking-tight">Hotzonex Cloud</span>
     </div>
   );

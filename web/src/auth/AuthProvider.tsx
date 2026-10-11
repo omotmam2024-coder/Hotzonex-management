@@ -12,6 +12,8 @@ export interface Business {
   name: string;
   timezone: string;
   is_active: boolean;
+  /** Printed on cards and receipts; null prints the business name instead. */
+  logo_url: string | null;
 }
 
 type AuthStatus = 'loading' | 'signed_out' | 'ready' | 'no_profile' | 'inactive' | 'error';
@@ -68,7 +70,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const [{ data, error: queryError }, { data: platform }] = await Promise.all([
       supabase
         .from('profiles')
-        .select('id, full_name, role, site_id, is_active, sites(name), tenants(id, name, timezone, is_active)')
+        .select('id, full_name, role, site_id, is_active, sites(name), tenants(id, name, timezone, is_active, logo_url)')
         .eq('id', current.user.id)
         .maybeSingle<ProfileRow>(),
       supabase.from('platform_admins').select('user_id').eq('user_id', current.user.id).maybeSingle(),

@@ -1,5 +1,6 @@
-import { useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { formatDuration, formatSSP } from '../lib/format';
+import type { PrintBrand } from './brand';
 import { QrCode } from './QrCode';
 import { loginAddress, loginUrl } from './voucherLinks';
 
@@ -33,9 +34,11 @@ const dateTime = new Intl.DateTimeFormat('en-GB', {
 });
 
 /** Thermal receipt. Sets its own @page size to the paper width and the receipt's measured height. */
-export function Receipt({ data, width }: { data: ReceiptData; width: ReceiptWidth }) {
+export function Receipt({ data, width, brand, onReady }: { data: ReceiptData; width: ReceiptWidth; brand: PrintBrand; onReady?: () => void }) {
   const ref = useRef<HTMLDivElement>(null);
   const [heightMm, setHeightMm] = useState(150);
+  // The logo changes the receipt's height, so it is measured again (and printing waits) until it has loaded.
+  const [logoDone, setLogoDone] = useState(!brand.logoUrl);
   const contentMm = CONTENT_MM[width];
   const sideMm = (width - contentMm) / 2;
   // Biggest code that fits the paper width (Arial digits are ~0.56 em wide), capped for balance.
@@ -43,7 +46,11 @@ export function Receipt({ data, width }: { data: ReceiptData; width: ReceiptWidt
 
   useLayoutEffect(() => {
     if (ref.current) setHeightMm(Math.ceil(ref.current.getBoundingClientRect().height / (96 / 25.4)) + 4);
-  }, [data, width]);
+  }, [data, width, logoDone]);
+
+  useEffect(() => {
+    if (logoDone) onReady?.();
+  }, [logoDone, onReady]);
 
   const line = { margin: 0, lineHeight: 1.25 } as const;
 
@@ -56,7 +63,14 @@ export function Receipt({ data, width }: { data: ReceiptData; width: ReceiptWidt
       `}</style>
       <div className="receipt-paper">
         <div ref={ref} style={{ padding: `3mm ${sideMm}mm 4mm`, fontFamily: FONT, color: '#000', textAlign: 'center' }}>
-          <p style={{ ...line, fontSize: '13pt', fontWeight: 800 }}>HOTZONEX WiFi</p>
+          {brand.logoUrl ? (
+            <img src={brand.logoUrl} alt={brand.name} style={{ display: 'block', width: `${Math.round(contentMm * 0.75)}mm`, height: 'auto', margin: '0 auto 1mm' }}
+              onLoad={() => setLogoDone(true)}
+              onError={() => setLogoDone(true)}
+            />
+          ) : (
+            <p style={{ ...line, fontSize: '13pt', fontWeight: 800, textTransform: 'uppercase' }}>{brand.name}</p>
+          )}
           <p style={{ ...line, fontSize: '9pt' }}>{data.siteName}</p>
           <div style={{ height: '2mm', background: data.planColor, margin: '2mm 0', printColorAdjust: 'exact', WebkitPrintColorAdjust: 'exact' }} />
           <p style={{ ...line, fontSize: '8pt' }}>WiFi code</p>
