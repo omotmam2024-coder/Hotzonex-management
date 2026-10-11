@@ -166,6 +166,8 @@ script-connected router: `/system scheduler remove [find name="hzc-cloud"]` and
 | `push_vouchers` | Vouchers generated, **Retry push** | Adds each voucher as `/ip hotspot user`: name = password = code, profile, `server`, `limit-uptime`, `limit-bytes-total`, `comment=hzc:<voucher_id>` |
 | `disable_voucher` | Admin voids a sale | Disables the tagged user and closes its sessions |
 | `disconnect_user` | **Disconnect** on Active Users | Closes that user's session |
+| `install_portal` | **Install on router** (Login Portal) | Downloads the portal pages into a `hotzonex` folder (`flash/hotzonex` on flash routers), then sets the hotspot server profile's `html-directory` to it. Nothing is switched if a download fails |
+| `restore_portal` | **Switch back** (Login Portal) | Sets `html-directory` back to the folder the router used before |
 
 Every router write is safe to repeat: the router checks first and only touches users tagged
 `hzc:<voucher_id>`. A code that already belongs to another hotspot user is never changed; that
@@ -199,6 +201,22 @@ that stops calling in for 2 minutes is shown offline and its user list is cleare
   **Background graphics** so plan colours print. Clicking Print marks the cards as printed (not a
   sale); if the print failed, click **Unmark these cards** straight away.
 - **Receipts:** 58 mm or 80 mm thermal paper (remembered per device); set the printer's paper size to match.
+
+### Login portal
+
+**Login Portal** (admins) gives each router a Hotzonex login page. Choose a template (Classic,
+Bold or Minimal), set the business name, tagline, colours, logo, contact line and footer, and
+whether the plans and prices are shown. The phone preview updates as you type. **Save**, then
+**Install on router** (the router must be online). Saving again only changes the stored design;
+press **Install on router** again to update the router.
+
+- The pages are standard MikroTik hotspot pages (login, status, logout, error, alogin, redirect,
+  rlogin, md5.js) and use CHAP when the hotspot offers it, PAP otherwise.
+- **Code** login mode: customers type only the voucher code (the code is also the password).
+  MikroTicket and other vouchers with a separate password still work with **I have a password**.
+  **Username + password** mode shows both fields.
+- The router's previous folder (e.g. `hotspot` or `flash/hotspot`) is remembered and left on the
+  router; **Switch back** returns to it with one click.
 
 ### Reports
 
@@ -247,6 +265,8 @@ that stops calling in for 2 minutes is shown offline and its user list is cleare
 | Router stays "Waiting for router" | Cloud: the setup script was not pasted, or the router has no internet. Run `/system script run hzc-cloud` and `/log print where topics~"script"` |
 | "Hotspot server … was not found on this router" | Edit the router and use one of the server names listed in the message (IP → Hotspot → Servers) |
 | Router shows Offline | Cloud: it has not called in for 2 minutes. Direct: the minute check could not reach it (the reason is shown) |
+| Voucher codes do not log in on the portal | `/log print where topics~"hotspot"` on the router. "invalid password" for a MikroTicket voucher in Code mode: use **I have a password**. The user must exist under IP → Hotspot → Users |
+| Portal install fails | The router must reach `*.supabase.co` over HTTPS (`/tool fetch` with `check-certificate=yes-without-crl`) and have free storage |
 | Batch stuck on "Push failed" | Router offline; it resumes by itself when back, or press **Retry push** |
 
 ## Development

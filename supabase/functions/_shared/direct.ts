@@ -55,6 +55,9 @@ export class RestClient {
   patch<T = Json>(path: string, body: Json): Promise<T> {
     return this.request<T>('PATCH', path, body);
   }
+  post<T = Json>(path: string, body: Json): Promise<T> {
+    return this.request<T>('POST', path, body);
+  }
   delete(path: string): Promise<void> {
     return this.request<void>('DELETE', path);
   }
@@ -260,4 +263,39 @@ export async function removeExpired(client: RestClient, v: { id: string; code: s
     }
   }
   return true;
+}
+
+async function profileId(client: RestClient, serverProfile: string): Promise<{ id: string; dir: string }> {
+  const found = await client.get<Json[]>('/ip/hotspot/profile', { name: serverProfile, '.proplist': '.id,html-directory' });
+  if (!found[0]) throw new RouterError('not_found', `Hotspot profile "${serverProfile}" was not found on the router.`);
+  return { id: s(found[0]['.id']), dir: s(found[0]['html-directory']) };
+}
+
+/**
+ * Installs the login portal: the router downloads every page into a "hotzonex" folder next to the
+ * current one; only when all downloads worked is the hotspot profile switched to it.
+ */
+export async function installPortalDirect(
+  client: RestClient,
+  serverProfile: string,
+  filesUrl: string,
+  files: readonly string[],
+): Promise<{ current: string; dir: string }> {
+  const { id, dir: current } = await profileId(client, serverProfile);
+  const dir = current.startsWith('flash/') ? 'flash/hotzonex' : 'hotzonex';
+  try {
+    await client.put('/file', { name: dir, type: 'directory' });
+  } catch {
+    // The folder may exist already, or this RouterOS creates it while downloading.
+  }
+  for (const f of files) {
+    await client.post('/tool/fetch', { url: `${filesUrl}&f=${f}`, 'dst-path': `${dir}/${f}`, 'check-certificate': 'yes-without-crl' });
+  }
+  await client.patch(`/ip/hotspot/profile/${encodeURIComponent(id)}`, { 'html-directory': dir });
+  return { current, dir };
+}
+
+export async function restorePortalDirect(client: RestClient, serverProfile: string, previousDir: string): Promise<void> {
+  const { id } = await profileId(client, serverProfile);
+  await client.patch(`/ip/hotspot/profile/${encodeURIComponent(id)}`, { 'html-directory': previousDir });
 }

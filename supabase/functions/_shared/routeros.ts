@@ -556,3 +556,35 @@ export function removeBlock(items: { id: string; code: string }[]): string {
     })
     .join('\n');
 }
+
+/**
+ * Installs the Hotzonex login portal: downloads every page into a "hotzonex" folder next to the
+ * hotspot's current one, and only when all downloads worked points the hotspot server profile's
+ * html-directory at it. On any failure nothing is switched. Reports the old and new folder.
+ */
+export function installPortalBlock(jobId: string, serverProfile: string, filesUrl: string, files: readonly string[]): string {
+  const prof = rosStr(serverProfile);
+  return guarded(
+    [
+      `:local cur [/ip hotspot profile get [/ip hotspot profile find where name=${prof}] html-directory]`,
+      ':local dir "hotzonex"',
+      ':if ([:pick $cur 0 6] = "flash/") do={ :set dir "flash/hotzonex" }',
+      ':do { /file add name=$dir type=directory } on-error={}',
+      ...files.map(
+        (f) => `/tool fetch url=${rosStr(`${filesUrl}&f=${f}`)} dst-path=($dir . ${rosStr(`/${f}`)}) check-certificate=yes-without-crl`,
+      ),
+      `/ip hotspot profile set [/ip hotspot profile find where name=${prof}] html-directory=$dir`,
+      emit(rosStr(`J|${jobId}|ok|`), '$cur', '"|"', '$dir'),
+    ].join('\n'),
+    `J|${jobId}|err|The router could not download the login pages. Nothing was changed.`,
+  );
+}
+
+/** Points the hotspot server profile back at the login-page folder it used before. */
+export function restorePortalBlock(jobId: string, serverProfile: string, previousDir: string): string {
+  const prof = rosStr(serverProfile);
+  return guarded(
+    [`/ip hotspot profile set [/ip hotspot profile find where name=${prof}] html-directory=${rosStr(previousDir)}`, emit(rosStr(`J|${jobId}|ok|`))].join('\n'),
+    `J|${jobId}|err|The router could not switch back to the previous login page.`,
+  );
+}

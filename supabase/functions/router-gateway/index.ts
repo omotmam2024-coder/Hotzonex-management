@@ -7,6 +7,8 @@
 import type { SupabaseClient } from 'npm:@supabase/supabase-js@2.117.3';
 import { serviceClient } from '../_shared/auth.ts';
 import {
+  applyPortalInstalled,
+  applyPortalRestored,
   applyPushResults,
   applyTestResult,
   applyUsage,
@@ -18,6 +20,8 @@ import {
   nextPushChunk,
   openJob,
   plansForSync,
+  portalFilesUrl,
+  portalTarget,
   profileOf,
   resumeUnfinishedPushes,
   str,
@@ -28,10 +32,12 @@ import {
   disableBlock,
   disconnectBlock,
   emptyHotspotInfo,
+  installPortalBlock,
   kickBlock,
   parseReport,
   pushBlock,
   removeBlock,
+  restorePortalBlock,
   scriptBuilder,
   syncProfilesBlock,
   testBlock,
@@ -40,6 +46,7 @@ import {
   type Report,
   type ScriptBuilder,
 } from '../_shared/routeros.ts';
+import { PORTAL_FILES } from '../_shared/portal.ts';
 
 const USAGE_EVERY_MS = 55_000;
 const OFFLINE_AFTER_MS = 120_000;
@@ -99,6 +106,12 @@ async function handleResults(db: SupabaseClient, router: RouterRef, report: Repo
       await finishJob(db, job.id, true, { sessions_closed: nums[0] ?? 0 });
     } else if (job.type === 'sync_profiles') {
       await finishJob(db, job.id, true, { profiles: nums[0] ?? 0 });
+    } else if (job.type === 'install_portal') {
+      const [current = '', dir = ''] = r.detail.split('|');
+      const target = await portalTarget(db, router);
+      await applyPortalInstalled(db, router, job, 'profile' in target ? target.profile : '', current, dir);
+    } else if (job.type === 'restore_portal') {
+      await applyPortalRestored(db, router, job, str(job.payload.dir) ?? '');
     } else {
       await finishJob(db, job.id, true, {});
     }
@@ -162,6 +175,26 @@ async function jobBlock(db: SupabaseClient, router: RouterRef, job: Job): Promis
         return null;
       }
       return disconnectBlock(job.id, code, str(job.payload.mac_address));
+    }
+
+    case 'install_portal': {
+      const target = await portalTarget(db, router);
+      if ('error' in target) {
+        await finishJob(db, job.id, false, { error: target.error });
+        return null;
+      }
+      return installPortalBlock(job.id, target.profile, portalFilesUrl(router.id), PORTAL_FILES);
+    }
+
+    case 'restore_portal': {
+      const target = await portalTarget(db, router);
+      if ('error' in target || !target.previousDir) {
+        await finishJob(db, job.id, false, { error: 'error' in target ? target.error : 'Hotzonex does not know which login page the router used before.' });
+        return null;
+      }
+      await db.from('router_jobs').update({ payload: { ...job.payload, dir: target.previousDir } }).eq('id', job.id);
+      job.payload = { ...job.payload, dir: target.previousDir };
+      return restorePortalBlock(job.id, target.profile, target.previousDir);
     }
 
     default:

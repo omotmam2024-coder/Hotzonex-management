@@ -10,6 +10,7 @@ import { ActiveUsersPage } from './pages/ActiveUsersPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { GenerateVouchersPage } from './pages/GenerateVouchersPage';
 import { PlansPage } from './pages/PlansPage';
+import { PortalPage } from './pages/PortalPage';
 import { PrintReceiptPage } from './pages/PrintReceiptPage';
 import { PrintSetupPage } from './pages/PrintSetupPage';
 import { PrintSheetPage } from './pages/PrintSheetPage';
@@ -67,6 +68,9 @@ export function App() {
             <Route path="/routers" element={<RoutersPage />} />
             <Route path="/routers/new" element={<RouterFormPage />} />
             <Route path="/routers/:id/edit" element={<RouterFormPage />} />
+          </Route>
+          <Route element={<RequireRole roles={rolesFor('/portal')} />}>
+            <Route path="/portal" element={<PortalPage />} />
           </Route>
           <Route element={<RequireRole roles={rolesFor('/staff')} />}>
             <Route path="/staff" element={<StaffPage />} />

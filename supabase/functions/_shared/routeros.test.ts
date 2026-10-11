@@ -8,8 +8,10 @@ import {
   END_MARKER,
   fromRouterOsTime,
   kickBlock,
+  installPortalBlock,
   parseReport,
   pickHotspot,
+  restorePortalBlock,
   profileCommands,
   pushBlock,
   removeBlock,
@@ -254,4 +256,20 @@ test('push block calls the helper once per voucher with quoted values', () => {
 
 test('disconnect with a MAC filters on the upper-case MAC', () => {
   assert.match(disconnectBlock(JOB, '1234', 'aa:bb:cc:dd:ee:ff'), /user="1234" and mac-address="AA:BB:CC:DD:EE:FF"/);
+});
+
+test('portal install downloads every page before switching the login folder, and reports the old folder', () => {
+  const block = installPortalBlock(JOB, 'hsprof1', 'https://x/functions/v1/portal?r=abc&v=1', ['login.html', 'md5.js']);
+  assertBalanced(block);
+  const lines = block.split('\n');
+  const fetches = lines.map((l, i) => (l.includes('/tool fetch') ? i : -1)).filter((i) => i >= 0);
+  const switchAt = lines.findIndex((l) => l.includes('profile set'));
+  assert.equal(fetches.length, 2);
+  assert.ok(fetches.every((i) => i < switchAt), 'switch only after all downloads');
+  assert.match(block, /url="https:\/\/x\/functions\/v1\/portal\\\?r=abc&v=1&f=login.html"/);
+  assert.match(block, /find where name="hsprof1"/);
+  assert.match(block, /on-error=\{ :set hzcOut .*Nothing was changed/);
+  const restore = restorePortalBlock(JOB, 'hsprof1', 'flash/hotspot');
+  assertBalanced(restore);
+  assert.match(restore, /html-directory="flash\/hotspot"/);
 });

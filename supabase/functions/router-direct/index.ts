@@ -13,15 +13,19 @@ import {
   directTest,
   disableVoucher,
   ensureProfileExists,
+  installPortalDirect,
   pushVoucher,
   readUsage,
   removeExpired,
+  restorePortalDirect,
   RestClient,
   RouterError,
   userComments,
   type PushResult,
 } from '../_shared/direct.ts';
 import {
+  applyPortalInstalled,
+  applyPortalRestored,
   applyPushResults,
   applyTestResult,
   applyUsage,
@@ -32,12 +36,15 @@ import {
   MAX_SENDS,
   nextPushChunk,
   plansForSync,
+  portalFilesUrl,
+  portalTarget,
   profileOf,
   resumeUnfinishedPushes,
   str,
   type Job,
   type RouterRef,
 } from '../_shared/jobs.ts';
+import { PORTAL_FILES } from '../_shared/portal.ts';
 import { toRouterOsTime } from '../_shared/routeros.ts';
 
 interface DirectRouter extends RouterRef {
@@ -158,6 +165,28 @@ async function runJob(db: SupabaseClient, router: DirectRouter, client: RestClie
       const closed = await closeSessions(client, code, str(job.payload.mac_address));
       await clearDisconnected(db, router, job);
       await finishJob(db, job.id, true, { sessions_closed: closed });
+      return true;
+    }
+
+    case 'install_portal': {
+      const target = await portalTarget(db, router);
+      if ('error' in target) {
+        await finishJob(db, job.id, false, { error: target.error });
+        return true;
+      }
+      const { current, dir } = await installPortalDirect(client, target.profile, portalFilesUrl(router.id), PORTAL_FILES);
+      await applyPortalInstalled(db, router, job, target.profile, current, dir);
+      return true;
+    }
+
+    case 'restore_portal': {
+      const target = await portalTarget(db, router);
+      if ('error' in target || !target.previousDir) {
+        await finishJob(db, job.id, false, { error: 'error' in target ? target.error : 'Hotzonex does not know which login page the router used before.' });
+        return true;
+      }
+      await restorePortalDirect(client, target.profile, target.previousDir);
+      await applyPortalRestored(db, router, job, target.previousDir);
       return true;
     }
 

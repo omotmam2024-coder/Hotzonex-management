@@ -252,3 +252,37 @@ export async function resumeUnfinishedPushes(db: SupabaseClient, router: RouterR
   if (lastJob?.finished_at && Date.now() - new Date(lastJob.finished_at).getTime() < RETRY_PUSH_AFTER_MS) return;
   await db.from('router_jobs').insert({ router_id: router.id, type: 'push_vouchers', payload: { batch_id: batchId, resumed: true } });
 }
+
+/** The hotspot server profile (on the router) of the hotspot server Hotzonex uses, from the last check. */
+export async function portalTarget(
+  db: SupabaseClient,
+  router: RouterRef,
+): Promise<{ profile: string; previousDir: string | null } | { error: string }> {
+  const { data } = await db.from('routers').select('hotspot_info').eq('id', router.id).maybeSingle();
+  const info = data?.hotspot_info as HotspotInfo | null;
+  const server = info?.servers.find((h) => h.name === router.hotspot_server);
+  if (!server?.profile) return { error: 'The router has not been checked yet. Press "Test again" on the Routers page, then install the portal.' };
+  const { data: cfg } = await db.from('portal_configs').select('previous_dir').eq('router_id', router.id).maybeSingle();
+  return { profile: server.profile, previousDir: (cfg?.previous_dir as string | null) ?? null };
+}
+
+/** URL the router downloads the portal pages from (the file name is appended as &f=…). */
+export function portalFilesUrl(routerId: string): string {
+  const base = (Deno.env.get('SUPABASE_URL') ?? '').replace(/\/$/, '');
+  return `${base}/functions/v1/portal?r=${routerId}&v=${Date.now()}`;
+}
+
+export async function applyPortalInstalled(db: SupabaseClient, router: RouterRef, job: Job, profile: string, current: string, dir: string): Promise<void> {
+  const { data: cfg } = await db.from('portal_configs').select('previous_dir').eq('router_id', router.id).maybeSingle();
+  // Remember the folder used before Hotzonex; a re-install keeps the original one.
+  const previous = current && current !== dir ? current : ((cfg?.previous_dir as string | null) ?? null);
+  await db
+    .from('portal_configs')
+    .upsert({ router_id: router.id, installed_at: new Date().toISOString(), installed_dir: dir, previous_dir: previous, server_profile: profile });
+  await finishJob(db, job.id, true, { installed_dir: dir, previous_dir: previous, server_profile: profile });
+}
+
+export async function applyPortalRestored(db: SupabaseClient, router: RouterRef, job: Job, dir: string): Promise<void> {
+  await db.from('portal_configs').update({ installed_at: null, installed_dir: null }).eq('router_id', router.id);
+  await finishJob(db, job.id, true, { restored_dir: dir });
+}

@@ -34,3 +34,7 @@ verify_jwt = false
 # x-hzc-worker secret from app_config itself.
 [functions.router-direct]
 verify_jwt = false
+
+# Login-portal pages, downloaded by the routers themselves (no user login; public page content only).
+[functions.portal]
+verify_jwt = false
