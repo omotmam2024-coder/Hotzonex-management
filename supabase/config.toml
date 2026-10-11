@@ -18,9 +18,14 @@ enable_signup = false
 enable_signup = false
 enable_confirmations = false
 
-# Both Edge Functions require a logged-in user; they then check the caller is an active admin.
+# add-router and create-staff require a logged-in user; they then check the caller is an active admin.
 [functions.add-router]
 verify_jwt = true
 
 [functions.create-staff]
 verify_jwt = true
+
+# Called by the MikroTik routers themselves, which have no user login: each router
+# authenticates with the token from its setup script (checked inside the function).
+[functions.router-gateway]
+verify_jwt = false

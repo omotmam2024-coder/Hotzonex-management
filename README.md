@@ -13,23 +13,25 @@ all times are Africa/Juba (UTC+2).
 ```
 Browser (staff)  ──►  Supabase (tables, login, router_jobs queue, Edge Functions)
                                ▲
-                               │  outbound HTTPS only (polls jobs, writes results)
+                               │  outbound HTTPS from each router, every 30 s
+                               │  (router-gateway Edge Function)
                                │
-                      Router Agent (always-on PC on the router LAN)
-                               │  RouterOS v7 REST over the LAN
-                               ▼
-                 MikroTik routers (private IPs, e.g. 192.168.88.1)
+                 MikroTik routers (RouterOS 7.19+, any internet: Starlink, 4G, fibre)
 ```
 
-- The browser never talks to a router. It writes a job (for example "test connection") and the
-  **Router Agent** on the LAN runs it against the router's private IP, then writes the result back.
-- The agent only makes outbound connections: no port forwarding, VPN, tunnel or public IP anywhere.
+- **The routers connect to the cloud by themselves.** Each router runs a small script (installed
+  once by pasting a setup script into Winbox → New Terminal) that calls the `router-gateway`
+  Edge Function every 30 seconds over HTTPS. The reply is the router's next work as RouterOS
+  commands; the router runs them and sends the results on its next call.
+- No computer on the router's network, no VPN or tunnel, no port forwarding and no public IP.
+  It works behind CGNAT (Starlink, mobile data).
+- The browser never talks to a router. It writes a job (for example "push vouchers") and the
+  router picks it up on its next call.
 
 | Folder | What it is | Runs on |
 | --- | --- | --- |
 | `web/` | React 18 + TypeScript + Vite + Tailwind staff app | Vercel |
-| `supabase/` | Database migrations, seed and Edge Functions (`add-router`, `create-staff`) | Supabase |
-| `agent/` | Router Agent (Node.js 20, TypeScript) | Always-on PC / mini PC on the router LAN |
+| `supabase/` | Database migrations, seed and Edge Functions (`add-router`, `create-staff`, `router-gateway`) | Supabase |
 
 ---
 
@@ -45,15 +47,13 @@ Browser (staff)  ──►  Supabase (tables, login, router_jobs queue, Edge Fun
    supabase db push                                   # runs every file in supabase/migrations
    ```
 
-4. **Router password key.** Generate it once and keep a copy somewhere safe (password manager).
-   The same value goes into the Edge Function secret and the agent's `.env`. If it is lost, every
-   router password has to be entered again.
+4. **Edge Functions.** No secrets to set (`SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are provided
+   automatically):
 
    ```bash
-   openssl rand -hex 32                               # 64 hex characters
-   supabase secrets set ROUTER_SECRET_KEY=<that-value>
    supabase functions deploy add-router
    supabase functions deploy create-staff
+   supabase functions deploy router-gateway --no-verify-jwt   # routers have no user login; they use their token
    ```
 
 5. **Seed.** Open `supabase/seed.sql`, change the admin email and password at the top, and run it
@@ -83,57 +83,30 @@ npm run dev               # http://localhost:5173
 
 Every push to the main branch then redeploys the web app.
 
-## 3. Router Agent (on the router LAN)
+## 3. Connect each router
 
-Use an always-on computer (PC, mini PC, Raspberry Pi 4+) on the same network as the routers,
-with **Node.js 20 or newer** and internet access.
+1. The router needs **RouterOS 7.19 or newer** (built-in root certificates, used to check
+   Hotzonex Cloud's HTTPS certificate) and internet access. Update in Winbox → System → Packages →
+   Check For Updates.
+2. The router needs a working hotspot (IP → Hotspot → Hotspot Setup). Note its **server name**
+   (IP → Hotspot → Servers, e.g. `hotspot1` — not the Wi-Fi name) and the **DNS name** of its
+   hotspot profile (e.g. `hotzonex.wifi`).
+3. On the website: **Routers → Add router** → name, site, hotspot server name, DNS name →
+   **Save and get setup script**.
+4. Click **Copy setup script**, open Winbox → **New Terminal**, paste and press Enter.
+5. The page shows **Online** within a minute, then the plans' hotspot profiles are created.
 
-**Ubuntu/Debian, one step:** this installs Node.js, the agent and a boot-time service, and asks for
-the two secret keys (hidden input, saved only on that computer):
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/omotmam2024-coder/Hotzonex-management/claude/clever-mccarthy-1780c7/agent/deploy/install-ubuntu.sh -o install-agent.sh
-sudo bash install-agent.sh
-```
-
-Or set it up by hand:
-
-```bash
-cd agent
-cp .env.example .env      # SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, ROUTER_SECRET_KEY
-npm install
-npm run check             # must print "Connected to Supabase" and "OK" for each router
-npm start                 # builds and runs; Ctrl+C to stop
-```
-
-**Run it as a service so it restarts after power cuts** (pick one):
-
-| System | Steps |
-| --- | --- |
-| Linux, PM2 | `sudo npm i -g pm2 && npm run build && pm2 start ecosystem.config.cjs && pm2 save && pm2 startup` (run the command `pm2 startup` prints) |
-| Linux, systemd | Copy the agent to `/opt/hotzonex/agent`, `sudo useradd -r hotzonex`, `npm install && npm run build`, then `sudo cp deploy/hotzonex-agent.service /etc/systemd/system/ && sudo systemctl daemon-reload && sudo systemctl enable --now hotzonex-agent`. Logs: `journalctl -u hotzonex-agent -f` |
-| Windows, NSSM | `winget install NSSM.NSSM`; in an Administrator PowerShell in the agent folder: `npm install; npm run build; .\deploy\install-windows-service.ps1`. Logs: `agent\logs\` |
-
-Give the agent PC a fixed LAN IP (DHCP reservation) — the routers only accept REST calls from it.
-
-## 4. Prepare each router
-
-In Winbox → **New Terminal** (use the agent PC's LAN IP and a strong password):
-
-```
-/ip service set www disabled=no port=80 address=<agent-PC-IP>/32
-/user group add name=hzc-api policy=read,write,api,rest-api,test
-/user add name=hzc-api group=hzc-api password=<strong-password>
-```
-
-The router also needs a working hotspot (IP → Hotspot → Hotspot Setup). Note its **server name**
-(e.g. `hotspot1`) and the **DNS name** of its hotspot profile (e.g. `hotzonex.wifi`).
+The setup script adds a script and a 10-second scheduler named `hzc-cloud` to the router. It
+contains the router's own secret token; the database keeps only its SHA-256. **Routers → Setup
+script** makes a new token (the old connector stops working until the new script is pasted).
+To disconnect a router: `/system scheduler remove [find name="hzc-cloud"]` and
+`/system script remove [find name="hzc-cloud"]`.
 
 ## 5. First-day checklist
 
 1. Log in as the admin.
 2. **Routers → Sites:** add your sites (Gorom, Jebel Iraq, Sub-Office…).
-3. **Routers → Add router** for each site → **Save and test**. It must show *online* with the model and RouterOS version.
+3. **Routers → Add router** for each site → paste its setup script into the router. It must show *Online* with the model and RouterOS version.
 4. **Plans:** check prices, time, validity, speed and colours. Each save updates the router profiles.
 5. **Staff:** create managers and sellers (each with a site).
 6. **Vouchers → Generate vouchers:** wait for the batch to show **Ready**.
@@ -147,13 +120,6 @@ The router also needs a working hotspot (IP → Hotspot → Hotspot Setup). Note
 | --- | --- | --- |
 | `web/.env`, Vercel | `VITE_SUPABASE_URL` | Supabase → Project Settings → API → Project URL |
 | `web/.env`, Vercel | `VITE_SUPABASE_ANON_KEY` | Supabase → Project Settings → API → `anon` public key |
-| `agent/.env` | `SUPABASE_URL` | Same Project URL |
-| `agent/.env` | `SUPABASE_SERVICE_ROLE_KEY` | Supabase → Project Settings → API → `service_role` key. **Secret: only on the agent PC** |
-| `agent/.env` | `ROUTER_SECRET_KEY` | The 64-hex key from step 1.4 (must equal the Edge Function secret) |
-| `agent/.env` | `JOB_POLL_INTERVAL_MS` | Job queue poll, default `3000` |
-| `agent/.env` | `SYNC_INTERVAL_MS` | Status and usage sync, default `60000` |
-| `agent/.env` | `ROUTER_TIMEOUT_MS` | Timeout per RouterOS request, default `10000` |
-| Supabase secrets | `ROUTER_SECRET_KEY` | `supabase secrets set ROUTER_SECRET_KEY=…` (`SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` are provided automatically) |
 
 ---
 
@@ -167,28 +133,29 @@ The router also needs a working hotspot (IP → Hotspot → Hotspot Setup). Note
 | Manager | Dashboard, Sell, Vouchers, Sales, Reports, Active Users | Own site: generate and print vouchers, sell, mark as sold, sales and reports |
 | Seller | Sell, Sales | Own site: sell and print receipts; sees only own sales for today |
 
-### Router jobs (run by the agent)
+### Router jobs (run by the router on its next call)
 
 | Job | When | What happens on the router |
 | --- | --- | --- |
-| `test_connection` | Router added/edited, **Test again** | Reads `/system/resource` and `/ip/hotspot`; checks the hotspot server; warns if the DNS name differs. A failed first test removes the router |
-| `sync_profiles` | Plan saved, new router passes its test | Creates/updates `/ip/hotspot/user/profile` (`rate-limit`, `shared-users`) |
-| `push_vouchers` | Vouchers generated, **Retry push** | Adds each voucher as `/ip/hotspot/user`: name = password = code, profile, `server`, `limit-uptime`, `limit-bytes-total`, `comment=hzc:<voucher_id>`; 50 per round |
+| `test_connection` | Router added/edited, **Test again** | Checks the hotspot server exists and reads its DNS name, model and RouterOS version; warns if the DNS name differs |
+| `sync_profiles` | Plan saved, new router passes its test | Creates/updates `/ip hotspot user profile` (`rate-limit`, `shared-users`) |
+| `push_vouchers` | Vouchers generated, **Retry push** | Adds each voucher as `/ip hotspot user`: name = password = code, profile, `server`, `limit-uptime`, `limit-bytes-total`, `comment=hzc:<voucher_id>`; 80 per call |
 | `disable_voucher` | Admin voids a sale | Disables the tagged user and closes its sessions |
 | `disconnect_user` | **Disconnect** on Active Users | Closes that user's session |
 
-Every router write is safe to repeat: the agent reads first and only touches users tagged
+Every router write is safe to repeat: the router checks first and only touches users tagged
 `hzc:<voucher_id>`. A code that already belongs to another hotspot user is never changed; that
-voucher is disabled instead. If a router goes offline during a push, the progress is kept and the
-push resumes by itself when the router is back.
+voucher is disabled instead. A job whose results do not come back is sent again (up to 3 times).
+If a router goes offline during a push, the progress is kept and the push resumes by itself.
 
-### Usage sync and expiry (every 60 s per online router)
+### Usage sync and expiry (every minute per online router)
 
-The agent reads who is online and each voucher's counters; the database then updates the Active
-Users list, sets first login (`first_used_at`, `expires_at` = first login + plan validity, status
-**active**) and marks vouchers **expired** when time, validity or data is used up. The router
+Each router reports who is online and each used voucher's counters; the database then updates the
+Active Users list, sets first login (`first_used_at`, `expires_at` = first login + plan validity,
+status **active**) and marks vouchers **expired** when time, validity or data is used up. The router
 itself stops users at their time and data limits; when **validity** ends while a customer is online
-the agent closes that session. Expired vouchers are removed from the router only once offline.
+the session is closed. Expired vouchers are removed from the router only once offline. A router
+that stops calling in for 2 minutes is shown offline and its user list is cleared.
 
 ### Selling
 
@@ -226,9 +193,10 @@ the agent closes that session. Expired vouchers are removed from the router only
 - Row Level Security is on for every table; policies read the caller's role and site from `profiles`.
 - Sales and voucher status change only through `SECURITY DEFINER` database functions; the browser
   cannot insert sales or edit vouchers directly.
-- Router passwords are encrypted with AES-256-GCM by the `add-router` Edge Function. The browser can
-  never read `password_enc` (column grant) and the agent never logs passwords.
-- The service role key lives only in the agent's `.env`.
+- No router passwords are stored. Each router has a random 256-bit token (only its SHA-256 is in the
+  database, never readable by the browser) and checks Hotzonex Cloud's HTTPS certificate
+  (`check-certificate=yes-without-crl`), so the commands it runs can only come from Hotzonex Cloud.
+- The service role key never leaves Supabase (Edge Functions only).
 - Admin actions (router added/updated/removed, staff created/updated, sale voided) are written to `audit_log`.
 
 ## Backups
@@ -236,10 +204,8 @@ the agent closes that session. Expired vouchers are removed from the router only
 - **Database:** Supabase Pro projects have daily backups (Database → Backups). On any plan, also
   keep your own copy at least weekly and before big changes:
   `supabase db dump --linked -f backup-$(date +%F).sql` and
-  `supabase db dump --linked --data-only -f data-$(date +%F).sql`. Store copies off the agent PC
+  `supabase db dump --linked --data-only -f data-$(date +%F).sql`. Store copies somewhere safe
   (cloud drive or USB kept elsewhere).
-- **Keys:** keep `ROUTER_SECRET_KEY` and the agent `.env` in a password manager. Without the key
-  the stored router passwords cannot be decrypted (they can be re-entered on the Routers page).
 - **Routers:** `/export file=hotzonex-backup` in each router terminal, then download the `.rsc`
   from Files. Vouchers on a reset router can be pushed again with **Retry push**.
 
@@ -247,21 +213,19 @@ the agent closes that session. Expired vouchers are removed from the router only
 
 | What you see | What to check |
 | --- | --- |
-| "The router did not answer within 60 seconds" / router stuck on "Not tested yet" | The Router Agent is not running. Having internet on your own computer does not replace the agent: the agent must run on a computer on the router's network (e.g. 192.168.120.x), because the website cannot reach a private router address. Another cause is an agent whose `.env` points to a different Supabase project. On the agent PC run `npm run check` in `agent/` — it checks Supabase, the key and every router — then `npm start` (or the service). The waiting test runs as soon as the agent starts |
-| "No reply from 192.168.88.1" | Router on? Same LAN as the agent PC? IP correct? |
-| "… refused the connection on port 80" | `/ip service set www disabled=no` and the `address=` list includes the agent PC |
-| "Wrong username or password" | The `hzc-api` user and password on the router |
-| "User hzc-api is not allowed to use the REST API" | The group needs `rest-api,read,write,api` policies |
-| "Hotspot server hotspot1 not found" | Use the exact server name from IP → Hotspot → Servers |
-| "Cannot decrypt the router password" | `ROUTER_SECRET_KEY` on the agent differs from the Edge Function secret |
+| Router stays "Waiting for router" | The setup script was not pasted, or the router has no internet. In the router terminal run `/system script run hzc-cloud` and `/log print where topics~"script"` |
+| `failure: SSL: ... certificate` or nothing happens on RouterOS older than 7.19 | Update RouterOS (System → Packages → Check For Updates), then run `/certificate settings set builtin-trust-anchors=trusted` |
+| "Hotspot server … was not found on this router" | Edit the router and use one of the server names listed in the message (IP → Hotspot → Servers) |
+| Router shows Offline | It has not called in for 2 minutes: power, internet, or the `hzc-cloud` scheduler was removed (paste the setup script again) |
+| "Unknown router" in the router log | The token was replaced: **Routers → Setup script** and paste the new script |
 | Batch stuck on "Push failed" | Router offline; it resumes by itself when back, or press **Retry push** |
 
 ## Development
 
 ```bash
-npm run install:all      # web + agent dependencies
-npm run typecheck        # strict TypeScript for web and agent
-npm --prefix agent test  # agent unit tests (encryption, RouterOS client, time conversion)
+npm run install:all      # web dependencies
+npm run typecheck        # strict TypeScript for the web app
+npm test                 # RouterOS script builder and report parser (Node 22.18+)
 npm run build:web
 ```
 

@@ -3,32 +3,36 @@ import { Link } from 'react-router-dom';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../auth/AuthProvider';
 import { PageHeader } from '../components/PageHeader';
+import { SetupScriptCard } from '../components/RouterSetup';
 import { Alert, Badge, Button, Card, Spinner, TextInput } from '../components/ui';
 import { friendlyError } from '../lib/errors';
-import { bareIp, formatJubaTime, timeAgo } from '../lib/format';
+import { formatJubaTime, timeAgo } from '../lib/format';
+import { invokeFunction } from '../lib/functions';
 import { waitForJob } from '../lib/jobs';
 import { useRouters, useSites } from '../lib/queries';
+import { routerStatus } from '../lib/routers';
 import { supabase } from '../lib/supabase';
 import type { RouterInfo, SiteRow, TestConnectionResult } from '../lib/types';
 
 function StatusLine({ router }: { router: RouterInfo }) {
-  if (router.status === 'online')
+  const status = routerStatus(router);
+  if (status === 'online')
     return (
       <span className="flex items-center gap-2">
         <Badge color="green">Online</Badge>
         <span className="text-sm text-slate-500">seen {timeAgo(router.last_seen_at)}</span>
       </span>
     );
-  if (router.status === 'offline')
+  if (status === 'offline')
     return (
       <span className="flex flex-wrap items-center gap-2">
         <Badge color="red">Offline</Badge>
         <span className="text-sm text-slate-600">
-          {router.last_seen_at ? `since ${formatJubaTime(router.last_seen_at)}` : 'never reached'}
+          {router.last_seen_at ? `last call ${formatJubaTime(router.last_seen_at)}` : 'never called in'}
         </span>
       </span>
     );
-  return <Badge color="gray">Not tested yet</Badge>;
+  return <Badge color="gray">{router.last_seen_at ? 'Checking…' : 'Waiting for router'}</Badge>;
 }
 
 type TestState = { routerId: string; phase: 'running' } | { routerId: string; phase: 'done'; ok: boolean; message: string };
@@ -56,7 +60,20 @@ function RouterCard({
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['routers'] }),
   });
 
+  const [script, setScript] = useState<string | null>(null);
+  const setup = useMutation({
+    mutationFn: () => invokeFunction<{ script: string }>('add-router', { action: 'setup', router_id: router.id }),
+    onSuccess: (data) => setScript(data.script),
+  });
+  function showSetup() {
+    const replaces = router.last_seen_at
+      ? `This makes a new setup script for ${router.name}. The connector already on the router stops working until you paste the new script. Continue?`
+      : null;
+    if (!replaces || window.confirm(replaces)) setup.mutate();
+  }
+
   const testing = test?.phase === 'running';
+  const status = routerStatus(router);
   return (
     <Card>
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -69,10 +86,8 @@ function RouterCard({
 
       <dl className="mt-4 grid grid-cols-1 gap-x-4 gap-y-2 text-sm min-[420px]:grid-cols-2 lg:grid-cols-4">
         <div>
-          <dt className="text-slate-500">Address</dt>
-          <dd className="break-all font-mono font-medium">
-            {router.use_https ? 'https' : 'http'}://{bareIp(router.ip_address)}:{router.port}
-          </dd>
+          <dt className="text-slate-500">Users report</dt>
+          <dd className="font-medium">{router.last_usage_at ? timeAgo(router.last_usage_at) : '—'}</dd>
         </div>
         <div>
           <dt className="text-slate-500">Hotspot</dt>
@@ -90,9 +105,31 @@ function RouterCard({
         </div>
       </dl>
 
-      {router.status === 'offline' && router.last_error && (
+      {router.status === 'pending' && !router.last_seen_at && !script && (
+        <div className="mt-3">
+          <Alert tone="info">This router has not called in yet. Click “Setup script” and paste it into the router’s terminal (Winbox → New Terminal).</Alert>
+        </div>
+      )}
+      {status === 'offline' && !router.last_error && (
+        <div className="mt-3">
+          <Alert tone="warning">
+            The router stopped calling in. Check that it is switched on and has internet. If it was reset or updated, paste its setup script again.
+          </Alert>
+        </div>
+      )}
+      {router.last_error && (
         <div className="mt-3">
           <Alert tone="error">{router.last_error}</Alert>
+        </div>
+      )}
+      {setup.error && (
+        <div className="mt-3">
+          <Alert tone="error">{friendlyError(setup.error)}</Alert>
+        </div>
+      )}
+      {script && (
+        <div className="mt-3">
+          <SetupScriptCard script={script} />
         </div>
       )}
       {test?.phase === 'done' && (
@@ -107,6 +144,9 @@ function RouterCard({
       )}
 
       <div className="mt-4 flex flex-wrap gap-2">
+        <Button variant="secondary" onClick={showSetup} disabled={setup.isPending}>
+          {setup.isPending ? <Spinner /> : null} Setup script
+        </Button>
         <Button variant="secondary" onClick={() => onTest(router)} disabled={testing || router.status === 'pending'}>
           {testing ? (
             <>
@@ -218,8 +258,8 @@ function SitesPanel() {
 
 export function RoutersPage() {
   const { profile } = useAuth();
-  // The agent updates status every 60 s; refresh often enough to notice.
-  const routers = useRouters(15_000);
+  // Routers call in every 30 s; refresh often enough to notice.
+  const routers = useRouters(10_000);
   const sites = useSites();
   const queryClient = useQueryClient();
   const [tests, setTests] = useState<Record<string, TestState>>({});
@@ -253,7 +293,7 @@ export function RoutersPage() {
     <div className="space-y-4">
       <PageHeader
         title="Routers"
-        subtitle="MikroTik routers reached by the Router Agent on the local network"
+        subtitle="MikroTik routers connect to Hotzonex Cloud by themselves — no computer or VPN needed"
         actions={
           <Link
             to="/routers/new"

@@ -7,6 +7,7 @@ import { friendlyError } from '../lib/errors';
 import { bareIp, formatBytes, formatDuration, formatJubaTime, formatNumber, timeAgo } from '../lib/format';
 import { waitForJob } from '../lib/jobs';
 import { usePlans, useRouters } from '../lib/queries';
+import { routerStatus } from '../lib/routers';
 import { supabase } from '../lib/supabase';
 
 interface SessionRow {
@@ -49,7 +50,7 @@ export function ActiveUsersPage() {
     },
   });
 
-  // Live updates: the agent rewrites active_sessions every 60 s.
+  // Live updates: each router reports its users every minute.
   useEffect(() => {
     const channel = supabase
       .channel('active-sessions')
@@ -72,7 +73,7 @@ export function ActiveUsersPage() {
         .select('id')
         .single();
       if (error) throw new Error(friendlyError(error));
-      const job = await waitForJob(data.id, 30_000);
+      const job = await waitForJob(data.id, 75_000);
       const ok = job.status === 'done';
       if (ok) setNotice(`${s.code} was disconnected.`);
       setDisconnects((d) => ({
@@ -87,19 +88,21 @@ export function ActiveUsersPage() {
 
   const planById = new Map((plans.data ?? []).map((p) => [p.id, p]));
   const list = (sessions.data ?? []).filter((s) => !routerFilter || s.router_id === routerFilter);
-  const visibleRouters = (routers.data ?? []).filter((r) => r.status !== 'pending' && (!routerFilter || r.id === routerFilter));
+  // A router that stopped calling in counts as offline, and its last user list is not shown.
+  const routerList = (routers.data ?? []).map((r) => ({ ...r, status: routerStatus(r) }));
+  const visibleRouters = routerList.filter((r) => r.status !== 'pending' && (!routerFilter || r.id === routerFilter));
 
   return (
     <div className="space-y-4">
-      <PageHeader title="Active users" subtitle="Who is online now. Updated by the Router Agent every minute." />
+      <PageHeader title="Active users" subtitle="Who is online now. Each router reports every minute." />
 
       <div className="flex flex-wrap items-center gap-2">
         <Card className="!py-3">
           <span className="text-sm text-slate-500">Online now</span>{' '}
           <span className="text-2xl font-extrabold tabular-nums">{formatNumber(list.length)}</span>
         </Card>
-        {(routers.data ?? []).filter((r) => r.status !== 'pending').length > 1 &&
-          [{ id: '', name: 'All routers' }, ...(routers.data ?? []).filter((r) => r.status !== 'pending')].map((r) => (
+        {routerList.filter((r) => r.status !== 'pending').length > 1 &&
+          [{ id: '', name: 'All routers' }, ...routerList.filter((r) => r.status !== 'pending')].map((r) => (
             <button
               key={r.id}
               type="button"
@@ -116,7 +119,7 @@ export function ActiveUsersPage() {
       {sessions.isLoading && <Spinner className="h-8 w-8 text-brand-600" />}
 
       {visibleRouters.map((router) => {
-        const rows = list.filter((s) => s.router_id === router.id);
+        const rows = router.status === 'online' ? list.filter((s) => s.router_id === router.id) : [];
         const lastUpdate = rows.reduce<string | null>((m, s) => (!m || s.updated_at > m ? s.updated_at : m), null);
         return (
           <Card key={router.id} className="!p-0">

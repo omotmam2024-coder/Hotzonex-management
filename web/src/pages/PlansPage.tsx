@@ -278,7 +278,7 @@ export function PlansPage() {
           initial={editing}
           onClose={(saved) => {
             setEditing(null);
-            if (saved) setNotice('Plan saved. The Router Agent will update the profile on every online router within a few seconds.');
+            if (saved) setNotice('Plan saved. Every online router updates its profile within a few seconds.');
           }}
         />
       )}
