@@ -47,6 +47,8 @@ export interface RouterInfo {
   use_https: boolean | null;
   username: string | null;
   hotspot_info: HotspotInfo | null;
+  /** Hotspot users on the router at the last minute check (all users, MikroTicket ones too). */
+  hotspot_users: { total: number; unused: number; used: number; by_profile: { profile: string; total: number; unused: number }[]; checked_at: string } | null;
   hotspot_server: string | null;
   dns_name: string | null;
   status: RouterStatus;
@@ -58,7 +60,7 @@ export interface RouterInfo {
 }
 
 export const ROUTER_COLUMNS =
-  'id, created_at, site_id, name, connection, host, tunnel_ip, port, use_https, username, hotspot_info, hotspot_server, dns_name, status, last_seen_at, model, ros_version, last_error, last_usage_at';
+  'id, created_at, site_id, name, connection, host, tunnel_ip, port, use_https, username, hotspot_info, hotspot_users, hotspot_server, dns_name, status, last_seen_at, model, ros_version, last_error, last_usage_at';
 
 export type JobStatus = 'queued' | 'running' | 'done' | 'failed';
 

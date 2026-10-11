@@ -226,6 +226,17 @@ profile fills in the plan's name, price, time and validity from the profile. **I
 profiles** on the Plans page adds a plan for every MikroTicket profile not used yet. Only
 **+ New profile** makes Hotzonex add a profile (only to routers that do not have it).
 
+### Router users and login sales
+
+Every minute Hotzonex reads all hotspot users on the router (MikroTicket's too) and shows the
+count — total, unused (never logged in) and used — on the Dashboard and the router's card.
+When a hotspot user that Hotzonex did not make (e.g. a MikroTicket voucher) logs in for the
+**first time**, that login is recorded as a sale at the price of its plan (the plan whose router
+profile it uses, or the `co:` price in a MikroTicket profile name). These sales appear in the
+Dashboard totals and the Daily / Weekly / Monthly reports (seller "Router logins"), and the
+report lists the users seen online in the period. Users already logged in before Hotzonex saw
+them are listed without a price. Hotzonex's own vouchers count through **Sell on first login**.
+
 ### Login portal
 
 **Login Portal** (admins) gives each router a Hotzonex login page. Choose a template (Classic,

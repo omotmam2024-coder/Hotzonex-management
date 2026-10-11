@@ -27,6 +27,8 @@ interface Dashboard {
   week: { revenue: number; sold: number; start: string };
   month: { revenue: number; sold: number; start: string };
   online_now: number;
+  router_users: { total: number; unused: number; used: number; checked_at: string | null };
+  logins_today: number;
   last_14_days: DayRevenue[];
   stock: StockRow[];
 }
@@ -104,11 +106,18 @@ export function DashboardPage() {
 
       {d && (
         <>
-          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
             <StatCard label="Today" value={formatSSP(d.today.revenue)} sub={`${formatNumber(d.today.sold)} vouchers`} to="/reports?tab=day" />
             <StatCard label="This week" value={formatSSP(d.week.revenue)} sub={`${formatNumber(d.week.sold)} vouchers · from Mon`} to="/reports?tab=week" />
             <StatCard label="This month" value={formatSSP(d.month.revenue)} sub={`${formatNumber(d.month.sold)} vouchers`} to="/reports?tab=month" />
             <StatCard label="Online now" value={formatNumber(d.online_now)} sub="users connected" to="/active-users" />
+            <StatCard label="Logged in today" value={formatNumber(d.logins_today)} sub="hotspot users seen on the router" to="/reports?tab=day" />
+            <StatCard
+              label="Hotspot users on router"
+              value={formatNumber(d.router_users.total)}
+              sub={`${formatNumber(d.router_users.unused)} unused · ${formatNumber(d.router_users.used)} used`}
+              to="/routers"
+            />
           </div>
 
           <Card>

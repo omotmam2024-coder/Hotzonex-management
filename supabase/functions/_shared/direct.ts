@@ -252,12 +252,23 @@ export async function closeSessions(client: RestClient, code: string, mac: strin
   return sessions.length;
 }
 
-/** Who is online and the counters of used voucher users, in the same shape as the cloud report. */
-export async function readUsage(client: RestClient): Promise<{ sessions: ActiveRow[]; users: UserUsage[]; info: Json }> {
+/** A hotspot user as Hotzonex counts it: every user on the router, not only Hotzonex vouchers. */
+export interface RouterUser {
+  name: string;
+  profile: string;
+  uptime: number;
+  comment: string;
+}
+
+/**
+ * Who is online, the counters of used voucher users (same shape as the cloud report), and every
+ * hotspot user on the router (for the user counts and the router-login sales).
+ */
+export async function readUsage(client: RestClient): Promise<{ sessions: ActiveRow[]; users: UserUsage[]; allUsers: RouterUser[]; info: Json }> {
   const [info, active, users] = await Promise.all([
     client.get<Json>('/system/resource'),
     client.get<Json[]>('/ip/hotspot/active', { '.proplist': 'user,mac-address,address,uptime,bytes-in,bytes-out' }),
-    client.get<Json[]>('/ip/hotspot/user', { '.proplist': 'comment,uptime,bytes-in,bytes-out' }),
+    client.get<Json[]>('/ip/hotspot/user', { '.proplist': 'name,profile,comment,uptime,bytes-in,bytes-out' }),
   ]);
   const unique = new Map<string, ActiveRow>();
   for (const a of active) {
@@ -277,7 +288,10 @@ export async function readUsage(client: RestClient): Promise<{ sessions: ActiveR
     const tag = /^hzc:([0-9a-f-]{36})$/i.exec(s(u.comment));
     if (tag?.[1]) usage.push({ voucher_id: tag[1].toLowerCase(), uptime: fromRouterOsTime(s(u.uptime)), bytes: n(u['bytes-in']) + n(u['bytes-out']) });
   }
-  return { sessions: [...unique.values()], users: usage, info };
+  const allUsers = users
+    .filter((u) => s(u.name))
+    .map((u) => ({ name: s(u.name), profile: s(u.profile), uptime: fromRouterOsTime(s(u.uptime)), comment: s(u.comment) }));
+  return { sessions: [...unique.values()], users: usage, allUsers, info };
 }
 
 /** Removes an expired voucher user if it is offline and still carries the voucher's tag. Returns true when gone. */

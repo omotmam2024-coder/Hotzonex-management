@@ -290,6 +290,13 @@ async function checkRouter(db: SupabaseClient, router: DirectRouter, client: Res
     router.status = 'online';
 
     const result = await applyUsage(db, router, usage);
+    // User counts and first logins of every hotspot user (MikroTicket vouchers too), for the reports.
+    const { error: loginsError } = await db.rpc('record_router_logins', {
+      p_router_id: router.id,
+      p_sessions: usage.sessions.map((a) => ({ code: a.code, uptime: a.uptime })),
+      p_users: usage.allUsers,
+    });
+    if (loginsError) console.error(`Router logins not recorded for ${router.name}: ${loginsError.message}`);
     if (result) {
       for (const k of result.kick ?? []) await closeSessions(client, k.code, null);
       const removed: string[] = [];

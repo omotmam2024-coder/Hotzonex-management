@@ -104,6 +104,14 @@ function RouterCard({
           </dd>
         </div>
         <div>
+          <dt className="text-slate-500">Hotspot users</dt>
+          <dd className="font-medium">
+            {router.hotspot_users
+              ? `${router.hotspot_users.total} · ${router.hotspot_users.unused} unused · ${router.hotspot_users.used} used`
+              : '—'}
+          </dd>
+        </div>
+        <div>
           <dt className="text-slate-500">Users report</dt>
           <dd className="font-medium">{router.last_usage_at ? timeAgo(router.last_usage_at) : '—'}</dd>
         </div>

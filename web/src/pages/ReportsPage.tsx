@@ -5,7 +5,8 @@ import { useAuth } from '../auth/AuthProvider';
 import { Alert, Button, Card, Field, Select, Spinner, TextInput } from '../components/ui';
 import { downloadText, toCsv } from '../lib/csv';
 import { friendlyError } from '../lib/errors';
-import { formatNumber, formatSSP, jubaToday } from '../lib/format';
+import { formatJubaTime, formatNumber, formatSSP, jubaToday } from '../lib/format';
+import { profileLabel } from '../lib/mikroticket';
 import { usePlans, useSites } from '../lib/queries';
 import { supabase } from '../lib/supabase';
 
@@ -29,6 +30,7 @@ interface Report {
   by_site: (Row & { site_id: string; name: string })[];
   breakdown: (Row & { hour?: number; day?: string; week_start?: string })[];
   voucher_status: { created: number; unused: number; sold: number; active: number; expired: number; disabled: number };
+  router_logins: { username: string; plan: string | null; price_ssp: number | null; first_login_at: string | null; last_seen_at: string; new: boolean }[];
 }
 
 const TABS: { key: Period; label: string; noun: string }[] = [
@@ -380,7 +382,7 @@ export function ReportsPage() {
                 </thead>
                 <tbody>
                   {r.by_seller.map((p) => (
-                    <tr key={p.seller_id ?? 'auto'} className="border-t border-slate-100">
+                    <tr key={p.seller_id ?? p.name} className="border-t border-slate-100">
                       <td className={td}>{p.name}</td>
                       <td className={`${td} text-right tabular-nums`}>{formatNumber(p.sold)}</td>
                       <td className={`${td} text-right font-semibold tabular-nums`}>{formatSSP(p.revenue)}</td>
@@ -479,6 +481,42 @@ export function ReportsPage() {
                   <td className={`${td} text-right tabular-nums`}>{formatNumber(r.summary.sold)}</td>
                   <td className={`${td} text-right tabular-nums`}>{formatSSP(r.summary.revenue)}</td>
                 </tr>
+              </tbody>
+            </table>
+          </Section>
+
+          <Section title="Users who logged in on the router">
+            <p className="mb-2 text-sm text-slate-600">
+              Hotspot users seen online in this period, including MikroTicket vouchers. A user's <strong>first login</strong> counts as a sale at its plan's
+              price; users who had logged in before are listed without a price.
+            </p>
+            <table className="w-full text-left text-sm">
+              <thead>
+                <tr>
+                  <th className={th}>User</th>
+                  <th className={th}>Plan</th>
+                  <th className={th}>First login</th>
+                  <th className={`${th} text-right`}>Sale</th>
+                </tr>
+              </thead>
+              <tbody>
+                {r.router_logins.map((l) => (
+                  <tr key={l.username} className="border-t border-slate-100">
+                    <td className={`${td} font-mono`}>{l.username}</td>
+                    <td className={td}>{l.plan ? profileLabel(l.plan) : '—'}</td>
+                    <td className={`${td} tabular-nums`}>{l.first_login_at ? formatJubaTime(l.first_login_at) : 'before this period'}</td>
+                    <td className={`${td} text-right tabular-nums ${l.new && l.price_ssp ? 'font-semibold' : 'text-slate-400'}`}>
+                      {l.new && l.price_ssp ? formatSSP(l.price_ssp) : '—'}
+                    </td>
+                  </tr>
+                ))}
+                {r.router_logins.length === 0 && (
+                  <tr>
+                    <td colSpan={4} className="py-3 text-slate-500">
+                      No logins seen on the routers in this period.
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </Section>

@@ -140,6 +140,8 @@ test('disable, usage, disconnect and removal only act on tagged users', async ()
   const usage = await readUsage(c);
   assert.deepEqual(usage.users, [{ voucher_id: V, uptime: 600, bytes: 12 }]);
   assert.equal(usage.sessions[0]?.code, '12345678');
+  // Every hotspot user is listed for the user counts and router-login sales, MikroTicket ones too.
+  assert.deepEqual(usage.allUsers.map((u) => [u.name, u.uptime]), [['11112222', 0], ['12345678', 600]]);
 
   assert.equal(await removeExpired(c, { id: V, code: '12345678' }), false, 'online users are not removed');
   assert.deepEqual(await disableVoucher(c, V, '12345678'), { disabled: true, sessions: 1 });
