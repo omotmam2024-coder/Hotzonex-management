@@ -4,9 +4,14 @@ import { PageHeader } from '../components/PageHeader';
 import { Alert, Badge, Button, Card, Checkbox, Field, Select, Spinner, TextInput } from '../components/ui';
 import { friendlyError } from '../lib/errors';
 import { formatDuration, formatSSP } from '../lib/format';
-import { usePlans } from '../lib/queries';
+import { parseMikroticketProfile, profileLabel } from '../lib/mikroticket';
+import { usePlans, useRouters } from '../lib/queries';
 import { supabase } from '../lib/supabase';
-import type { Plan } from '../lib/types';
+import type { HotspotInfo, Plan } from '../lib/types';
+
+type RouterProfile = HotspotInfo['user_profiles'][number];
+const NEW_PROFILE = '__new__';
+const RATE_RE = /^\d+[kKmMgG]?\/\d+[kKmMgG]?$/;
 
 const SWATCHES = ['#16a34a', '#2563eb', '#dc2626', '#f59e0b', '#7c3aed', '#db2777', '#0891b2', '#475569'];
 
@@ -35,6 +40,8 @@ interface PlanForm {
   color: string;
   profileName: string;
   profileTouched: boolean;
+  /** 'router': a user profile already on the router (e.g. made by MikroTicket); 'new': Hotzonex adds it. */
+  profileMode: 'router' | 'new';
   isActive: boolean;
 }
 
@@ -53,10 +60,11 @@ const NEW_PLAN: PlanForm = {
   color: SWATCHES[0] ?? '#16a34a',
   profileName: '',
   profileTouched: false,
+  profileMode: 'router',
   isActive: true,
 };
 
-function toForm(p: Plan): PlanForm {
+function toForm(p: Plan, routerProfiles: RouterProfile[]): PlanForm {
   const up = splitDuration(p.uptime_seconds);
   const val = splitDuration(p.validity_seconds ?? 86400);
   return {
@@ -74,6 +82,7 @@ function toForm(p: Plan): PlanForm {
     color: p.color,
     profileName: p.router_profile_name,
     profileTouched: true,
+    profileMode: routerProfiles.some((r) => r.name === p.router_profile_name) ? 'router' : 'new',
     isActive: p.is_active,
   };
 }
@@ -89,10 +98,73 @@ function slugProfile(name: string): string {
 
 const wholeNumber = (v: string) => (/^\d+$/.test(v) ? Number(v) : NaN);
 
-function PlanEditor({ initial, onClose }: { initial: PlanForm; onClose: (saved: boolean) => void }) {
+/** A plan row for a router profile made by MikroTicket, using the details in its name. */
+function planFromRouterProfile(r: RouterProfile, color: string) {
+  const mt = parseMikroticketProfile(r.name);
+  if (!mt || mt.price <= 0) return null;
+  const shared = Number(r.shared_users);
+  return {
+    name: mt.label,
+    price_ssp: mt.price,
+    uptime_seconds: mt.uptimeSeconds,
+    validity_seconds: mt.validitySeconds,
+    rate_limit: RATE_RE.test(r.rate_limit) ? r.rate_limit : null,
+    data_limit_mb: null,
+    shared_users: shared >= 1 && shared <= 50 ? shared : 1,
+    color,
+    router_profile_name: r.name,
+    is_active: true,
+  };
+}
+
+/** Every user profile found on the routers at their last check, without duplicates. */
+function useRouterProfiles(): RouterProfile[] {
+  const routers = useRouters();
+  const byName = new Map<string, RouterProfile>();
+  for (const r of routers.data ?? []) for (const up of r.hotspot_info?.user_profiles ?? []) if (!byName.has(up.name)) byName.set(up.name, up);
+  return [...byName.values()];
+}
+
+function PlanEditor({
+  initial,
+  routerProfiles,
+  usedProfiles,
+  onClose,
+}: {
+  initial: PlanForm;
+  routerProfiles: RouterProfile[];
+  usedProfiles: Set<string>;
+  onClose: (saved: boolean) => void;
+}) {
   const queryClient = useQueryClient();
-  const [form, setForm] = useState<PlanForm>(initial);
+  const [form, setForm] = useState<PlanForm>(initial.profileMode === 'router' && !routerProfiles.length ? { ...initial, profileMode: 'new' } : initial);
   const set = <K extends keyof PlanForm>(key: K, value: PlanForm[K]) => setForm((f) => ({ ...f, [key]: value }));
+  const routerProfile = form.profileMode === 'router' ? routerProfiles.find((r) => r.name === form.profileName) : undefined;
+
+  function chooseProfile(value: string) {
+    if (value === NEW_PROFILE) {
+      setForm((f) => ({ ...f, profileMode: 'new', profileName: slugProfile(f.name), profileTouched: false }));
+      return;
+    }
+    setForm((f) => {
+      const next: PlanForm = { ...f, profileMode: 'router', profileName: value, profileTouched: true };
+      const mt = parseMikroticketProfile(value);
+      if (mt && !f.id) {
+        // Fill the plan from what MikroTicket stored in the profile name.
+        const up = splitDuration(mt.uptimeSeconds);
+        const val = mt.validitySeconds ? splitDuration(Math.max(3600, Math.round(mt.validitySeconds / 3600) * 3600)) : null;
+        Object.assign(next, {
+          name: f.name.trim() ? f.name : mt.label,
+          price: mt.price > 0 ? String(mt.price) : f.price,
+          uptimeAmount: up.amount,
+          uptimeUnit: up.unit,
+          hasValidity: Boolean(val),
+          ...(val ? { validityAmount: val.amount, validityUnit: val.unit } : {}),
+        });
+      }
+      return next;
+    });
+  }
 
   const save = useMutation({
     mutationFn: async () => {
@@ -104,14 +176,20 @@ function PlanEditor({ initial, onClose }: { initial: PlanForm; onClose: (saved: 
       if (!(uptime > 0)) throw new Error('Time allowed must be above 0.');
       const validity = form.hasValidity ? wholeNumber(form.validityAmount) * UNIT_SECONDS[form.validityUnit] : null;
       if (validity !== null && !(validity > 0)) throw new Error('Validity must be above 0, or switch it off.');
-      const rate = form.rateLimit.trim();
-      if (rate && !/^\d+[kKmMgG]?\/\d+[kKmMgG]?$/.test(rate)) throw new Error('Speed limit must look like 2M/2M (upload/download).');
+      // A profile already on the router keeps its own speed and shared users; they are only copied for display.
+      const rate = routerProfile ? (RATE_RE.test(routerProfile.rate_limit) ? routerProfile.rate_limit : '') : form.rateLimit.trim();
+      if (rate && !RATE_RE.test(rate)) throw new Error('Speed limit must look like 2M/2M (upload/download).');
       const data = form.dataLimitMb.trim() ? wholeNumber(form.dataLimitMb.trim()) : null;
       if (data !== null && !(data > 0)) throw new Error('Data limit must be a whole number of MB, or empty for no limit.');
-      const shared = wholeNumber(form.sharedUsers);
+      const routerShared = Number(routerProfile?.shared_users);
+      const shared = routerProfile ? (routerShared >= 1 && routerShared <= 50 ? routerShared : 1) : wholeNumber(form.sharedUsers);
       if (!(shared >= 1 && shared <= 50)) throw new Error('Shared users must be from 1 to 50.');
-      const profile = form.profileName.trim();
-      if (!/^[A-Za-z0-9_.-]{1,64}$/.test(profile)) throw new Error('RouterOS profile name may use letters, numbers, - _ and . only.');
+      const profile = form.profileMode === 'router' ? form.profileName : form.profileName.trim();
+      if (form.profileMode === 'router') {
+        if (!routerProfile) throw new Error('Choose the router user profile for this plan.');
+      } else if (!/^[A-Za-z0-9_.-]{1,64}$/.test(profile)) {
+        throw new Error('A new profile name may use letters, numbers, - _ and . only.');
+      }
 
       const row = {
         name,
@@ -155,7 +233,7 @@ function PlanEditor({ initial, onClose }: { initial: PlanForm; onClose: (saved: 
               placeholder="2 Hours"
               onChange={(e) => {
                 const name = e.target.value;
-                setForm((f) => ({ ...f, name, profileName: f.profileTouched ? f.profileName : slugProfile(name) }));
+                setForm((f) => ({ ...f, name, profileName: f.profileTouched || f.profileMode === 'router' ? f.profileName : slugProfile(name) }));
               }}
             />
           </Field>
@@ -187,22 +265,49 @@ function PlanEditor({ initial, onClose }: { initial: PlanForm; onClose: (saved: 
               </Select>
             </div>
           </Field>
-          <Field label="Speed limit (upload/download)" hint="RouterOS rate-limit, e.g. 2M/2M or 512k/1M. Empty = no limit">
-            <TextInput value={form.rateLimit} onChange={(e) => set('rateLimit', e.target.value.replace(/\s/g, ''))} placeholder="2M/2M" />
-          </Field>
+          {form.profileMode === 'new' && (
+            <Field label="Speed limit (upload/download)" hint="RouterOS rate-limit, e.g. 2M/2M or 512k/1M. Empty = no limit">
+              <TextInput value={form.rateLimit} onChange={(e) => set('rateLimit', e.target.value.replace(/\s/g, ''))} placeholder="2M/2M" />
+            </Field>
+          )}
           <Field label="Data limit (MB)" hint="Empty = no data limit">
             <TextInput inputMode="numeric" value={form.dataLimitMb} onChange={(e) => set('dataLimitMb', e.target.value.replace(/\D/g, ''))} placeholder="none" />
           </Field>
-          <Field label="Shared users" hint="Devices that may use one code at the same time">
-            <TextInput inputMode="numeric" value={form.sharedUsers} onChange={(e) => set('sharedUsers', e.target.value.replace(/\D/g, ''))} />
+          {form.profileMode === 'new' && (
+            <Field label="Shared users" hint="Devices that may use one code at the same time">
+              <TextInput inputMode="numeric" value={form.sharedUsers} onChange={(e) => set('sharedUsers', e.target.value.replace(/\D/g, ''))} />
+            </Field>
+          )}
+          <Field
+            label="Router user profile"
+            hint={
+              routerProfile
+                ? `Uses the router's own profile as it is: speed ${routerProfile.rate_limit || 'no limit'}, ${routerProfile.shared_users || 1} device(s) per code. Hotzonex never changes it.`
+                : form.profileMode === 'new'
+                  ? 'Hotzonex adds this profile, with the speed and shared users above, to routers that do not have it.'
+                  : 'Choose one of the profiles on your router, e.g. the ones MikroTicket made.'
+            }
+          >
+            <Select value={form.profileMode === 'new' ? NEW_PROFILE : form.profileName} onChange={(e) => chooseProfile(e.target.value)}>
+              {form.profileMode === 'router' && !routerProfile && <option value={form.profileName}>Choose a profile…</option>}
+              {routerProfiles.map((r) => (
+                <option key={r.name} value={r.name} disabled={usedProfiles.has(r.name) && r.name !== initial.profileName}>
+                  {profileLabel(r.name)}
+                  {usedProfiles.has(r.name) && r.name !== initial.profileName ? ' — used by another plan' : ''}
+                </option>
+              ))}
+              <option value={NEW_PROFILE}>+ New profile (Hotzonex adds it to the router)</option>
+            </Select>
           </Field>
-          <Field label="Router user profile" hint="Hotzonex adds this user profile, with this plan’s speed, to routers that do not have it. Profiles already on a router are never changed.">
-            <TextInput
-              value={form.profileName}
-              onChange={(e) => setForm((f) => ({ ...f, profileName: e.target.value, profileTouched: true }))}
-              placeholder="hzc-2h"
-            />
-          </Field>
+          {form.profileMode === 'new' && (
+            <Field label="New profile name" hint="Letters, numbers, - _ and . only">
+              <TextInput
+                value={form.profileName}
+                onChange={(e) => setForm((f) => ({ ...f, profileName: e.target.value, profileTouched: true }))}
+                placeholder="hzc-2h"
+              />
+            </Field>
+          )}
         </div>
 
         <div>
@@ -249,36 +354,66 @@ function PlanEditor({ initial, onClose }: { initial: PlanForm; onClose: (saved: 
 
 export function PlansPage() {
   const plans = usePlans();
+  const queryClient = useQueryClient();
+  const routerProfiles = useRouterProfiles();
   const [editing, setEditing] = useState<PlanForm | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const usedProfiles = new Set((plans.data ?? []).map((p) => p.router_profile_name));
+  const usedNames = new Set((plans.data ?? []).map((p) => p.name.toLowerCase()));
+  const importable = routerProfiles
+    .filter((r) => !usedProfiles.has(r.name))
+    .map((r, i) => planFromRouterProfile(r, SWATCHES[i % SWATCHES.length] ?? '#16a34a'))
+    .filter((p): p is NonNullable<typeof p> => p !== null && !usedNames.has(p.name.toLowerCase()));
+
+  const importPlans = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase.from('plans').insert(importable);
+      if (error) throw new Error(friendlyError(error));
+      return importable.length;
+    },
+    onSuccess: (n) => {
+      setNotice(`${n} plan(s) added from your router's MikroTicket profiles. Vouchers of these plans use those profiles as they are.`);
+      void queryClient.invalidateQueries({ queryKey: ['plans'] });
+    },
+  });
 
   return (
     <div className="space-y-4">
       <PageHeader
         title="Plans"
-        subtitle="Price plans for vouchers. Saving a plan updates its hotspot profile on every router."
+        subtitle="Price plans for vouchers. Each plan uses a user profile on your router, such as the ones MikroTicket made."
         actions={
           !editing && (
-            <Button
-              onClick={() => {
-                setNotice(null);
-                setEditing(NEW_PLAN);
-              }}
-            >
-              + New plan
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              {importable.length > 0 && (
+                <Button variant="secondary" disabled={importPlans.isPending} onClick={() => importPlans.mutate()}>
+                  {importPlans.isPending && <Spinner />} Import {importable.length} MikroTicket profile{importable.length === 1 ? '' : 's'}
+                </Button>
+              )}
+              <Button
+                onClick={() => {
+                  setNotice(null);
+                  setEditing(NEW_PLAN);
+                }}
+              >
+                + New plan
+              </Button>
+            </div>
           )
         }
       />
+      {importPlans.error && <Alert tone="error">{importPlans.error.message}</Alert>}
 
       {notice && <Alert tone="success">{notice}</Alert>}
       {editing && (
         <PlanEditor
           key={editing.id ?? 'new'}
           initial={editing}
+          routerProfiles={routerProfiles}
+          usedProfiles={usedProfiles}
           onClose={(saved) => {
             setEditing(null);
-            if (saved) setNotice('Plan saved. Routers that do not have this plan’s user profile yet get it within a few seconds; existing profiles on the routers are never changed.');
+            if (saved) setNotice('Plan saved. Profiles already on the router are used as they are and never changed; a new profile is added to routers within a few seconds.');
           }}
         />
       )}
@@ -310,14 +445,16 @@ export function PlansPage() {
                 <dt className="text-slate-500">Shared users</dt>
                 <dd className="font-medium">{p.shared_users}</dd>
                 <dt className="text-slate-500">Profile</dt>
-                <dd className="truncate font-mono text-xs leading-5">{p.router_profile_name}</dd>
+                <dd className="truncate text-xs leading-5" title={p.router_profile_name}>
+                  {profileLabel(p.router_profile_name)}
+                </dd>
               </dl>
               <Button
                 variant="secondary"
                 className="mt-4 w-full"
                 onClick={() => {
                   setNotice(null);
-                  setEditing(toForm(p));
+                  setEditing(toForm(p, routerProfiles));
                 }}
               >
                 Edit

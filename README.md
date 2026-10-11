@@ -202,6 +202,15 @@ that stops calling in for 2 minutes is shown offline and its user list is cleare
   sale); if the print failed, click **Unmark these cards** straight away.
 - **Receipts:** 58 mm or 80 mm thermal paper (remembered per device); set the printer's paper size to match.
 
+### Plans and router profiles
+
+Each plan uses a hotspot **user profile on the router**. In the plan editor, **Router user profile**
+lists the profiles found on your routers (MikroTicket's show as e.g. `1Hr (MikroTicket)`); pick one
+and Hotzonex uses it exactly as it is, with its own speed and shared users. Choosing a MikroTicket
+profile fills in the plan's name, price, time and validity from the profile. **Import MikroTicket
+profiles** on the Plans page adds a plan for every MikroTicket profile not used yet. Only
+**+ New profile** makes Hotzonex add a profile (only to routers that do not have it).
+
 ### Login portal
 
 **Login Portal** (admins) gives each router a Hotzonex login page. Choose a template (Classic,
