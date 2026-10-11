@@ -54,7 +54,8 @@ function RouterCard({
     mutationFn: async () => {
       const { error } = await supabase.from('routers').delete().eq('id', router.id);
       if (error) {
-        if (error.code === '23503') throw new Error(`${router.name} has vouchers or sales and cannot be removed.`);
+        // The database explains why (vouchers or activated vouchers in the sales history).
+        if (error.code === '23503') throw new Error(error.message || `${router.name} has vouchers or sales and cannot be removed.`);
         throw new Error(friendlyError(error));
       }
     },
@@ -68,7 +69,8 @@ function RouterCard({
   const cloud = router.connection === 'cloud';
   const tunnelServer = useTunnelServer();
   const setup = useMutation({
-    mutationFn: () => invokeFunction<{ script: string }>('add-router', { action: 'setup', router_id: router.id }),
+    // new_key: the admin confirmed below that a connected router stops until the new script is pasted.
+    mutationFn: () => invokeFunction<{ script: string }>('add-router', { action: 'setup', router_id: router.id, new_key: true }),
     onSuccess: (data) => setScript(data.script),
   });
   function showSetup() {

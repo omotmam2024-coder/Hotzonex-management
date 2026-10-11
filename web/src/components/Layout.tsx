@@ -14,7 +14,7 @@ function Brand() {
 }
 
 export function Layout() {
-  const { profile, siteName, signOut } = useAuth();
+  const { profile, siteName, business, isPlatformAdmin, signOut } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
   const location = useLocation();
 
@@ -24,7 +24,7 @@ export function Layout() {
   }, [location.pathname]);
 
   if (!profile) return null;
-  const items = navForRole(profile.role);
+  const items = navForRole(profile.role, isPlatformAdmin);
   const siteLabel = profile.site_id ? (siteName ?? 'Unknown site') : 'All sites';
 
   const sidebar = (
@@ -59,6 +59,7 @@ export function Layout() {
       </ul>
       <div className="border-t border-white/10 p-3">
         <div className="px-1 pb-3 text-sm">
+          {business && <div className="truncate text-xs font-semibold uppercase tracking-wide text-white/60">{business.name}</div>}
           <div className="truncate font-semibold">{profile.full_name}</div>
           <div className="text-white/70">
             {ROLE_LABELS[profile.role]} · {siteLabel}

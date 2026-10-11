@@ -8,7 +8,8 @@ export interface TunnelServerInfo {
   ready: boolean;
   relay_url: string | null;
   endpoint: string | null;
-  command: string;
+  /** Only for platform admins: the command holds the shared tunnel server's secret. */
+  command?: string;
 }
 
 /** Status of the admin's tunnel server (VPS); refreshes until it is ready. */
@@ -29,7 +30,7 @@ export function TunnelServerCard() {
   const t = tunnel.data;
 
   async function copy() {
-    if (!t) return;
+    if (!t?.command) return;
     try {
       await navigator.clipboard.writeText(t.command);
       setCopied(true);
@@ -42,6 +43,16 @@ export function TunnelServerCard() {
   if (tunnel.isLoading) return null;
   if (tunnel.error) return <Alert tone="error">Tunnel server: {friendlyError(tunnel.error)}</Alert>;
   if (!t) return null;
+
+  // Businesses use the shared tunnel server that Hotzonex Cloud runs; only its platform admins install it.
+  if (!t.command) {
+    return t.ready ? null : (
+      <Alert tone="info">
+        Routers without a public IP connect through the Hotzonex Cloud tunnel server, which is not ready yet. Contact Hotzonex Cloud before adding such a
+        router.
+      </Alert>
+    );
+  }
 
   const showSteps = !t.ready || open;
   return (

@@ -1,11 +1,11 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../auth/AuthProvider';
 import { Alert, Button, Select, Spinner } from '../components/ui';
 import { friendlyError } from '../lib/errors';
 import { codeGroups, formatDuration, formatJubaTime, formatSSP } from '../lib/format';
-import { usePlans, useRouters, useSites } from '../lib/queries';
+import { invalidateSalesData, usePlans, useRouters, useSites } from '../lib/queries';
 import { readStored, writeStored } from '../lib/storage';
 import { supabase } from '../lib/supabase';
 import type { Plan, RouterInfo } from '../lib/types';
@@ -125,6 +125,14 @@ export function SellPage() {
     },
   });
 
+  // A double tap must not sell two vouchers: the second tap comes before isPending re-renders.
+  const inFlight = useRef(false);
+  const sellPlan = (plan: Plan) => {
+    if (inFlight.current) return;
+    inFlight.current = true;
+    sell.mutate(plan);
+  };
+
   const sell = useMutation({
     mutationFn: async (plan: Plan): Promise<LastSale> => {
       if (!router) throw new Error('Choose a router first.');
@@ -150,7 +158,10 @@ export function SellPage() {
       setLastSale(sale);
       writeStored('session', LAST_SALE_KEY, sale);
     },
-    onSettled: () => void queryClient.invalidateQueries({ queryKey: ['stock', routerId] }),
+    onSettled: () => {
+      inFlight.current = false;
+      invalidateSalesData(queryClient);
+    },
   });
 
   function sellAnother() {
@@ -227,7 +238,7 @@ export function SellPage() {
         <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {plans.isLoading && <Spinner className="h-8 w-8 text-brand-600" />}
           {activePlans.map((plan) => (
-            <PlanButton key={plan.id} plan={plan} stock={stock.data?.get(plan.id) ?? (stock.data ? 0 : undefined)} busy={sell.isPending} onSell={() => sell.mutate(plan)} />
+            <PlanButton key={plan.id} plan={plan} stock={stock.data?.get(plan.id) ?? (stock.data ? 0 : undefined)} busy={sell.isPending} onSell={() => sellPlan(plan)} />
           ))}
         </div>
       )}

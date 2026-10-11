@@ -6,7 +6,7 @@ import { PageHeader } from '../components/PageHeader';
 import { Alert, Badge, Button, Card, Field, Select, Spinner } from '../components/ui';
 import { friendlyError } from '../lib/errors';
 import { formatJubaTime, formatNumber, formatSSP } from '../lib/format';
-import { usePlans, useRouters } from '../lib/queries';
+import { invalidateSalesData, usePlans, useRouters } from '../lib/queries';
 import { supabase } from '../lib/supabase';
 import type { VoucherStatus } from '../lib/types';
 
@@ -123,8 +123,7 @@ export function MarkSoldPage() {
     onSuccess: (r) => {
       setResult(r);
       setCodesText('');
-      void queryClient.invalidateQueries({ queryKey: ['mark-candidates'] });
-      void queryClient.invalidateQueries({ queryKey: ['sales'] });
+      invalidateSalesData(queryClient);
     },
   });
 

@@ -10,13 +10,16 @@ export type IconName =
   | 'reports'
   | 'active'
   | 'portal'
-  | 'staff';
+  | 'staff'
+  | 'businesses';
 
 export interface NavItem {
   path: string;
   label: string;
   icon: IconName;
   roles: readonly Role[];
+  /** Only for the people who run Hotzonex Cloud itself. */
+  platformOnly?: boolean;
 }
 
 const ALL: readonly Role[] = ['admin', 'manager', 'seller'];
@@ -35,10 +38,11 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { path: '/reports', label: 'Reports', icon: 'reports', roles: ADMIN_MANAGER },
   { path: '/active-users', label: 'Active Users', icon: 'active', roles: ADMIN_MANAGER },
   { path: '/staff', label: 'Staff', icon: 'staff', roles: ADMIN },
+  { path: '/businesses', label: 'Businesses', icon: 'businesses', roles: ADMIN, platformOnly: true },
 ];
 
-export function navForRole(role: Role): NavItem[] {
-  return NAV_ITEMS.filter((item) => item.roles.includes(role));
+export function navForRole(role: Role, isPlatformAdmin = false): NavItem[] {
+  return NAV_ITEMS.filter((item) => item.roles.includes(role) && (!item.platformOnly || isPlatformAdmin));
 }
 
 export function rolesFor(path: string): readonly Role[] {

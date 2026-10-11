@@ -1,6 +1,13 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, type QueryClient } from '@tanstack/react-query';
 import { supabase } from './supabase';
 import { PLAN_COLUMNS, ROUTER_COLUMNS, type Plan, type RouterInfo, type SiteRow } from './types';
+
+/** After a sale, a void or new vouchers: every screen that counts sales or stock reloads. */
+export function invalidateSalesData(queryClient: QueryClient): void {
+  for (const key of ['sales', 'dashboard', 'report', 'stock', 'vouchers', 'batches', 'mark-candidates']) {
+    void queryClient.invalidateQueries({ queryKey: [key] });
+  }
+}
 
 export function useSites() {
   return useQuery({

@@ -116,7 +116,7 @@ export function DashboardPage() {
               label="Hotspot users on router"
               value={formatNumber(d.router_users.total)}
               sub={`${formatNumber(d.router_users.unused)} unused · ${formatNumber(d.router_users.used)} used`}
-              to="/routers"
+              to={isAdmin ? '/routers' : '/reports?tab=day'}
             />
           </div>
 

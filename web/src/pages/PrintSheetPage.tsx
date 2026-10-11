@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { flushSync } from 'react-dom';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Alert, Button, Spinner } from '../components/ui';
@@ -27,12 +28,14 @@ async function loadCards(params: URLSearchParams): Promise<CardData[]> {
 
   // Only vouchers that are really on the router can be printed.
   let q = supabase.from('vouchers').select('id, code, router_id, plan_id, site_id').eq('on_router', true).neq('status', 'disabled');
+  // Only unsold cards: a card that was already sold or used must never be printed and sold again.
+  q = q.eq('status', 'unused');
   if (batch) q = q.eq('batch_id', batch);
   else if (router) {
-    q = q.eq('router_id', router).eq('status', 'unused');
+    q = q.eq('router_id', router);
     if (plan) q = q.eq('plan_id', plan);
-    if (params.get('new') !== '0') q = q.is('printed_at', null);
   } else throw new Error('Choose a batch or a router first.');
+  if (params.get('new') !== '0') q = q.is('printed_at', null);
 
   const { data, error } = await q.order('plan_id').order('code').limit(limit);
   if (error) throw new Error(error.message);
@@ -71,13 +74,16 @@ async function loadCards(params: URLSearchParams): Promise<CardData[]> {
 export function PrintSheetPage() {
   const [params] = useSearchParams();
   const requested = Number(params.get('per'));
-  const cards = useQuery({ queryKey: ['print-sheet', params.toString()], queryFn: () => loadCards(params), staleTime: Infinity });
+  const cards = useQuery({ queryKey: ['print-sheet', params.toString()], queryFn: () => loadCards(params), staleTime: 0, gcTime: 0 });
   const [marking, setMarking] = useState(false);
   const [marked, setMarked] = useState<string[] | null>(null);
   const [undone, setUndone] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const list = cards.data ?? [];
+  // After marking, only the cards this print marked are shown, so cards printed meanwhile on
+  // another computer are not printed twice.
+  const all = cards.data ?? [];
+  const list = marked && !undone ? all.filter((c) => marked.includes(c.id)) : all;
   const longest = list.reduce((m, c) => Math.max(m, c.code.length), 0);
   let perPage: CardsPerPage = requested === 24 || requested === 50 ? requested : 40;
   if (longest > LAYOUTS[perPage].maxCodeLength) perPage = 40;
@@ -88,9 +94,15 @@ export function PrintSheetPage() {
     setUndone(false);
     setMarking(true);
     try {
-      const { data, error: rpcError } = await supabase.rpc('mark_vouchers_printed', { p_voucher_ids: list.map((c) => c.id) });
+      const { data, error: rpcError } = await supabase.rpc('mark_vouchers_printed', { p_voucher_ids: all.map((c) => c.id) });
       if (rpcError) throw new Error(friendlyError(rpcError));
-      setMarked((data as string[] | null) ?? []);
+      const ids = (data as string[] | null) ?? [];
+      // Render the marked cards before the print window opens.
+      flushSync(() => setMarked(ids));
+      if (ids.length === 0) {
+        setError('These cards were already printed (perhaps on another computer). Nothing new to print.');
+        return;
+      }
     } catch (err) {
       setError(friendlyError(err));
       return;
@@ -123,7 +135,7 @@ export function PrintSheetPage() {
               </>
             )}
           </div>
-          <Button onClick={handlePrint} disabled={marking || list.length === 0} className="min-h-12 px-6 text-lg">
+          <Button onClick={handlePrint} disabled={marking || all.length === 0} className="min-h-12 px-6 text-lg">
             {marking && <Spinner />} Print
           </Button>
         </div>
@@ -139,7 +151,7 @@ export function PrintSheetPage() {
                 <span className="flex flex-wrap items-center gap-3">
                   <span>
                     {formatNumber(marked.length)} card{marked.length === 1 ? '' : 's'} marked as printed
-                    {marked.length < list.length ? ` (${formatNumber(list.length - marked.length)} were printed before)` : ''}. In the print window choose A4,
+                    {marked.length < all.length ? ` (${formatNumber(all.length - marked.length)} were printed before and are left out)` : ''}. In the print window choose A4,
                     scale 100%, no headers.
                   </span>
                   {marked.length > 0 && (

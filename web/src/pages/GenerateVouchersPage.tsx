@@ -6,7 +6,7 @@ import { PageHeader } from '../components/PageHeader';
 import { Alert, Badge, Button, Card, Field, Select, Spinner, TextInput } from '../components/ui';
 import { friendlyError } from '../lib/errors';
 import { formatDuration, formatJubaTime, formatNumber, formatSSP } from '../lib/format';
-import { usePlans, useRouters, useSites } from '../lib/queries';
+import { invalidateSalesData, usePlans, useRouters, useSites } from '../lib/queries';
 import { supabase } from '../lib/supabase';
 import type { BatchStatus } from '../lib/types';
 
@@ -161,7 +161,7 @@ export function GenerateVouchersPage() {
     onSuccess: (qty) => {
       const plan = activePlans.find((p) => p.id === planId);
       setNotice(`${formatNumber(qty)} × ${plan?.name ?? 'vouchers'} created. They can be sold or printed once the batch shows Ready.`);
-      void queryClient.invalidateQueries({ queryKey: ['batches'] });
+      invalidateSalesData(queryClient);
     },
   });
 

@@ -4,7 +4,7 @@ import { FullScreenMessage, FullScreenSpinner } from '../components/FullScreen';
 
 /** Lets only signed-in, active staff with a profile through. */
 export function RequireAuth() {
-  const { status, error, signOut } = useAuth();
+  const { status, profile, error, signOut } = useAuth();
   const location = useLocation();
 
   if (status === 'loading') return <FullScreenSpinner />;
@@ -21,7 +21,11 @@ export function RequireAuth() {
     return (
       <FullScreenMessage
         title="Account disabled"
-        message="Your staff account has been switched off. Ask an admin if you need access."
+        message={
+          profile && !profile.is_active
+            ? 'Your staff account has been switched off. Ask an admin if you need access.'
+            : 'This business is switched off on Hotzonex Cloud. Contact Hotzonex Cloud to switch it back on.'
+        }
         onSignOut={signOut}
       />
     );

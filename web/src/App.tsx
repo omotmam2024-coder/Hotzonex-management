@@ -20,7 +20,13 @@ import { RoutersPage } from './pages/RoutersPage';
 import { SalesPage } from './pages/SalesPage';
 import { SellPage } from './pages/SellPage';
 import { StaffPage } from './pages/StaffPage';
+import { BusinessesPage } from './pages/BusinessesPage';
 import { VouchersPage } from './pages/VouchersPage';
+
+function PlatformOnly({ children }: { children: JSX.Element }) {
+  const { isPlatformAdmin } = useAuth();
+  return isPlatformAdmin ? children : <HomeRedirect />;
+}
 
 function HomeRedirect() {
   const { profile } = useAuth();
@@ -74,6 +80,14 @@ export function App() {
           </Route>
           <Route element={<RequireRole roles={rolesFor('/staff')} />}>
             <Route path="/staff" element={<StaffPage />} />
+            <Route
+              path="/businesses"
+              element={
+                <PlatformOnly>
+                  <BusinessesPage />
+                </PlatformOnly>
+              }
+            />
           </Route>
           <Route path="*" element={<HomeRedirect />} />
         </Route>

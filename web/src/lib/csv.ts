@@ -1,7 +1,9 @@
 type Cell = string | number | null | undefined;
 
 function escape(cell: Cell): string {
-  const s = cell === null || cell === undefined ? '' : String(cell);
+  let s = cell === null || cell === undefined ? '' : String(cell);
+  // Text starting with = + - @ would run as a formula in Excel; a leading ' keeps it as text.
+  if (typeof cell === 'string' && /^[=+\-@\t\r]/.test(s)) s = `'${s}`;
   return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 

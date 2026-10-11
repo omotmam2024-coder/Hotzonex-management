@@ -6,7 +6,7 @@ import { PageHeader } from '../components/PageHeader';
 import { Alert, Badge, Button, Card, Field, Select, Spinner, TextInput } from '../components/ui';
 import { friendlyError } from '../lib/errors';
 import { formatJubaTime, formatNumber, formatSSP, jubaToday } from '../lib/format';
-import { usePlans, useRouters, useSites } from '../lib/queries';
+import { invalidateSalesData, usePlans, useRouters, useSites } from '../lib/queries';
 import { supabase } from '../lib/supabase';
 import type { ReceiptData } from '../print/Receipt';
 
@@ -51,7 +51,7 @@ function VoidDialog({ sale, onClose }: { sale: SaleListRow; onClose: () => void 
       if (error) throw new Error(friendlyError(error));
     },
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['sales'] });
+      invalidateSalesData(queryClient);
       onClose();
     },
   });
@@ -282,11 +282,11 @@ export function SalesPage() {
                             <Badge color="red">Voided</Badge>
                             <span className="ml-2 text-xs text-slate-500">{s.void_reason}</span>
                           </span>
-                        ) : (
+                        ) : s.voucher_id !== null ? (
                           <button type="button" onClick={() => reprint(s)} className="font-semibold text-brand-700 hover:underline">
                             Receipt
                           </button>
-                        )}
+                        ) : null}
                         {canVoid && (
                           <button type="button" onClick={() => setVoiding(s)} className="font-semibold text-red-700 hover:underline">
                             Void

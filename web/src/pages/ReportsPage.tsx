@@ -30,7 +30,7 @@ interface Report {
   by_site: (Row & { site_id: string; name: string })[];
   breakdown: (Row & { hour?: number; day?: string; week_start?: string })[];
   voucher_status: { created: number; unused: number; sold: number; active: number; expired: number; disabled: number };
-  router_logins: { username: string; plan: string | null; price_ssp: number | null; first_login_at: string | null; last_seen_at: string; new: boolean }[];
+  router_logins: { router_id: string; username: string; plan: string | null; price_ssp: number | null; first_login_at: string | null; last_seen_at: string | null; new: boolean }[];
 }
 
 const TABS: { key: Period; label: string; noun: string }[] = [
@@ -502,7 +502,7 @@ export function ReportsPage() {
               </thead>
               <tbody>
                 {r.router_logins.map((l) => (
-                  <tr key={l.username} className="border-t border-slate-100">
+                  <tr key={`${l.router_id}:${l.username}`} className="border-t border-slate-100">
                     <td className={`${td} font-mono`}>{l.username}</td>
                     <td className={td}>{l.plan ? profileLabel(l.plan) : '—'}</td>
                     <td className={`${td} tabular-nums`}>{l.first_login_at ? formatJubaTime(l.first_login_at) : 'before this period'}</td>
@@ -520,6 +520,9 @@ export function ReportsPage() {
                 )}
               </tbody>
             </table>
+            {r.router_logins.length >= 500 && (
+              <p className="mt-2 text-xs text-slate-500">Showing the latest 500 users. The sales totals above count all of them.</p>
+            )}
           </Section>
         </>
       )}
