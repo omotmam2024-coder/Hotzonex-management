@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { after, before, test } from 'node:test';
-import { closeSessions, directTest, disableVoucher, ensureProfileExists, pushVoucher, readUsage, removeExpired, RestClient, RouterError, userComments } from './direct.ts';
+import { closeSessions, directTest, disableVoucher, ensureProfileExists, installPortalDirect, pushVoucher, readUsage, removeExpired, restorePortalDirect, RestClient, RouterError, userComments } from './direct.ts';
 
 type Row = Record<string, string>;
 const state: Record<string, Row[]> = {};
@@ -33,6 +33,20 @@ function handler(req: IncomingMessage, res: ServerResponse) {
     if (path === '/system/resource') return send(200, { 'board-name': 'hAP ax2', version: '7.19.6 (stable)', uptime: '1d2h' });
     // Filtered reads come as JSON "print" commands, like RouterOS expects; URL query strings are not used.
     if (url.search) return send(400, { error: 400, message: 'Bad Request', detail: 'query strings are not decoded reliably' });
+    if (req.method === 'POST' && path === '/tool/fetch') {
+      writes.push(`FETCH ${(JSON.parse(raw) as Row)['dst-path']}`);
+      return send(200, [{ status: 'finished' }]);
+    }
+    if (req.method === 'POST' && path.endsWith('/set')) {
+      const rows = state[path.slice(0, -'/set'.length)] ?? [];
+      const body = JSON.parse(raw) as Row;
+      const row = rows.find((r) => r.name === body.numbers || r['.id'] === body.numbers);
+      if (!row) return send(400, { error: 400, message: 'Bad Request', detail: 'no such item' });
+      const { numbers: _n, ...changes } = body;
+      Object.assign(row, changes);
+      writes.push(`SET ${path} ${JSON.stringify(changes)}`);
+      return send(200, []);
+    }
     if (req.method === 'POST' && path.endsWith('/print')) {
       const rows = state[path.slice(0, -'/print'.length)];
       if (!rows) return send(404, { error: 404, message: 'Not Found' });
@@ -135,4 +149,15 @@ test('disable, usage, disconnect and removal only act on tagged users', async ()
   assert.equal(await removeExpired(c, { id: V, code: '11112222' }), true, 'nothing to do for an untagged user');
   assert.ok(state['/ip/hotspot/user']!.some((u) => u.name === '11112222'), 'own user kept');
   assert.ok(!state['/ip/hotspot/user']!.some((u) => u.name === '12345678'));
+});
+
+test('portal install downloads every page first, then switches the profile by name; switch back restores', async () => {
+  reset();
+  state['/ip/hotspot/profile']![0]!['html-directory'] = 'flash/hotspot';
+  const r = await installPortalDirect(client(), 'hsprof1', 'https://x/portal?r=1', ['login.html', 'md5.js']);
+  assert.deepEqual(r, { current: 'flash/hotspot', dir: 'flash/hotzonex' });
+  assert.deepEqual(writes, ['FETCH flash/hotzonex/login.html', 'FETCH flash/hotzonex/md5.js', 'SET /ip/hotspot/profile/set {"html-directory":"flash/hotzonex"}']);
+  await restorePortalDirect(client(), 'hsprof1', 'flash/hotspot');
+  assert.equal(state['/ip/hotspot/profile']![0]!['html-directory'], 'flash/hotspot');
+  await assert.rejects(installPortalDirect(client(), 'nope', 'https://x', ['login.html']), /was not found/);
 });

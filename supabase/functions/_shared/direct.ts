@@ -296,10 +296,32 @@ export async function removeExpired(client: RestClient, v: { id: string; code: s
   return true;
 }
 
-async function profileId(client: RestClient, serverProfile: string): Promise<{ id: string; dir: string }> {
-  const found = await client.get<Json[]>('/ip/hotspot/profile', { name: serverProfile, '.proplist': '.id,html-directory' });
-  if (!found[0]) throw new RouterError('not_found', `Hotspot profile "${serverProfile}" was not found on the router.`);
-  return { id: s(found[0]['.id']), dir: s(found[0]['html-directory']) };
+/** The hotspot server profile's current html-directory, read from the full list (no filters needed). */
+async function currentHtmlDirectory(client: RestClient, serverProfile: string): Promise<string> {
+  let rows: Json[];
+  try {
+    rows = await client.get<Json[]>('/ip/hotspot/profile');
+  } catch (err) {
+    throw step('Reading the hotspot profiles', err);
+  }
+  const found = rows.find((r) => s(r.name) === serverProfile);
+  if (!found) throw new RouterError('not_found', `Hotspot profile "${serverProfile}" was not found on the router.`);
+  return s(found['html-directory']);
+}
+
+/** Switches the hotspot server profile's pages folder; the profile is named, so no internal id is needed. */
+async function setHtmlDirectory(client: RestClient, serverProfile: string, dir: string): Promise<void> {
+  try {
+    await client.post('/ip/hotspot/profile/set', { numbers: serverProfile, 'html-directory': dir });
+  } catch (err) {
+    throw step(`Switching hotspot profile "${serverProfile}" to folder ${dir}`, err);
+  }
+}
+
+/** Adds which step failed to a router error, so the message says where it went wrong. */
+function step(what: string, err: unknown): Error {
+  if (err instanceof RouterError) return new RouterError(err.kind, `${what}: ${err.message}`);
+  return err instanceof Error ? err : new Error(String(err));
 }
 
 /**
@@ -312,21 +334,19 @@ export async function installPortalDirect(
   filesUrl: string,
   files: readonly string[],
 ): Promise<{ current: string; dir: string }> {
-  const { id, dir: current } = await profileId(client, serverProfile);
+  const current = await currentHtmlDirectory(client, serverProfile);
   const dir = current.startsWith('flash/') ? 'flash/hotzonex' : 'hotzonex';
-  try {
-    await client.put('/file', { name: dir, type: 'directory' });
-  } catch {
-    // The folder may exist already, or this RouterOS creates it while downloading.
-  }
   for (const f of files) {
-    await client.post('/tool/fetch', { url: `${filesUrl}&f=${f}`, 'dst-path': `${dir}/${f}`, 'check-certificate': 'yes-without-crl' });
+    try {
+      await client.post('/tool/fetch', { url: `${filesUrl}&f=${f}`, 'dst-path': `${dir}/${f}`, 'check-certificate': 'yes-without-crl' });
+    } catch (err) {
+      throw step(`Downloading ${f} to the router (nothing was switched)`, err);
+    }
   }
-  await client.patch(`/ip/hotspot/profile/${encodeURIComponent(id)}`, { 'html-directory': dir });
+  await setHtmlDirectory(client, serverProfile, dir);
   return { current, dir };
 }
 
 export async function restorePortalDirect(client: RestClient, serverProfile: string, previousDir: string): Promise<void> {
-  const { id } = await profileId(client, serverProfile);
-  await client.patch(`/ip/hotspot/profile/${encodeURIComponent(id)}`, { 'html-directory': previousDir });
+  await setHtmlDirectory(client, serverProfile, previousDir);
 }
