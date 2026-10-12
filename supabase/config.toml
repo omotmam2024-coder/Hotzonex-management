@@ -10,7 +10,10 @@ major_version = 15
 
 [auth]
 site_url = "http://localhost:5173"
-additional_redirect_urls = ["http://localhost:5173"]
+# Password-reset links come back to /reset-password on the address they were asked from.
+# Live project (Dashboard → Authentication → URL Configuration): Site URL https://app.hotzonex.net,
+# Redirect URLs https://app.hotzonex.net/** and https://hotzonex-cloud-rum4d.ondigitalocean.app/**.
+additional_redirect_urls = ["http://localhost:5173/**"]
 # Staff accounts are created by admins only; nobody can sign themselves up.
 enable_signup = false
 

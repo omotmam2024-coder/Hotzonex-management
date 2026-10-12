@@ -27,6 +27,7 @@ const SellPage = page(() => import('./pages/SellPage'), 'SellPage');
 const StaffPage = page(() => import('./pages/StaffPage'), 'StaffPage');
 const BusinessesPage = page(() => import('./pages/BusinessesPage'), 'BusinessesPage');
 const VouchersPage = page(() => import('./pages/VouchersPage'), 'VouchersPage');
+const ResetPasswordPage = page(() => import('./pages/ResetPasswordPage'), 'ResetPasswordPage');
 
 function PlatformOnly({ children }: { children: JSX.Element }) {
   const { isPlatformAdmin } = useAuth();
@@ -43,6 +44,7 @@ export function App() {
     <Suspense fallback={<FullScreenSpinner />}>
       <Routes>
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/reset-password" element={<ResetPasswordPage />} />
         <Route element={<RequireAuth />}>
           {/* Print pages render without the app layout so only the paper prints. */}
           <Route element={<RequireRole roles={rolesFor('/vouchers')} />}>

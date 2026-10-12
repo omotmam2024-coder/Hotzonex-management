@@ -1,7 +1,8 @@
 import { useState, type FormEvent } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../auth/AuthProvider';
-import { supabaseConfigured } from '../lib/supabase';
+import { supabase, supabaseConfigured } from '../lib/supabase';
+import { friendlyError } from '../lib/errors';
 import { homePathFor } from '../lib/nav';
 import { FullScreenSpinner } from '../components/FullScreen';
 
@@ -12,6 +13,8 @@ export function LoginPage() {
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [forgot, setForgot] = useState(false);
+  const [sentTo, setSentTo] = useState<string | null>(null);
 
   if (status === 'loading') return <FullScreenSpinner />;
   if (status !== 'signed_out') {
@@ -33,6 +36,31 @@ export function LoginPage() {
     }
   }
 
+  async function handleReset(e: FormEvent) {
+    e.preventDefault();
+    setError(null);
+    setBusy(true);
+    try {
+      // The link brings the person back to this same address (app.hotzonex.net or the
+      // DigitalOcean one), which must be listed under Redirect URLs in Supabase.
+      const { error: resetError } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+        redirectTo: `${window.location.origin}/reset-password`,
+      });
+      if (resetError) throw resetError;
+      setSentTo(email.trim());
+    } catch (err) {
+      setError(friendlyError(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function switchMode(next: boolean) {
+    setForgot(next);
+    setSentTo(null);
+    setError(null);
+  }
+
   return (
     <div className="flex min-h-full items-center justify-center bg-brand-900 p-4">
       <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl">
@@ -48,7 +76,13 @@ export function LoginPage() {
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-4" noValidate>
+        <form onSubmit={forgot ? handleReset : handleSubmit} className="space-y-4" noValidate>
+          {forgot && !sentTo && <p className="text-sm text-slate-600">Type your login email. We will send you a link to choose a new password.</p>}
+          {sentTo && (
+            <p role="status" className="rounded-xl bg-green-50 p-3 text-sm font-medium text-green-800">
+              If {sentTo} has a Hotzonex login, a reset link is on its way. Check the inbox (and spam) and open the link on this device.
+            </p>
+          )}
           <label className="block">
             <span className="mb-1 block text-sm font-medium text-slate-700">Email</span>
             <input
@@ -61,17 +95,19 @@ export function LoginPage() {
               className="min-h-12 w-full rounded-xl border border-slate-300 px-3 text-base focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100"
             />
           </label>
-          <label className="block">
-            <span className="mb-1 block text-sm font-medium text-slate-700">Password</span>
-            <input
-              type="password"
-              autoComplete="current-password"
-              required
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="min-h-12 w-full rounded-xl border border-slate-300 px-3 text-base focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100"
-            />
-          </label>
+          {!forgot && (
+            <label className="block">
+              <span className="mb-1 block text-sm font-medium text-slate-700">Password</span>
+              <input
+                type="password"
+                autoComplete="current-password"
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="min-h-12 w-full rounded-xl border border-slate-300 px-3 text-base focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100"
+              />
+            </label>
+          )}
 
           {error && (
             <p role="alert" className="rounded-xl bg-red-50 p-3 text-sm font-medium text-red-800">
@@ -81,10 +117,13 @@ export function LoginPage() {
 
           <button
             type="submit"
-            disabled={busy || !email || !password}
+            disabled={busy || !email || (!forgot && !password) || Boolean(forgot && sentTo)}
             className="min-h-12 w-full rounded-xl bg-brand-600 px-4 text-lg font-semibold text-white hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {busy ? 'Logging in…' : 'Log in'}
+            {forgot ? (busy ? 'Sending…' : 'Send reset link') : busy ? 'Logging in…' : 'Log in'}
+          </button>
+          <button type="button" onClick={() => switchMode(!forgot)} className="w-full text-center text-sm font-semibold text-brand-700 hover:underline">
+            {forgot ? 'Back to login' : 'Forgot password?'}
           </button>
         </form>
       </div>

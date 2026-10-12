@@ -92,7 +92,13 @@ npm run dev               # http://localhost:5173
 2. Choose **Static Site**. **Build Command:** `npm run build`; **Output Directory:** `dist`.
 3. **Catchall Document:** `index.html` (every page address opens the app).
 4. **Environment Variables** (build time): `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`.
-5. In Supabase **Authentication → URL Configuration**, set **Site URL** to the app's address.
+5. In Supabase **Authentication → URL Configuration**: **Site URL** `https://app.hotzonex.net`
+   (the DigitalOcean address until the domain is live), and under **Redirect URLs** add
+   `https://app.hotzonex.net/**` and `https://hotzonex-cloud-rum4d.ondigitalocean.app/**`.
+   "Forgot password?" on the login page sends a link back to `/reset-password` on the address it
+   was asked from; an address missing from that list sends people to the Site URL instead.
+   Supabase's built-in mailer sends only a few emails an hour: for real use add your own SMTP
+   under **Authentication → Emails → SMTP Settings**.
 
 On a Droplet with nginx instead, serve `web/dist` with `try_files $uri /index.html;`, give
 `/assets/` `Cache-Control: public, max-age=31536000, immutable` and `/sw.js` and `/index.html`
