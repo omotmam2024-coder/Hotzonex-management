@@ -219,7 +219,10 @@ Active Users list, sets first login (`first_used_at`, `expires_at` = first login
 status **active**) and marks vouchers **expired** when time, validity or data is used up. The router
 itself stops users at their time and data limits; when **validity** ends while a customer is online
 the session is closed. Expired vouchers are removed from the router only once offline. A router
-that stops calling in for 2 minutes is shown offline and its user list is cleared.
+that stops calling in for 2 minutes is shown offline and its user list is cleared. A router
+Hotzonex reaches itself (direct or tunnel) is shown offline after two missed checks in a row, so a
+short internet drop at the site does not flash it offline; a wrong password or other error shows
+at once.
 
 ### Selling
 
@@ -312,6 +315,29 @@ press **Install on router** again to update the router.
   `supabase db dump --linked -f backup-$(date +%F).sql` and
   `supabase db dump --linked --data-only -f data-$(date +%F).sql`. Store copies somewhere safe
   (cloud drive or USB kept elsewhere).
+- **Automatic daily copy to DigitalOcean Spaces** (`scripts/backup/`), run from the Droplet:
+  1. DigitalOcean → **Spaces Object Storage → Create bucket** (private, e.g. `hotzonex-backups`
+     in `fra1`), then **Access Keys → Create** a key limited to that bucket.
+  2. On the Droplet (Ubuntu), install the Postgres 17 tools (Supabase runs Postgres 17) and s3cmd:
+     ```sh
+     sudo apt install -y postgresql-common s3cmd
+     sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
+     sudo apt install -y postgresql-client-17
+     sudo cp scripts/backup/hotzonex-backup.sh /usr/local/bin/ && sudo chmod 755 /usr/local/bin/hotzonex-backup.sh
+     sudo cp scripts/backup/hotzonex-backup.env.example /etc/hotzonex-backup.env && sudo chmod 600 /etc/hotzonex-backup.env
+     sudo nano /etc/hotzonex-backup.env   # database connection string, bucket, Spaces key
+     ```
+     For `DATABASE_URL` copy the **Session pooler** string from Supabase → **Connect** (it works
+     over IPv4) and put the database password in it.
+  3. Run it once: `sudo /usr/local/bin/hotzonex-backup.sh` → `backup ok: hotzonex-….tar`.
+  4. Every night at 02:17: `echo '17 2 * * * root /usr/local/bin/hotzonex-backup.sh >> /var/log/hotzonex-backup.log 2>&1' | sudo tee /etc/cron.d/hotzonex-backup`
+
+  Each file holds all Hotzonex tables and the staff logins; 30 days are kept. To restore into a
+  new Supabase project: apply `supabase/migrations`, then restore `auth.dump` first and
+  `public.dump` second, each with
+  `PGOPTIONS='-c session_replication_role=replica' pg_restore --data-only --no-owner -d "$NEW_DATABASE_URL" <file>`
+  (the option keeps the database's own triggers from re-running on the copied rows). Router passwords in the copy are encrypted with `ROUTER_SECRET_KEY`: keep that key
+  written down somewhere safe (not in the bucket), or re-enter the router passwords after a restore.
 - **Routers:** `/export file=hotzonex-backup` in each router terminal, then download the `.rsc`
   from Files. Vouchers on a reset router can be pushed again with **Retry push**.
 

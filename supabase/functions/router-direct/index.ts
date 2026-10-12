@@ -76,15 +76,19 @@ interface DirectRouter extends RouterRef {
   username: string | null;
   password_enc: string | null;
   last_error: string | null;
+  last_seen_at: string | null;
   hotspot_info: HotspotInfo | null;
 }
 
 const ROUTER_COLUMNS =
-  'id, tenant_id, name, status, connection, tunnel_ip, hotspot_server, dns_name, last_usage_at, host, port, use_https, username, password_enc, last_error, hotspot_info';
+  'id, tenant_id, name, status, connection, tunnel_ip, hotspot_server, dns_name, last_usage_at, host, port, use_https, username, password_enc, last_error, last_seen_at, hotspot_info';
 const BUDGET_MS = 100_000; // stay well inside the Edge Function time limit
 const LEASE_MS = BUDGET_MS + 30_000; // one worker per router at a time; expires if a worker is stopped
 const STALE_RUNNING_MS = 5 * 60_000;
 const PUSH_CHUNK = 50;
+// A router that was answering is shown offline only after missing two checks in a row (one minute
+// apart): a short internet drop at the site does not flash it offline.
+const OFFLINE_AFTER_MS = 100_000;
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
@@ -431,6 +435,11 @@ async function checkRouter(db: SupabaseClient, router: DirectRouter, client: Res
     return true;
   } catch (err) {
     const msg = message(err);
+    const lastSeen = router.last_seen_at ? Date.parse(router.last_seen_at) : 0;
+    if (router.status === 'online' && transient(err) && Date.now() - lastSeen < OFFLINE_AFTER_MS) {
+      console.warn(`${router.name}: missed one check (${msg}); still shown online`);
+      return false;
+    }
     if (router.status !== 'offline' || router.last_error !== msg) {
       await db.from('routers').update({ status: 'offline', last_error: msg }).eq('id', router.id);
       await db.from('active_sessions').delete().eq('router_id', router.id);
