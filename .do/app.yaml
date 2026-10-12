@@ -3,6 +3,14 @@
 # The anon key is Supabase's public key (it is part of the website anyway).
 name: hotzonex-cloud
 region: fra
+# Every web address goes to the static site (without this the app answers 404).
+ingress:
+  rules:
+    - component:
+        name: web
+      match:
+        path:
+          prefix: /
 static_sites:
   - name: web
     github:
