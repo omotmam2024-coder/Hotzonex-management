@@ -1,0 +1,22 @@
+# DigitalOcean App Platform spec for the Hotzonex Cloud web app (a static site).
+# Use it in the DigitalOcean control panel: your app → Settings → App Spec → Edit → paste → Save.
+# The anon key is Supabase's public key (it is part of the website anyway).
+name: hotzonex-cloud
+region: fra
+static_sites:
+  - name: web
+    github:
+      repo: omotmam2024-coder/hotzonex-management
+      branch: claude/clever-mccarthy-1780c7
+      deploy_on_push: true
+    source_dir: /web
+    build_command: npm run build
+    output_dir: dist
+    catchall_document: index.html
+    envs:
+      - key: VITE_SUPABASE_URL
+        scope: BUILD_TIME
+        value: https://tyiwnaxdejtsdofgnuow.supabase.co
+      - key: VITE_SUPABASE_ANON_KEY
+        scope: BUILD_TIME
+        value: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR5aXduYXhkZWp0c2RvZmdudW93Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE2NDYxMjgsImV4cCI6MjEwNzIyMjEyOH0.p4RfV1WgBBY2nJ9p1GT4x0hsgrJvAFjVF1Y1ZhVeP9g
