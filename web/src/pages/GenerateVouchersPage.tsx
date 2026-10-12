@@ -8,7 +8,7 @@ import { friendlyError } from '../lib/errors';
 import { formatDuration, formatJubaTime, formatNumber, formatSSP } from '../lib/format';
 import { invalidateSalesData, usePlans, useRouters, useSites } from '../lib/queries';
 import { supabase } from '../lib/supabase';
-import type { BatchStatus } from '../lib/types';
+import { planOnRouter, type BatchStatus } from '../lib/types';
 
 const BATCH_COLUMNS =
   'id, created_at, site_id, router_id, plan_id, quantity, code_length, site_name, router_name, plan_name, plan_color, price_ssp, uptime_seconds, voucher_count, pushed_count, push_status, push_error, push_finished_at';
@@ -124,8 +124,12 @@ export function GenerateVouchersPage() {
     if (!siteRouters.some((r) => r.id === routerId)) setRouterId(siteRouters.length === 1 ? (siteRouters[0]?.id ?? '') : '');
   }, [siteRouters, routerId]);
 
-  const activePlans = (plans.data ?? []).filter((p) => p.is_active);
   const router = siteRouters.find((r) => r.id === routerId);
+  // Only plans ticked for this router (Plans page): its vouchers use the router's own profile for the plan.
+  const activePlans = (plans.data ?? []).filter((p) => p.is_active && (!routerId || planOnRouter(p, routerId)));
+  useEffect(() => {
+    if (planId && !activePlans.some((p) => p.id === planId)) setPlanId('');
+  }, [activePlans, planId]);
 
   const batches = useQuery({
     queryKey: ['batches'],

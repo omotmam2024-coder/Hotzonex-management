@@ -94,13 +94,20 @@ async function deletePlan(db: SupabaseClient, caller: Caller, body: Record<strin
     throw new HttpError(409, `${plan.name} has sales in your reports, so it is kept for them. Switch it off instead.`);
   }
 
+  // Each router that carries the plan removes its own profile for it (names can differ per router).
   const profile = plan.router_profile_name as string;
+  const { data: links } = await db.from('plan_routers').select('router_id, profile_name').eq('plan_id', id);
   const { data: routers } = await db.from('routers').select('id, status, hotspot_info').eq('tenant_id', caller.tenantId);
-  const withProfile = (routers ?? []).filter(
-    (r) => r.status !== 'pending' && ((r.hotspot_info as HotspotInfo | null)?.user_profiles ?? []).some((p) => p.name === profile),
-  );
+  const targets: { router_id: string; profile_name: string }[] = [];
+  for (const r of routers ?? []) {
+    if (r.status === 'pending') continue;
+    const names = ((r.hotspot_info as HotspotInfo | null)?.user_profiles ?? []).map((p) => p.name);
+    const link = (links ?? []).find((l) => l.router_id === r.id);
+    const name = link?.profile_name ?? (names.includes(profile) ? profile : null);
+    if (name && names.includes(name)) targets.push({ router_id: r.id as string, profile_name: name as string });
+  }
 
-  if (!withProfile.length) {
+  if (!targets.length) {
     const { error: delError } = await db.from('plans').delete().eq('id', id);
     if (delError) throw new Error(`Could not delete the plan: ${delError.message}`);
     await audit(db, caller, 'plan.deleted', { plan_id: id, name: plan.name, profile });
@@ -111,11 +118,11 @@ async function deletePlan(db: SupabaseClient, caller: Caller, body: Record<strin
   await db.from('plans').update({ is_active: false }).eq('id', id);
   const { data: jobs, error: jobError } = await db
     .from('router_jobs')
-    .insert(withProfile.map((r) => ({ router_id: r.id, type: 'sync_profiles', payload: { remove_profile: profile, plan_id: id }, created_by: caller.id })))
+    .insert(targets.map((t) => ({ router_id: t.router_id, type: 'sync_profiles', payload: { remove_profile: t.profile_name, plan_id: id }, created_by: caller.id })))
     .select('id');
   if (jobError) throw new Error(`Could not queue the router work: ${jobError.message}`);
-  await audit(db, caller, 'plan.delete_requested', { plan_id: id, name: plan.name, profile, routers: withProfile.length });
-  return { removing: withProfile.length, job_ids: (jobs ?? []).map((j) => j.id as string) };
+  await audit(db, caller, 'plan.delete_requested', { plan_id: id, name: plan.name, profile, routers: targets.length });
+  return { removing: targets.length, job_ids: (jobs ?? []).map((j) => j.id as string) };
 }
 
 serveJson(async (req) => {

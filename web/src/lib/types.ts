@@ -103,10 +103,21 @@ export interface Plan {
   color: string;
   router_profile_name: string;
   is_active: boolean;
+  /** The routers that carry the plan, with its profile name on each (managed = Hotzonex made that profile). */
+  plan_routers: PlanRouter[];
+}
+
+export interface PlanRouter {
+  router_id: string;
+  profile_name: string;
+  managed: boolean;
 }
 
 export const PLAN_COLUMNS =
-  'id, name, price_ssp, uptime_seconds, validity_seconds, rate_limit, data_limit_mb, shared_users, color, router_profile_name, is_active';
+  'id, name, price_ssp, uptime_seconds, validity_seconds, rate_limit, data_limit_mb, shared_users, color, router_profile_name, is_active, plan_routers(router_id, profile_name, managed)';
+
+/** Whether a plan can be sold or generated on a router (it is ticked for it). */
+export const planOnRouter = (plan: Pick<Plan, 'plan_routers'>, routerId: string) => (plan.plan_routers ?? []).some((l) => l.router_id === routerId);
 
 export type VoucherStatus = 'unused' | 'sold' | 'active' | 'expired' | 'disabled';
 

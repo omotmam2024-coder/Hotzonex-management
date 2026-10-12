@@ -107,10 +107,10 @@ test('vouchers deleted in Hotzonex: rows go after the router, and an empty batch
 test('a profile deleted on the router retires its plan: deleted when unused, switched off when it has sales', async () => {
   const t = world();
   t.plans = [
-    { id: 'pa', tenant_id: T, router_profile_name: 'profile_A', is_active: true },
-    { id: 'p1', tenant_id: T, router_profile_name: 'profile_B', is_active: true },
-    { id: 'pc', tenant_id: T, router_profile_name: 'profile_C', is_active: true },
-    { id: 'ph', tenant_id: T, router_profile_name: 'hzc-1h', is_active: true },
+    { id: 'pa', name: 'A', tenant_id: T, router_profile_name: 'profile_A', is_active: true },
+    { id: 'p1', name: 'B', tenant_id: T, router_profile_name: 'profile_B', is_active: true },
+    { id: 'pc', name: 'C', tenant_id: T, router_profile_name: 'profile_C', is_active: true },
+    { id: 'ph', name: 'H', tenant_id: T, router_profile_name: 'hzc-1h', is_active: true },
   ];
   // profile_C is still on another router of the business.
   t.routers = [
@@ -119,7 +119,7 @@ test('a profile deleted on the router retires its plan: deleted when unused, swi
   ];
   const db = fakeDb(t);
   const out = await retireRemovedProfiles(db, router, ['default', 'profile_A', 'profile_B', 'profile_C', 'hzc-1h'], ['default']);
-  assert.deepEqual(out, { profile_A: 'deleted', profile_B: 'switched_off', profile_C: 'kept' });
+  assert.deepEqual(out, { A: 'deleted', B: 'switched_off', C: 'kept' });
   assert.deepEqual(t.plans.map((p) => [p.id, p.is_active]), [['p1', false], ['pc', true], ['ph', true]], "Hotzonex's own hzc- plans are left alone");
   assert.deepEqual(await retireRemovedProfiles(db, router, ['default', 'profile_C'], []), {}, 'an empty list is a failed read');
 });
@@ -141,4 +141,21 @@ test('deleting a plan in Hotzonex: kept (switched off) while users are on its pr
   assert.equal(t.router_jobs[1]!.status, 'done');
   assert.deepEqual(t.plans, []);
   assert.deepEqual(t.routers[0]!.hotspot_info, { user_profiles: [{ name: 'default' }] });
+});
+
+test('a profile gone from one router unlinks the plan there; the plan stays while another router carries it', async () => {
+  const t = world();
+  t.plans = [{ id: 'p6', name: '6Hrs', tenant_id: T, router_profile_name: 'profile_6Hrs-se:-co:3500-vl:1d', is_active: true }];
+  t.routers = [
+    { id: 'r1', tenant_id: T, hotspot_info: { user_profiles: [{ name: 'default' }] } },
+    { id: 'r2', tenant_id: T, hotspot_info: { user_profiles: [{ name: 'default' }] } },
+  ];
+  (t as Record<string, Row[]>).plan_routers = [
+    { plan_id: 'p6', router_id: 'r1', profile_name: 'profile_6Hrs-se:-co:3500-vl:1d' },
+    { plan_id: 'p6', router_id: 'r2', profile_name: 'profile_6Hrs-se:-co:3500-vl:2d' },
+  ];
+  const out = await retireRemovedProfiles(fakeDb(t), router, ['default', 'profile_6Hrs-se:-co:3500-vl:1d'], ['default']);
+  assert.deepEqual(out, { '6Hrs': 'kept' });
+  assert.deepEqual((t as Record<string, Row[]>).plan_routers!.map((l) => l.router_id), ['r2']);
+  assert.equal(t.plans.length, 1);
 });

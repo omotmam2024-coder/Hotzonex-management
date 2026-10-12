@@ -8,7 +8,7 @@ import { codeGroups, formatDuration, formatJubaTime, formatSSP } from '../lib/fo
 import { invalidateSalesData, usePlans, useRouters, useSites } from '../lib/queries';
 import { readStored, writeStored } from '../lib/storage';
 import { supabase } from '../lib/supabase';
-import type { Plan, RouterInfo } from '../lib/types';
+import { planOnRouter, type Plan, type RouterInfo } from '../lib/types';
 import type { ReceiptData } from '../print/Receipt';
 import { loginAddress } from '../print/voucherLinks';
 
@@ -174,7 +174,8 @@ export function SellPage() {
     if (lastSale) navigate('/print/receipt?print=1', { state: { receipt: lastSale.receipt } });
   }
 
-  const activePlans = (plans.data ?? []).filter((p) => p.is_active);
+  // Only plans ticked for this router (Plans page).
+  const activePlans = (plans.data ?? []).filter((p) => p.is_active && (!routerId || planOnRouter(p, routerId)));
   const canGenerate = profile?.role === 'admin' || profile?.role === 'manager';
 
   return (

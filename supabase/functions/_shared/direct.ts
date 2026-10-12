@@ -190,6 +190,31 @@ export async function ensureProfileExists(client: RestClient, p: ProfileSpec): P
   return true;
 }
 
+/**
+ * Makes the router's profile for a plan Hotzonex manages match the plan: renames it when the
+ * plan's name, price or time changed (users on it stay on it), sets its speed and devices per
+ * code, or adds it when the router does not have it. Returns what was done.
+ */
+export async function upsertManagedProfile(
+  client: RestClient,
+  spec: { name: string; previousName: string; rateLimit: string | null; sharedUsers: number },
+): Promise<'added' | 'updated' | 'unchanged'> {
+  const rows = await client.get<Json[]>('/ip/hotspot/user/profile', { '.proplist': '.id,name,rate-limit,shared-users' });
+  const current = rows.find((r) => s(r.name) === spec.previousName) ?? rows.find((r) => s(r.name) === spec.name);
+  const rate = spec.rateLimit ?? '';
+  if (!current) {
+    await client.put('/ip/hotspot/user/profile', { name: spec.name, 'shared-users': String(spec.sharedUsers), ...(rate ? { 'rate-limit': rate } : {}) });
+    return 'added';
+  }
+  const changes: Record<string, string> = {};
+  if (s(current.name) !== spec.name) changes.name = spec.name;
+  if (s(current['rate-limit']) !== rate) changes['rate-limit'] = rate;
+  if (s(current['shared-users']) !== String(spec.sharedUsers)) changes['shared-users'] = String(spec.sharedUsers);
+  if (!Object.keys(changes).length) return 'unchanged';
+  await client.post('/ip/hotspot/user/profile/set', { '.id': s(current['.id']), ...changes });
+  return 'updated';
+}
+
 export type PushResult = 'added' | 'already' | 'conflict' | 'error';
 
 /** Adds one voucher as a hotspot user. Idempotent; never touches a user with another tag. */

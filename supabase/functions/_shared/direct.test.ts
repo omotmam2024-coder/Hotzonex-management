@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { after, before, test } from 'node:test';
-import { closeSessions, directTest, removeLeftoverProfiles, disableVoucher, ensureProfileExists, installPortalDirect, pushVoucher, readUsage, removeExpired, removeProfileIfUnused, removeVoucherUsers, restorePortalDirect, RestClient, RouterError, matchRouterProfile, readRouterUsers } from './direct.ts';
+import { closeSessions, directTest, removeLeftoverProfiles, disableVoucher, ensureProfileExists, installPortalDirect, pushVoucher, readUsage, removeExpired, removeProfileIfUnused, removeVoucherUsers, restorePortalDirect, upsertManagedProfile, RestClient, RouterError, matchRouterProfile, readRouterUsers } from './direct.ts';
 
 type Row = Record<string, string>;
 const state: Record<string, Row[]> = {};
@@ -235,4 +235,20 @@ test('cards are made like the router\'s own vouchers: its matching profile and i
   assert.equal(matchRouterProfile('Guest', office), 'Guest');
   assert.equal(matchRouterProfile('profile_1Hr-se:-co:1500-pr:-ut:0d 01:00:00', office), null, 'another price is another plan');
   assert.equal(matchRouterProfile('LITE', office), null);
+});
+
+test('a profile Hotzonex manages is added, then renamed and updated with the plan; users stay on it', async () => {
+  reset();
+  const c = client();
+  const first = 'profile_6Hrs-se:-co:3500-pr:-lu:7-lp:7-ut:0d 06:00:00-bt:-kt:true-nu:true-np:true-tp:2';
+  assert.equal(await upsertManagedProfile(c, { name: first, previousName: first, rateLimit: '5M/5M', sharedUsers: 1 }), 'added');
+  assert.equal(await upsertManagedProfile(c, { name: first, previousName: first, rateLimit: '5M/5M', sharedUsers: 1 }), 'unchanged');
+  const added = state['/ip/hotspot/user/profile']!.find((p) => p.name === first)!;
+  state['/ip/hotspot/user']!.push({ '.id': '*U', name: '0001', profile: first });
+  const second = first.replace('co:3500', 'co:4000');
+  assert.equal(await upsertManagedProfile(c, { name: second, previousName: first, rateLimit: '10M/10M', sharedUsers: 2 }), 'updated');
+  assert.equal(added.name, second, 'the same profile, renamed');
+  assert.equal(added['rate-limit'], '10M/10M');
+  assert.equal(added['shared-users'], '2');
+  assert.ok(!state['/ip/hotspot/user/profile']!.some((p) => p.name === first));
 });

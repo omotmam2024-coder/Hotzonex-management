@@ -29,6 +29,9 @@ export interface Job {
 
 export interface PlanRow {
   id: string;
+  name: string;
+  price_ssp: number;
+  validity_seconds: number | null;
   uptime_seconds: number;
   rate_limit: string | null;
   data_limit_mb: number | null;
@@ -37,7 +40,53 @@ export interface PlanRow {
 }
 
 export const JOB_COLUMNS = 'id, router_id, type, status, payload, attempts, created_by, result';
-export const PLAN_COLUMNS = 'id, uptime_seconds, rate_limit, data_limit_mb, shared_users, router_profile_name';
+export const PLAN_COLUMNS = 'id, name, price_ssp, validity_seconds, uptime_seconds, rate_limit, data_limit_mb, shared_users, router_profile_name';
+
+/** RouterOS-style duration for MikroTicket names: 3600 → "0d 01:00:00". */
+function mtDuration(seconds: number): string {
+  const d = Math.floor(seconds / 86400);
+  const rest = seconds % 86400;
+  const two = (n: number) => String(n).padStart(2, '0');
+  return `${d}d ${two(Math.floor(rest / 3600))}:${two(Math.floor((rest % 3600) / 60))}:${two(rest % 60)}`;
+}
+
+/**
+ * The user profile name for a plan, in MikroTicket's format, so a profile Hotzonex makes shows in
+ * MikroTicket with its price and time (same as buildMikroticketProfileName in the web app).
+ */
+export function mikroticketProfileName(p: Pick<PlanRow, 'name' | 'price_ssp' | 'uptime_seconds' | 'validity_seconds'>): string {
+  const label = p.name.replace(/[^A-Za-z0-9._]/g, '') || 'Plan';
+  const validity = p.validity_seconds ? `-vl:${mtDuration(p.validity_seconds)}` : '';
+  return `profile_${label}-se:-co:${p.price_ssp}-pr:-lu:7-lp:7-ut:${mtDuration(p.uptime_seconds)}-bt:-kt:true-nu:true-np:true-tp:2${validity}`;
+}
+
+/** A plan on a router: its profile name there, and whether Hotzonex made (and keeps in step) that profile. */
+export interface PlanLink {
+  plan_id: string;
+  profile_name: string;
+  managed: boolean;
+}
+
+/** The plan's link to this router, or null when the plan is not ticked for it. */
+export async function planLink(db: SupabaseClient, router: RouterRef, planId: string): Promise<PlanLink | null> {
+  const { data } = await db.from('plan_routers').select('plan_id, profile_name, managed').eq('router_id', router.id).eq('plan_id', planId).maybeSingle<PlanLink>();
+  return data ?? null;
+}
+
+/** Plans whose profile Hotzonex keeps on this router (one plan, or all of them). */
+export async function managedLinks(db: SupabaseClient, router: RouterRef, planId: string | null): Promise<(PlanLink & { plan: PlanRow })[]> {
+  let q = db.from('plan_routers').select(`plan_id, profile_name, managed, plan:plans(${PLAN_COLUMNS})`).eq('router_id', router.id).eq('managed', true);
+  if (planId) q = q.eq('plan_id', planId);
+  const { data, error } = await q;
+  if (error) throw new Error(`Could not load the plans of ${router.name}: ${error.message}`);
+  return ((data ?? []) as unknown as (PlanLink & { plan: PlanRow | null })[]).filter((l): l is PlanLink & { plan: PlanRow } => Boolean(l.plan));
+}
+
+/** Every profile name the router's plans use there (kept when Hotzonex tidies its own profiles). */
+export async function linkedProfileNames(db: SupabaseClient, router: RouterRef): Promise<Set<string>> {
+  const { data } = await db.from('plan_routers').select('profile_name').eq('router_id', router.id);
+  return new Set((data ?? []).map((l) => l.profile_name as string));
+}
 export const MAX_SENDS = 3;
 
 export const str = (v: unknown) => (typeof v === 'string' ? v : null);
@@ -108,9 +157,7 @@ export async function applyTestResult(db: SupabaseClient, router: RouterRef, job
   // A router with its own profiles keeps them: its profiles become plans; nothing is added to it.
   const usesOwnProfiles = ownProfiles(t.hotspot).length > 0;
   if (missing.length && !usesOwnProfiles) {
-    warnings.push(
-      `This router has no user profiles yet, so Hotzonex will add one for each plan: ${missing.map((p) => p.name).join(', ')}.`,
-    );
+    warnings.push(`This router has no user profiles of its own yet. Tick it on the Plans page for the plans it should sell; Hotzonex then adds their profiles.`);
   }
 
   const wasPending = router.status === 'pending';
@@ -123,7 +170,8 @@ export async function applyTestResult(db: SupabaseClient, router: RouterRef, job
   router.dns_name = dnsName;
   if (wasPending) {
     await db.from('audit_log').insert({ tenant_id: router.tenant_id, user_id: job.created_by, action: 'router.added', details: { router_id: router.id, name: router.name } });
-    if (!usesOwnProfiles) await db.from('router_jobs').insert({ router_id: router.id, type: 'sync_profiles', payload: {}, created_by: job.created_by });
+    // Profiles of plans ticked for this router while it was being added are made now.
+    await db.from('router_jobs').insert({ router_id: router.id, type: 'sync_profiles', payload: {}, created_by: job.created_by });
   }
   await finishJob(db, job.id, true, { model: t.board, ros_version: t.version, uptime: t.uptime, hotspot_server: choice.server, dns_name: dnsName, warnings });
 }
@@ -421,11 +469,12 @@ const isOwnProfileName = (n: string) => Boolean(n) && n !== 'default' && !n.star
  * still has the profile. Call after saving the router's new profile list.
  */
 export async function retirePlan(db: SupabaseClient, tenantId: string, plan: { id: string; router_profile_name: string }): Promise<'deleted' | 'switched_off' | 'kept'> {
+  const { count: links } = await db.from('plan_routers').select('plan_id', { count: 'exact', head: true }).eq('plan_id', plan.id);
   const { data: routers } = await db.from('routers').select('hotspot_info').eq('tenant_id', tenantId);
   const elsewhere = (routers ?? []).some((r) =>
     ((r.hotspot_info as HotspotInfo | null)?.user_profiles ?? []).some((p) => p.name === plan.router_profile_name),
   );
-  if (elsewhere) return 'kept';
+  if (elsewhere || (links ?? 0) > 0) return 'kept';
 
   const refs = await Promise.all([
     db.from('vouchers').select('id', { count: 'exact', head: true }).eq('plan_id', plan.id),
@@ -452,8 +501,15 @@ export async function retireRemovedProfiles(db: SupabaseClient, router: RouterRe
   const vanished = before.filter((n) => isOwnProfileName(n) && !now.has(n));
   const out: Record<string, string> = {};
   if (!vanished.length) return out;
-  const { data: plans } = await db.from('plans').select('id, router_profile_name').eq('tenant_id', router.tenant_id).in('router_profile_name', vanished);
-  for (const p of (plans ?? []) as { id: string; router_profile_name: string }[]) out[p.router_profile_name] = await retirePlan(db, router.tenant_id, p);
+  // The plans these profiles belonged to on this router (by link, or by the plan's own profile name).
+  const { data: links } = await db.from('plan_routers').select('plan_id, profile_name').eq('router_id', router.id).in('profile_name', vanished);
+  const planIds = new Set((links ?? []).map((l) => l.plan_id as string));
+  if (links?.length) await db.from('plan_routers').delete().eq('router_id', router.id).in('profile_name', vanished);
+  const { data: byName } = await db.from('plans').select('id').eq('tenant_id', router.tenant_id).in('router_profile_name', vanished);
+  for (const p of byName ?? []) planIds.add(p.id as string);
+  if (!planIds.size) return out;
+  const { data: plans } = await db.from('plans').select('id, name, router_profile_name').in('id', [...planIds]);
+  for (const p of (plans ?? []) as { id: string; name: string; router_profile_name: string }[]) out[p.name] = await retirePlan(db, router.tenant_id, p);
   return out;
 }
 
@@ -479,9 +535,12 @@ export function jobVouchers(job: Job): { id: string; code: string }[] {
  */
 export async function finishProfileRemoval(db: SupabaseClient, router: RouterRef, job: Job, usersOnIt: number): Promise<void> {
   const name = str(job.payload.remove_profile) ?? '';
+  const keepPlan = job.payload.keep_plan === true;
   if (usersOnIt > 0) {
     await finishJob(db, job.id, false, {
-      error: `${usersOnIt} hotspot user(s) on ${router.name} still use profile "${name}", so it was kept and the plan stays switched off. Delete those users on the router first, then delete the plan again.`,
+      error: keepPlan
+        ? `${usersOnIt} hotspot user(s) on ${router.name} still use profile "${name}", so it was kept on the router. The plan is no longer sold there.`
+        : `${usersOnIt} hotspot user(s) on ${router.name} still use profile "${name}", so it was kept and the plan stays switched off. Delete those users on the router first, then delete the plan again.`,
     });
     return;
   }
@@ -493,7 +552,13 @@ export async function finishProfileRemoval(db: SupabaseClient, router: RouterRef
       .update({ hotspot_info: { ...info, user_profiles: info.user_profiles.filter((p) => p.name !== name) } })
       .eq('id', router.id);
   }
+  if (keepPlan) {
+    await finishJob(db, job.id, true, { removed_profile: name });
+    return;
+  }
   const planId = str(job.payload.plan_id);
+  // The plan is no longer on this router; it goes when no other router carries it.
+  if (planId) await db.from('plan_routers').delete().eq('router_id', router.id).eq('plan_id', planId);
   const { data: plan } = planId ? await db.from('plans').select('id, router_profile_name').eq('id', planId).maybeSingle() : { data: null };
   const outcome = plan ? await retirePlan(db, router.tenant_id, plan as { id: string; router_profile_name: string }) : 'deleted';
   await finishJob(db, job.id, true, { removed_profile: name, plan: outcome });

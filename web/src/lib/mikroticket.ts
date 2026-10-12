@@ -32,3 +32,21 @@ export function profileLabel(name: string): string {
   const p = parseMikroticketProfile(name);
   return p ? `${p.label} (MikroTicket)` : name;
 }
+
+/** RouterOS-style duration for MikroTicket names: 3600 → "0d 01:00:00". */
+function mtDuration(seconds: number): string {
+  const d = Math.floor(seconds / 86400);
+  const rest = seconds % 86400;
+  const two = (n: number) => String(n).padStart(2, '0');
+  return `${d}d ${two(Math.floor(rest / 3600))}:${two(Math.floor((rest % 3600) / 60))}:${two(rest % 60)}`;
+}
+
+/**
+ * The user profile name Hotzonex gives a plan's profile on the routers: MikroTicket's format, so
+ * MikroTicket shows it with its price and time (same as mikroticketProfileName in the router worker).
+ */
+export function buildMikroticketProfileName(p: { name: string; price_ssp: number; uptime_seconds: number; validity_seconds: number | null }): string {
+  const label = p.name.replace(/[^A-Za-z0-9._]/g, '') || 'Plan';
+  const validity = p.validity_seconds ? `-vl:${mtDuration(p.validity_seconds)}` : '';
+  return `profile_${label}-se:-co:${p.price_ssp}-pr:-lu:7-lp:7-ut:${mtDuration(p.uptime_seconds)}-bt:-kt:true-nu:true-np:true-tp:2${validity}`;
+}

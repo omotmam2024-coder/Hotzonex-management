@@ -25,6 +25,7 @@ import {
   readRouterUsers,
   removeVoucherUsers,
   restorePortalDirect,
+  upsertManagedProfile,
   RestClient,
   RouterError,
   routerProfileNames,
@@ -44,12 +45,15 @@ import {
   finishVoucherDelete,
   JOB_COLUMNS,
   jobVouchers,
+  linkedProfileNames,
+  managedLinks,
+  mikroticketProfileName,
+  planLink,
   markRemoved,
   MAX_SENDS,
   nextPushChunk,
   ownProfiles,
   planProfileNames,
-  plansForSync,
   portalFilesUrl,
   portalTarget,
   profileOf,
@@ -157,17 +161,26 @@ async function runJob(db: SupabaseClient, router: DirectRouter, client: RestClie
         await finishProfileRemoval(db, router, job, r.users);
         return true;
       }
-      // A router with its own profiles keeps them (they are its plans); Hotzonex adds profiles only
-      // to a router that has none, and removes the ones it added earlier that nothing uses.
-      let added = 0;
-      let plans = 0;
-      if (ownProfiles(router.hotspot_info).length === 0) {
-        const list = await plansForSync(db, router, job);
-        plans = list.length;
-        for (const p of list) if (await ensureProfileExists(client, profileOf(p))) added++;
+      // The plans ticked for this router whose profile Hotzonex makes: the profile is brought in step
+      // with the plan (added, renamed, speed and devices per code). The router's own profiles
+      // (MikroTicket's) are never changed.
+      const planId = str(job.payload.plan_id);
+      const done: Record<string, string> = {};
+      for (const link of await managedLinks(db, router, planId)) {
+        const name = mikroticketProfileName(link.plan);
+        done[link.plan.name] = await upsertManagedProfile(client, {
+          name,
+          previousName: link.profile_name,
+          rateLimit: link.plan.rate_limit,
+          sharedUsers: link.plan.shared_users,
+        });
+        if (name !== link.profile_name) {
+          await db.from('plan_routers').update({ profile_name: name }).eq('router_id', router.id).eq('plan_id', link.plan_id);
+        }
       }
-      const removed = await removeLeftoverProfiles(client, await planProfileNames(db, router));
-      await finishJob(db, job.id, true, { profiles: plans, added, removed });
+      const keep = new Set([...(await planProfileNames(db, router)), ...(await linkedProfileNames(db, router))]);
+      const removed = await removeLeftoverProfiles(client, keep);
+      await finishJob(db, job.id, true, { managed: done, removed });
       return true;
     }
 
@@ -188,7 +201,15 @@ async function runJob(db: SupabaseClient, router: DirectRouter, client: RestClie
         // A router without any: Hotzonex adds the plan's profile.
         const ownProfiles = profiles.filter((n) => n !== 'default' && !n.startsWith('hzc-'));
         let profile = chunk.plan.router_profile_name;
-        if (ownProfiles.length) {
+        const link = await planLink(db, router, chunk.plan.id);
+        if (link?.managed) {
+          // Hotzonex's own profile for this plan: made now if the router does not have it yet.
+          await upsertManagedProfile(client, { name: link.profile_name, previousName: link.profile_name, rateLimit: chunk.plan.rate_limit, sharedUsers: chunk.plan.shared_users });
+          profiles = null;
+          profile = link.profile_name;
+        } else if (link && profiles.includes(link.profile_name)) {
+          profile = link.profile_name;
+        } else if (ownProfiles.length) {
           const match = matchRouterProfile(profile, profiles);
           if (!match) {
             await finishJob(db, job.id, false, {
