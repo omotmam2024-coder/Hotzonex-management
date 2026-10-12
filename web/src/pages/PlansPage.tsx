@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { PageHeader } from '../components/PageHeader';
 import { Alert, Badge, Button, Card, Checkbox, Field, Select, Spinner, TextInput } from '../components/ui';
@@ -120,7 +120,7 @@ function PlanEditor({
   initial: PlanForm;
   routerProfiles: RouterProfile[];
   usedProfiles: Set<string>;
-  onClose: (saved: boolean) => void;
+  onClose: (saved: boolean, newProfile?: boolean) => void;
 }) {
   const queryClient = useQueryClient();
   // Hotzonex makes its own profile only when the routers have none of their own.
@@ -129,6 +129,13 @@ function PlanEditor({
   const [form, setForm] = useState<PlanForm>(initial.profileMode === 'router' && !choices.length ? { ...initial, profileMode: 'new' } : initial);
   const set = <K extends keyof PlanForm>(key: K, value: PlanForm[K]) => setForm((f) => ({ ...f, [key]: value }));
   const routerProfile = form.profileMode === 'router' ? routerProfiles.find((r) => r.name === form.profileName) : undefined;
+  const mikroticket = routerProfile ? parseMikroticketProfile(routerProfile.name) : null;
+  // The editor opens at the top of the page: bring it into view (Edit is often pressed far below it).
+  const top = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    top.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    top.current?.querySelector('input')?.focus({ preventScroll: true });
+  }, []);
 
   function chooseProfile(value: string) {
     if (value === NEW_PROFILE) {
@@ -201,7 +208,7 @@ function PlanEditor({
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['plans'] });
-      onClose(true);
+      onClose(true, form.profileMode === 'new');
     },
   });
 
@@ -211,133 +218,143 @@ function PlanEditor({
   }
 
   return (
-    <Card>
-      <h2 className="mb-4 text-lg font-bold">{form.id ? `Edit ${initial.name}` : 'New plan'}</h2>
-      <form onSubmit={submit} className="space-y-4" noValidate>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Plan name">
-            <TextInput
-              value={form.name}
-              maxLength={40}
-              placeholder="2 Hours"
-              onChange={(e) => {
-                const name = e.target.value;
-                setForm((f) => ({ ...f, name, profileName: f.profileTouched || f.profileMode === 'router' ? f.profileName : slugProfile(name) }));
-              }}
-            />
-          </Field>
-          <Field label="Price (SSP)">
-            <TextInput inputMode="numeric" value={form.price} onChange={(e) => set('price', e.target.value.replace(/\D/g, ''))} placeholder="1000" />
-          </Field>
-          <Field label="Time allowed" hint="Total connected time (uptime limit on the router)">
-            <div className="flex gap-2">
-              <TextInput inputMode="numeric" value={form.uptimeAmount} onChange={(e) => set('uptimeAmount', e.target.value.replace(/\D/g, ''))} />
-              <Select value={form.uptimeUnit} onChange={(e) => set('uptimeUnit', e.target.value as TimeUnit)}>
-                <option value="minutes">minutes</option>
-                <option value="hours">hours</option>
-                <option value="days">days</option>
-              </Select>
-            </div>
-          </Field>
-          <Field label="Validity after first login" hint="The voucher expires this long after first use, even if time is left">
-            <div className="flex gap-2">
+    <div ref={top} className="scroll-mt-20">
+      <Card>
+        <h2 className="mb-1 text-lg font-bold">{form.id ? `Edit ${initial.name}` : 'New plan'}</h2>
+        <p className="mb-4 text-sm text-slate-600">
+          {mikroticket
+            ? 'Filled in from the MikroTicket profile. Price, time and validity here are what Hotzonex sells and prints; the speed and devices per code come from the router profile.'
+            : 'Price, time and validity are what Hotzonex sells and prints for this plan.'}
+        </p>
+        <form onSubmit={submit} className="space-y-4" noValidate>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Plan name">
               <TextInput
-                inputMode="numeric"
-                value={form.hasValidity ? form.validityAmount : ''}
-                disabled={!form.hasValidity}
-                placeholder="no limit"
-                onChange={(e) => set('validityAmount', e.target.value.replace(/\D/g, ''))}
+                value={form.name}
+                maxLength={40}
+                placeholder="2 Hours"
+                onChange={(e) => {
+                  const name = e.target.value;
+                  setForm((f) => ({ ...f, name, profileName: f.profileTouched || f.profileMode === 'router' ? f.profileName : slugProfile(name) }));
+                }}
               />
-              <Select value={form.validityUnit} disabled={!form.hasValidity} onChange={(e) => set('validityUnit', e.target.value as TimeUnit)}>
-                <option value="hours">hours</option>
-                <option value="days">days</option>
-              </Select>
+            </Field>
+            <Field label="Price (SSP)">
+              <TextInput inputMode="numeric" value={form.price} onChange={(e) => set('price', e.target.value.replace(/\D/g, ''))} placeholder="1000" />
+            </Field>
+            <Field label="Time allowed" hint="Total connected time (uptime limit on the router)">
+              <div className="flex gap-2">
+                <TextInput inputMode="numeric" value={form.uptimeAmount} onChange={(e) => set('uptimeAmount', e.target.value.replace(/\D/g, ''))} />
+                <Select value={form.uptimeUnit} onChange={(e) => set('uptimeUnit', e.target.value as TimeUnit)}>
+                  <option value="minutes">minutes</option>
+                  <option value="hours">hours</option>
+                  <option value="days">days</option>
+                </Select>
+              </div>
+            </Field>
+            <div>
+              <Field label="Validity after first login" hint="The voucher expires this long after first use, even if time is left">
+                <div className="flex gap-2">
+                  <TextInput
+                    inputMode="numeric"
+                    value={form.hasValidity ? form.validityAmount : ''}
+                    disabled={!form.hasValidity}
+                    placeholder="no limit"
+                    onChange={(e) => set('validityAmount', e.target.value.replace(/\D/g, ''))}
+                  />
+                  <Select value={form.validityUnit} disabled={!form.hasValidity} onChange={(e) => set('validityUnit', e.target.value as TimeUnit)}>
+                    <option value="minutes">minutes</option>
+                    <option value="hours">hours</option>
+                    <option value="days">days</option>
+                  </Select>
+                </div>
+              </Field>
+              <Checkbox label="No validity limit" checked={!form.hasValidity} onChange={(v) => set('hasValidity', !v)} />
             </div>
-          </Field>
-          {form.profileMode === 'new' && (
-            <Field label="Speed limit (upload/download)" hint="RouterOS rate-limit, e.g. 2M/2M or 512k/1M. Empty = no limit">
-              <TextInput value={form.rateLimit} onChange={(e) => set('rateLimit', e.target.value.replace(/\s/g, ''))} placeholder="2M/2M" />
+            {form.profileMode === 'new' && (
+              <Field label="Speed limit (upload/download)" hint="RouterOS rate-limit, e.g. 2M/2M or 512k/1M. Empty = no limit">
+                <TextInput value={form.rateLimit} onChange={(e) => set('rateLimit', e.target.value.replace(/\s/g, ''))} placeholder="2M/2M" />
+              </Field>
+            )}
+            <Field label="Data limit (MB)" hint="Empty = no data limit">
+              <TextInput inputMode="numeric" value={form.dataLimitMb} onChange={(e) => set('dataLimitMb', e.target.value.replace(/\D/g, ''))} placeholder="none" />
             </Field>
-          )}
-          <Field label="Data limit (MB)" hint="Empty = no data limit">
-            <TextInput inputMode="numeric" value={form.dataLimitMb} onChange={(e) => set('dataLimitMb', e.target.value.replace(/\D/g, ''))} placeholder="none" />
-          </Field>
-          {form.profileMode === 'new' && (
-            <Field label="Shared users" hint="Devices that may use one code at the same time">
-              <TextInput inputMode="numeric" value={form.sharedUsers} onChange={(e) => set('sharedUsers', e.target.value.replace(/\D/g, ''))} />
+            {form.profileMode === 'new' && (
+              <Field label="Shared users" hint="Devices that may use one code at the same time">
+                <TextInput inputMode="numeric" value={form.sharedUsers} onChange={(e) => set('sharedUsers', e.target.value.replace(/\D/g, ''))} />
+              </Field>
+            )}
+            <Field
+              label="Router user profile"
+              hint={
+                routerProfile
+                  ? `Uses the router's own profile as it is: speed ${routerProfile.rate_limit || 'no limit'}, ${routerProfile.shared_users || 1} device(s) per code. Hotzonex never changes it.`
+                  : form.profileMode === 'new'
+                    ? 'Hotzonex adds this profile, with the speed and shared users above, to routers that do not have it.'
+                    : 'Choose one of the profiles on your router, e.g. the ones MikroTicket made. Hotzonex adds its own profile only to a router that has none.'
+              }
+            >
+              <Select value={form.profileMode === 'new' ? NEW_PROFILE : form.profileName} onChange={(e) => chooseProfile(e.target.value)}>
+                {form.profileMode === 'router' && !routerProfile && <option value={form.profileName}>Choose a profile…</option>}
+                {choices.map((r) => (
+                  <option key={r.name} value={r.name} disabled={usedProfiles.has(r.name) && r.name !== initial.profileName}>
+                    {profileLabel(r.name)}
+                    {usedProfiles.has(r.name) && r.name !== initial.profileName ? ' — used by another plan' : ''}
+                  </option>
+                ))}
+                {canMakeProfile && <option value={NEW_PROFILE}>+ New profile (Hotzonex adds it to the router)</option>}
+              </Select>
             </Field>
-          )}
-          <Field
-            label="Router user profile"
-            hint={
-              routerProfile
-                ? `Uses the router's own profile as it is: speed ${routerProfile.rate_limit || 'no limit'}, ${routerProfile.shared_users || 1} device(s) per code. Hotzonex never changes it.`
-                : form.profileMode === 'new'
-                  ? 'Hotzonex adds this profile, with the speed and shared users above, to routers that do not have it.'
-                  : 'Choose one of the profiles on your router, e.g. the ones MikroTicket made. Hotzonex adds its own profile only to a router that has none.'
-            }
-          >
-            <Select value={form.profileMode === 'new' ? NEW_PROFILE : form.profileName} onChange={(e) => chooseProfile(e.target.value)}>
-              {form.profileMode === 'router' && !routerProfile && <option value={form.profileName}>Choose a profile…</option>}
-              {choices.map((r) => (
-                <option key={r.name} value={r.name} disabled={usedProfiles.has(r.name) && r.name !== initial.profileName}>
-                  {profileLabel(r.name)}
-                  {usedProfiles.has(r.name) && r.name !== initial.profileName ? ' — used by another plan' : ''}
-                </option>
-              ))}
-              {canMakeProfile && <option value={NEW_PROFILE}>+ New profile (Hotzonex adds it to the router)</option>}
-            </Select>
-          </Field>
-          {form.profileMode === 'new' && (
-            <Field label="New profile name" hint="Letters, numbers, - _ and . only">
-              <TextInput
-                value={form.profileName}
-                onChange={(e) => setForm((f) => ({ ...f, profileName: e.target.value, profileTouched: true }))}
-                placeholder="hzc-2h"
-              />
-            </Field>
-          )}
-        </div>
-
-        <div>
-          <span className="mb-2 block text-sm font-medium text-slate-700">Colour (cards and Sell buttons)</span>
-          <div className="flex flex-wrap items-center gap-2">
-            {SWATCHES.map((c) => (
-              <button
-                key={c}
-                type="button"
-                aria-label={`Colour ${c}`}
-                onClick={() => set('color', c)}
-                className={`h-11 w-11 rounded-xl ring-offset-2 ${form.color === c ? 'ring-2 ring-slate-900' : ''}`}
-                style={{ backgroundColor: c }}
-              />
-            ))}
-            <input
-              type="color"
-              value={form.color}
-              onChange={(e) => set('color', e.target.value)}
-              className="h-11 w-14 cursor-pointer rounded-xl border border-slate-300 bg-white p-1"
-              aria-label="Custom colour"
-            />
+            {form.profileMode === 'new' && (
+              <Field label="New profile name" hint="Letters, numbers, - _ and . only">
+                <TextInput
+                  value={form.profileName}
+                  onChange={(e) => setForm((f) => ({ ...f, profileName: e.target.value, profileTouched: true }))}
+                  placeholder="hzc-2h"
+                />
+              </Field>
+            )}
           </div>
-        </div>
 
-        <div className="flex flex-wrap gap-x-6">
-          <Checkbox label="Validity limit after first login" checked={form.hasValidity} onChange={(v) => set('hasValidity', v)} />
-          <Checkbox label="Plan active (can be sold and generated)" checked={form.isActive} onChange={(v) => set('isActive', v)} />
-        </div>
+          <div>
+            <span className="mb-2 block text-sm font-medium text-slate-700">Colour (cards and Sell buttons)</span>
+            <div className="flex flex-wrap items-center gap-2">
+              {SWATCHES.map((c) => (
+                <button
+                  key={c}
+                  type="button"
+                  aria-label={`Colour ${c}`}
+                  onClick={() => set('color', c)}
+                  className={`h-11 w-11 rounded-xl ring-offset-2 ${form.color === c ? 'ring-2 ring-slate-900' : ''}`}
+                  style={{ backgroundColor: c }}
+                />
+              ))}
+              <input
+                type="color"
+                value={form.color}
+                onChange={(e) => set('color', e.target.value)}
+                className="h-11 w-14 cursor-pointer rounded-xl border border-slate-300 bg-white p-1"
+                aria-label="Custom colour"
+              />
+            </div>
+          </div>
 
-        {save.error && <Alert tone="error">{save.error.message}</Alert>}
-        <div className="flex flex-wrap gap-2">
-          <Button type="submit" disabled={save.isPending}>
-            {save.isPending && <Spinner />} Save plan
-          </Button>
-          <Button variant="ghost" onClick={() => onClose(false)}>
-            Cancel
-          </Button>
-        </div>
-      </form>
-    </Card>
+          <div className="flex flex-wrap gap-x-6">
+            <Checkbox label="Plan active (can be sold and generated)" checked={form.isActive} onChange={(v) => set('isActive', v)} />
+          </div>
+
+          {save.error && <Alert tone="error">{save.error.message}</Alert>}
+          <div className="flex flex-wrap gap-2">
+            <Button type="submit" disabled={save.isPending}>
+              {save.isPending && <Spinner />} Save plan
+            </Button>
+            <Button variant="ghost" onClick={() => onClose(false)}>
+              Cancel
+            </Button>
+          </div>
+        </form>
+      </Card>
+    </div>
   );
 }
 
@@ -423,9 +440,15 @@ export function PlansPage() {
           initial={editing}
           routerProfiles={routerProfiles}
           usedProfiles={usedProfiles}
-          onClose={(saved) => {
+          onClose={(saved, newProfile) => {
             setEditing(null);
-            if (saved) setNotice('Plan saved. Profiles already on the router are used as they are and never changed; a new profile is added to routers within a few seconds.');
+            document.querySelector('main')?.scrollTo({ top: 0, behavior: 'smooth' });
+            if (saved)
+              setNotice(
+                newProfile
+                  ? 'Plan saved. Its profile is added within a few seconds to your routers that have no profiles of their own.'
+                  : 'Plan saved. It uses the router profile as it is; nothing on the router was changed.',
+              );
           }}
         />
       )}
@@ -433,7 +456,7 @@ export function PlansPage() {
       {!editing && withoutPlan.length > 0 && (
         <Card>
           <h2 className="font-bold text-slate-900">Other profiles on your router</h2>
-          <p className="text-sm text-slate-600">These have no price in their name, so they are not plans yet. Give one a price to sell it.</p>
+          <p className="text-sm text-slate-600">These have no price in their name (or are free), so they are not plans yet. Give one a price to sell it.</p>
           <div className="mt-3 flex flex-wrap gap-2">
             {withoutPlan.map((r) => (
               <Button
