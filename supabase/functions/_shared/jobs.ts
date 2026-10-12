@@ -378,13 +378,17 @@ function chunks<T>(list: T[], size: number): T[][] {
   return out;
 }
 
-/** Ids among these vouchers that have a sale (sold vouchers stay in Hotzonex for the sales records). */
+/** Ids among these vouchers that have a sale or were used (they stay in Hotzonex for the sales records). */
 export async function vouchersWithSales(db: SupabaseClient, ids: string[]): Promise<Set<string>> {
   const sold = new Set<string>();
   for (const part of chunks(ids, 200)) {
     const { data, error } = await db.from('sales').select('voucher_id').in('voucher_id', part);
     if (error) throw new Error(`Could not check sales: ${error.message}`);
     for (const s of data ?? []) sold.add(s.voucher_id as string);
+    // A voucher a customer has used is a sale in the reports even when nobody recorded one.
+    const { data: used, error: usedError } = await db.from('vouchers').select('id').in('id', part).not('first_used_at', 'is', null);
+    if (usedError) throw new Error(`Could not check used vouchers: ${usedError.message}`);
+    for (const v of used ?? []) sold.add(v.id as string);
   }
   return sold;
 }

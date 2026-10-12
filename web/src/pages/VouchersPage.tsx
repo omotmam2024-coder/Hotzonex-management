@@ -35,7 +35,7 @@ function deleteMessage(r: DeleteResult): string {
   const parts = [];
   if (r.deleted) parts.push(`${r.deleted} deleted`);
   if (r.removing) parts.push(`${r.removing} switched off and being deleted from the router (gone from this list once the router has removed them; if the router is offline, as soon as it is back)`);
-  if (r.kept) parts.push(`${r.kept} kept because they have a sale`);
+  if (r.kept) parts.push(`${r.kept} kept because they were sold or used`);
   return parts.length ? `${parts.join('; ')}.` : 'Nothing to delete.';
 }
 

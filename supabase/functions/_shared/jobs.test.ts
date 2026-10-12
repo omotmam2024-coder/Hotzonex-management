@@ -38,6 +38,7 @@ function fakeDb(tables: Record<string, Row[]>): SupabaseClient {
       insert: (r: Row | Row[]) => ((op = 'insert'), (inserted = Array.isArray(r) ? r : [r]), b),
       eq: (k: string, v: unknown) => (filters.push((r) => r[k] === v), b),
       in: (k: string, v: unknown[]) => (filters.push((r) => v.includes(r[k])), b),
+      not: (k: string, _op: 'is', v: null) => (filters.push((r) => (r[k] ?? null) !== v), b),
       order: () => b,
       range: (a: number, z: number) => ((range = [a, z]), b),
       maybeSingle: () => ((single = true), b),
@@ -159,4 +160,12 @@ test('a profile gone from one router unlinks the plan there; the plan stays whil
   assert.deepEqual(out, { '6Hrs': 'kept' });
   assert.deepEqual((t as Record<string, Row[]>).plan_routers!.map((l) => l.router_id), ['r2']);
   assert.equal(t.plans.length, 1);
+});
+
+test('a used voucher without a sale is kept (switched off) when it is deleted on the router', async () => {
+  const t = world();
+  t.vouchers[0] = { ...t.vouchers[0]!, status: 'active', first_used_at: '2026-10-12T10:13:03Z' } as (typeof t.vouchers)[number];
+  const r = await applyRouterRemovals(fakeDb(t), router, new Set(['3333', 'mt-unused-here']));
+  assert.deepEqual(r, { vouchers_deleted: 0, vouchers_disabled: 2, records_deleted: 1 });
+  assert.deepEqual(t.vouchers.map((v) => [v.id, v.status]), [['v1', 'disabled'], ['v2', 'disabled'], ['v3', 'unused'], ['v4', 'unused']]);
 });
