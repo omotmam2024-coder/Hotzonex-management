@@ -196,7 +196,7 @@ export type PushResult = 'added' | 'already' | 'conflict' | 'error';
 export async function pushVoucher(
   client: RestClient,
   v: { id: string; code: string },
-  opts: { profile: string; server: string; limitUptime: string; limitBytes: string | null },
+  opts: { profile: string; server: string; limitUptime: string; limitBytes: string | null; password?: PasswordStyle },
   existingByName: Map<string, string>,
 ): Promise<PushResult> {
   const tag = `hzc:${v.id}`;
@@ -205,7 +205,7 @@ export async function pushVoucher(
   try {
     await client.put('/ip/hotspot/user', {
       name: v.code,
-      password: v.code,
+      password: opts.password === 'empty' ? '' : v.code,
       profile: opts.profile,
       server: opts.server,
       'limit-uptime': opts.limitUptime,
@@ -224,10 +224,53 @@ export async function pushVoucher(
   }
 }
 
-/** Names → comments of all hotspot users, read once per push. */
-export async function userComments(client: RestClient): Promise<Map<string, string>> {
-  const users = await client.get<Json[]>('/ip/hotspot/user', { '.proplist': 'name,comment' });
-  return new Map(users.map((u) => [s(u.name), s(u.comment)]));
+/** How the router's own vouchers are made: password = code, or no password (a PIN, as MikroTicket can do). */
+export type PasswordStyle = 'same' | 'empty';
+
+export interface RouterUsers {
+  /** Name → comment of every hotspot user (to recognise Hotzonex's own and avoid clashes). */
+  comments: Map<string, string>;
+  /** Copied from the router's own vouchers, so Hotzonex cards log in on the same login page. */
+  passwordStyle: PasswordStyle;
+  /** What the decision was based on: own users with an empty password / password = name / readable. */
+  sample: { empty: number; same: number; readable: number };
+}
+
+/** All hotspot users, read once per push, and how the router's own vouchers are made. */
+export async function readRouterUsers(client: RestClient): Promise<RouterUsers> {
+  const users = await client.get<Json[]>('/ip/hotspot/user', { '.proplist': 'name,comment,password' });
+  const own = users.filter((u) => s(u.name) && s(u.name) !== 'default-trial' && !s(u.comment).startsWith('hzc:'));
+  // A password the router does not show (no "sensitive" permission) tells nothing: only shown ones count.
+  const readable = own.filter((u) => typeof u.password === 'string');
+  const empty = readable.filter((u) => s(u.password) === '').length;
+  const same = readable.filter((u) => s(u.password) === s(u.name)).length;
+  const passwordStyle: PasswordStyle = readable.length >= 3 && empty > same && empty >= readable.length * 0.6 ? 'empty' : 'same';
+  return { comments: new Map(users.map((u) => [s(u.name), s(u.comment)])), passwordStyle, sample: { empty, same, readable: readable.length } };
+}
+
+/** Names of the router's user profiles. */
+export async function routerProfileNames(client: RestClient): Promise<string[]> {
+  const rows = await client.get<Json[]>('/ip/hotspot/user/profile', { '.proplist': 'name' });
+  return rows.map((r) => s(r.name)).filter(Boolean);
+}
+
+/** MikroTicket's label and price in a profile name ("profile_1Hr-se:-co:1000-…" → 1Hr, 1000), or null. */
+function mikroticketKey(name: string): string | null {
+  const label = /^profile_(.+?)-se:/.exec(name)?.[1];
+  const price = /-co:([0-9]+(?:\.[0-9]+)?)/.exec(name)?.[1];
+  return label && price ? `${label}|${Math.round(Number(price))}` : null;
+}
+
+/**
+ * The router's own profile for a plan: the plan's profile when the router has it, otherwise the
+ * router's MikroTicket profile with the same label and price (routers differ in the rest of the
+ * name, e.g. validity). Null when the router has no such profile.
+ */
+export function matchRouterProfile(planProfile: string, routerProfiles: string[]): string | null {
+  if (routerProfiles.includes(planProfile)) return planProfile;
+  const key = mikroticketKey(planProfile);
+  if (!key) return null;
+  return routerProfiles.find((n) => mikroticketKey(n) === key) ?? null;
 }
 
 /** Something that is already gone (session ended, user removed) counts as done. */

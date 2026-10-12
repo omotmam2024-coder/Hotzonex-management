@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { after, before, test } from 'node:test';
-import { closeSessions, directTest, removeLeftoverProfiles, disableVoucher, ensureProfileExists, installPortalDirect, pushVoucher, readUsage, removeExpired, removeProfileIfUnused, removeVoucherUsers, restorePortalDirect, RestClient, RouterError, userComments } from './direct.ts';
+import { closeSessions, directTest, removeLeftoverProfiles, disableVoucher, ensureProfileExists, installPortalDirect, pushVoucher, readUsage, removeExpired, removeProfileIfUnused, removeVoucherUsers, restorePortalDirect, RestClient, RouterError, matchRouterProfile, readRouterUsers } from './direct.ts';
 
 type Row = Record<string, string>;
 const state: Record<string, Row[]> = {};
@@ -128,10 +128,10 @@ test('voucher push is idempotent and never touches a user it does not own', asyn
   reset();
   const c = client();
   const opts = { profile: 'mine', server: 'hotspot1', limitUptime: '1h', limitBytes: null };
-  const names = await userComments(c);
+  const names = (await readRouterUsers(c)).comments;
   assert.equal(await pushVoucher(c, { id: V, code: '12345678' }, opts, names), 'added');
   assert.equal(await pushVoucher(c, { id: V, code: '12345678' }, opts, names), 'already');
-  assert.equal(await pushVoucher(c, { id: V, code: '12345678' }, opts, await userComments(c)), 'already');
+  assert.equal(await pushVoucher(c, { id: V, code: '12345678' }, opts, (await readRouterUsers(c)).comments), 'already');
   assert.equal(await pushVoucher(c, { id: V, code: '11112222' }, opts, names), 'conflict');
   assert.equal(state['/ip/hotspot/user']!.find((u) => u.name === '11112222')!.comment, 'my own user');
   assert.equal(state['/ip/hotspot/user']!.find((u) => u.name === '12345678')!.comment, `hzc:${V}`);
@@ -206,4 +206,33 @@ test('vouchers deleted in Hotzonex leave the router; profiles go only while no u
   assert.deepEqual(await removeProfileIfUnused(client(), 'mine'), { removed: true, users: 0 });
   assert.deepEqual(state['/ip/hotspot/user/profile']!.map((p) => p.name), ['default']);
   assert.deepEqual(await removeProfileIfUnused(client(), 'mine'), { removed: false, users: 0 }, 'already gone');
+});
+
+test('cards are made like the router\'s own vouchers: its matching profile and its password style', async () => {
+  reset();
+  const c = client();
+  // MikroTicket PINs: no password.
+  state['/ip/hotspot/user'] = ['0001', '0002', '0003', '0004'].map((n, i) => ({ '.id': `*${i + 1}`, name: n, password: '', comment: 'Mikroticket-dc:2026-10-10' }));
+  const pin = await readRouterUsers(c);
+  assert.equal(pin.passwordStyle, 'empty');
+  assert.deepEqual(pin.sample, { empty: 4, same: 0, readable: 4 });
+  assert.equal(await pushVoucher(c, { id: V, code: '5555' }, { profile: 'p', server: 'all', limitUptime: '1h', limitBytes: null, password: pin.passwordStyle }, pin.comments), 'added');
+  assert.equal(state['/ip/hotspot/user']!.find((u) => u.name === '5555')!.password, '');
+
+  // Password = code, or passwords the router does not show: password = code.
+  state['/ip/hotspot/user'] = ['0001', '0002', '0003'].map((n, i) => ({ '.id': `*${i + 1}`, name: n, password: n }));
+  assert.equal((await readRouterUsers(c)).passwordStyle, 'same');
+  state['/ip/hotspot/user'] = ['0001', '0002', '0003'].map((n, i) => ({ '.id': `*${i + 1}`, name: n }));
+  assert.equal((await readRouterUsers(c)).passwordStyle, 'same');
+
+  const office = [
+    'default',
+    'profile_1Hr-se:-co:1000-pr:-lu:7-lp:7-ut:0d 01:00:00-bt:-kt:true-nu:true-np:true-tp:2-vl:2d 00:00:00',
+    'Guest',
+  ];
+  const home1Hr = 'profile_1Hr-se:-co:1000-pr:-lu:7-lp:7-ut:0d 01:00:00-bt:-kt:true-nu:true-np:true-tp:2-vl:1d 12:00:00';
+  assert.equal(matchRouterProfile(home1Hr, office), office[1], 'same label and price on another router');
+  assert.equal(matchRouterProfile('Guest', office), 'Guest');
+  assert.equal(matchRouterProfile('profile_1Hr-se:-co:1500-pr:-ut:0d 01:00:00', office), null, 'another price is another plan');
+  assert.equal(matchRouterProfile('LITE', office), null);
 });

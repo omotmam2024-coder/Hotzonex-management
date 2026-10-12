@@ -21,12 +21,15 @@ import {
   removeExpired,
   removeLeftoverProfiles,
   removeProfileIfUnused,
+  matchRouterProfile,
+  readRouterUsers,
   removeVoucherUsers,
   restorePortalDirect,
   RestClient,
   RouterError,
-  userComments,
+  routerProfileNames,
   type PushResult,
+  type RouterUsers,
 } from '../_shared/direct.ts';
 import {
   applyPortalInstalled,
@@ -169,7 +172,8 @@ async function runJob(db: SupabaseClient, router: DirectRouter, client: RestClie
     }
 
     case 'push_vouchers': {
-      let comments: Map<string, string> | null = null;
+      let users: RouterUsers | null = null;
+      let profiles: string[] | null = null;
       for (;;) {
         if (Date.now() > deadline) {
           // Out of time: continue on the next wake-up (progress is already saved).
@@ -178,17 +182,39 @@ async function runJob(db: SupabaseClient, router: DirectRouter, client: RestClie
         }
         const chunk = await nextPushChunk(db, router, job, PUSH_CHUNK);
         if (!chunk) return true;
-        comments ??= await userComments(client);
-        await ensureProfileExists(client, profileOf(chunk.plan));
+        users ??= await readRouterUsers(client);
+        profiles ??= await routerProfileNames(client);
+        // A router with its own profiles (MikroTicket's): its matching profile is used, nothing is added.
+        // A router without any: Hotzonex adds the plan's profile.
+        const ownProfiles = profiles.filter((n) => n !== 'default' && !n.startsWith('hzc-'));
+        let profile = chunk.plan.router_profile_name;
+        if (ownProfiles.length) {
+          const match = matchRouterProfile(profile, profiles);
+          if (!match) {
+            await finishJob(db, job.id, false, {
+              ...(job.result ?? {}),
+              error: `${router.name} has no user profile for this plan (${profile.replace(/^profile_(.+?)-se:.*$/, '$1')}). Make the profile on the router (e.g. in MikroTicket) or choose another plan; nothing was added to the router.`,
+            });
+            return true;
+          }
+          profile = match;
+        } else {
+          await ensureProfileExists(client, profileOf(chunk.plan));
+        }
+        if (!job.result?.password_style) {
+          job.result = { ...(job.result ?? {}), profile, password_style: users.passwordStyle, password_sample: users.sample };
+          await db.from('router_jobs').update({ result: job.result }).eq('id', job.id);
+        }
         const opts = {
-          profile: chunk.plan.router_profile_name,
+          profile,
+          password: users.passwordStyle,
           server: router.hotspot_server ?? 'all',
           limitUptime: toRouterOsTime(chunk.plan.uptime_seconds),
           limitBytes: chunk.plan.data_limit_mb ? String(chunk.plan.data_limit_mb * 1024 * 1024) : null,
         };
         const items: { voucher: string; result: PushResult }[] = [];
         try {
-          for (const v of chunk.vouchers) items.push({ voucher: v.id, result: await pushVoucher(client, v, opts, comments) });
+          for (const v of chunk.vouchers) items.push({ voucher: v.id, result: await pushVoucher(client, v, opts, users.comments) });
         } finally {
           await applyPushResults(db, router, job, items);
         }
