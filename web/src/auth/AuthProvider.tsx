@@ -3,7 +3,7 @@ import type { Session } from '@supabase/supabase-js';
 import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { friendlyError } from '../lib/errors';
-import { writeStored } from '../lib/storage';
+import { readStored, writeStored } from '../lib/storage';
 import type { Profile } from '../lib/types';
 
 /** The business the signed-in staff member works for. */
@@ -38,15 +38,51 @@ interface ProfileRow extends Profile {
   tenants: Business | null;
 }
 
+/** The last signed-in account, kept so the app opens at once next time while it is checked again. */
+interface CachedAccount {
+  userId: string;
+  profile: Profile;
+  siteName: string | null;
+  business: Business | null;
+  isPlatformAdmin: boolean;
+}
+const ACCOUNT_KEY = 'hzc.account';
+
+/** The user id of the login Supabase keeps in this browser (read without waiting for the network). */
+function storedUserId(): string | null {
+  try {
+    const host = new URL(import.meta.env.VITE_SUPABASE_URL as string).hostname.split('.')[0];
+    const raw = window.localStorage.getItem(`sb-${host}-auth-token`);
+    const id = raw ? (JSON.parse(raw) as { user?: { id?: unknown } }).user?.id : null;
+    return typeof id === 'string' ? id : null;
+  } catch {
+    return null;
+  }
+}
+
+/** The cached account, only when it belongs to the login stored in this browser and was usable. */
+function cachedAccount(): CachedAccount | null {
+  const cached = readStored<CachedAccount>('local', ACCOUNT_KEY);
+  const userId = storedUserId();
+  if (!cached || !userId || cached.userId !== userId) return null;
+  if (!cached.profile?.is_active || !cached.business?.is_active) return null;
+  return cached;
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
+  // With a login and account from the last visit, the app opens straight away; both are checked
+  // again in the background (what the account may see is still decided by the database).
+  const [cached] = useState(cachedAccount);
   const [session, setSession] = useState<Session | null>(null);
-  const [profile, setProfile] = useState<Profile | null>(null);
-  const [siteName, setSiteName] = useState<string | null>(null);
-  const [business, setBusiness] = useState<Business | null>(null);
-  const [isPlatformAdmin, setIsPlatformAdmin] = useState(false);
+  const [profile, setProfile] = useState<Profile | null>(cached?.profile ?? null);
+  const [siteName, setSiteName] = useState<string | null>(cached?.siteName ?? null);
+  const [business, setBusiness] = useState<Business | null>(cached?.business ?? null);
+  const [isPlatformAdmin, setIsPlatformAdmin] = useState(cached?.isPlatformAdmin ?? false);
   const queryClient = useQueryClient();
-  const userRef = useRef<string | null | undefined>(undefined);
-  const [status, setStatus] = useState<AuthStatus>('loading');
+  const userRef = useRef<string | null | undefined>(cached ? cached.userId : undefined);
+  const [status, setStatus] = useState<AuthStatus>(cached ? 'ready' : 'loading');
+  const statusRef = useRef(status);
+  statusRef.current = status;
   const [error, setError] = useState<string | null>(null);
 
   const loadProfile = useCallback(async (current: Session | null) => {
@@ -60,6 +96,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     setSession(current);
     if (!current) {
+      writeStored('local', ACCOUNT_KEY, null);
+      writeStored('local', 'hzc.cache', null);
       setProfile(null);
       setSiteName(null);
       setBusiness(null);
@@ -77,11 +115,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     ]);
 
     if (queryError) {
+      // Already open from the last visit (e.g. a slow or broken connection): keep it open.
+      if (statusRef.current === 'ready' && userRef.current === userId) return;
       setError(friendlyError(queryError));
       setStatus('error');
       return;
     }
     if (!data) {
+      writeStored('local', ACCOUNT_KEY, null);
       setProfile(null);
       setStatus('no_profile');
       return;
@@ -92,6 +133,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setBusiness(tenants);
     setIsPlatformAdmin(Boolean(platform));
     setError(null);
+    writeStored('local', ACCOUNT_KEY, { userId: current.user.id, profile: rest, siteName: sites?.name ?? null, business: tenants, isPlatformAdmin: Boolean(platform) } satisfies CachedAccount);
     // A switched-off business can no longer read its own row, so a missing one counts as switched off.
     setStatus(rest.is_active && tenants?.is_active ? 'ready' : 'inactive');
   }, [queryClient]);

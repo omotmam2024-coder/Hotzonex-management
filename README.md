@@ -40,7 +40,7 @@ setting. What it does write is limited to:
 
 | Folder | What it is | Runs on |
 | --- | --- | --- |
-| `web/` | React 18 + TypeScript + Vite + Tailwind staff app | Vercel |
+| `web/` | React 18 + TypeScript + Vite + Tailwind staff app | DigitalOcean (or Vercel) |
 | `supabase/` | Migrations, seed and Edge Functions (`add-router`, `create-staff`, `router-gateway`, `router-direct`) | Supabase |
 
 ---
@@ -86,7 +86,24 @@ npm install
 npm run dev               # http://localhost:5173
 ```
 
-### Deploy to Vercel
+### Deploy to DigitalOcean (App Platform)
+
+1. **Create App → GitHub**, pick this repository and branch; **Source Directory:** `web`.
+2. Choose **Static Site**. **Build Command:** `npm run build`; **Output Directory:** `dist`.
+3. **Catchall Document:** `index.html` (every page address opens the app).
+4. **Environment Variables** (build time): `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`.
+5. In Supabase **Authentication → URL Configuration**, set **Site URL** to the app's address.
+
+On a Droplet with nginx instead, serve `web/dist` with `try_files $uri /index.html;`, give
+`/assets/` `Cache-Control: public, max-age=31536000, immutable` and `/sw.js` and `/index.html`
+`Cache-Control: no-cache`.
+
+**Fast opening.** The app keeps its own files in the browser (service worker, `web/service-worker.js`,
+built into `dist/sw.js`) and remembers the signed-in account and the small screens (dashboard, plans,
+routers) for a day. Opening it again shows the last screen at once and refreshes it in the background;
+it opens even when the connection is poor. A new version is picked up on the next opening.
+
+### Deploy to Vercel (alternative)
 
 1. Import the GitHub repository in Vercel (**Add New → Project**).
 2. **Root Directory:** `web`. Framework, build command (`npm run build`) and output (`dist`)

@@ -1,13 +1,14 @@
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '../auth/AuthProvider';
 import { navForRole, ROLE_LABELS } from '../lib/nav';
+import { FullScreenSpinner } from './FullScreen';
 import { Icon } from './Icon';
 
 function Brand() {
   return (
     <div className="flex items-center gap-2">
-      <img src="/icon-192.png" alt="" className="h-9 w-9" />
+      <img src="/icon-72.png" alt="" className="h-9 w-9" />
       <span className="text-lg font-bold tracking-tight">Hotzonex Cloud</span>
     </div>
   );
@@ -103,7 +104,9 @@ export function Layout() {
           <Brand />
         </header>
         <main className="min-w-0 flex-1 overflow-y-auto p-4 lg:p-8 print:overflow-visible print:p-0">
-          <Outlet />
+          <Suspense fallback={<FullScreenSpinner />}>
+            <Outlet />
+          </Suspense>
         </main>
       </div>
     </div>
