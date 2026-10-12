@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import { useQueryClient } from '@tanstack/react-query';
-import { supabase } from '../lib/supabase';
+import { supabase, supabaseUrl } from '../lib/supabase';
 import { friendlyError } from '../lib/errors';
 import { readStored, writeStored } from '../lib/storage';
 import type { Profile } from '../lib/types';
@@ -51,7 +51,7 @@ const ACCOUNT_KEY = 'hzc.account';
 /** The user id of the login Supabase keeps in this browser (read without waiting for the network). */
 function storedUserId(): string | null {
   try {
-    const host = new URL(import.meta.env.VITE_SUPABASE_URL as string).hostname.split('.')[0];
+    const host = new URL(supabaseUrl).hostname.split('.')[0];
     const raw = window.localStorage.getItem(`sb-${host}-auth-token`);
     const id = raw ? (JSON.parse(raw) as { user?: { id?: unknown } }).user?.id : null;
     return typeof id === 'string' ? id : null;
