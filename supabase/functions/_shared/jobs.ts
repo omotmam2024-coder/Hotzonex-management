@@ -465,16 +465,13 @@ const isOwnProfileName = (n: string) => Boolean(n) && n !== 'default' && !n.star
 
 /**
  * A plan whose profile is gone: deleted when nothing in Hotzonex refers to it, otherwise switched
- * off (vouchers and sales keep their plan). Kept as it is while another router of the business
- * still has the profile. Call after saving the router's new profile list.
+ * off (vouchers and sales keep their plan). Kept as it is while it is still ticked for another
+ * router. Call after this router's link to the plan is gone.
  */
-export async function retirePlan(db: SupabaseClient, tenantId: string, plan: { id: string; router_profile_name: string }): Promise<'deleted' | 'switched_off' | 'kept'> {
+export async function retirePlan(db: SupabaseClient, _tenantId: string, plan: { id: string; router_profile_name: string }): Promise<'deleted' | 'switched_off' | 'kept'> {
+  // Still ticked for another router: the plan stays.
   const { count: links } = await db.from('plan_routers').select('plan_id', { count: 'exact', head: true }).eq('plan_id', plan.id);
-  const { data: routers } = await db.from('routers').select('hotspot_info').eq('tenant_id', tenantId);
-  const elsewhere = (routers ?? []).some((r) =>
-    ((r.hotspot_info as HotspotInfo | null)?.user_profiles ?? []).some((p) => p.name === plan.router_profile_name),
-  );
-  if (elsewhere || (links ?? 0) > 0) return 'kept';
+  if ((links ?? 0) > 0) return 'kept';
 
   const refs = await Promise.all([
     db.from('vouchers').select('id', { count: 'exact', head: true }).eq('plan_id', plan.id),

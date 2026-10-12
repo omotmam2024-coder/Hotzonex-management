@@ -207,10 +207,20 @@ function PlanEditor({
         });
       const removed = [...linked].filter((id) => !form.routerIds.includes(id));
       if (added.length) {
+        // A router profile removed from Hotzonex earlier is back in use.
+        for (const a of added.filter((x) => !x.managed)) {
+          await supabase.from('router_profile_ignores').delete().eq('router_id', a.router_id).eq('profile_name', a.profile_name);
+        }
         const { error } = await supabase.from('plan_routers').insert(added);
         if (error) throw error;
       }
       if (removed.length) {
+        // The router's own profiles (MikroTicket's) stay on the router; Hotzonex stops making a plan of them.
+        const keep = (plan?.plan_routers ?? []).filter((l) => removed.includes(l.router_id) && !l.managed).map((l) => ({ router_id: l.router_id, profile_name: l.profile_name }));
+        if (keep.length) {
+          const { error } = await supabase.from('router_profile_ignores').upsert(keep, { onConflict: 'router_id,profile_name', ignoreDuplicates: true });
+          if (error) throw error;
+        }
         const { error } = await supabase.from('plan_routers').delete().eq('plan_id', planId).in('router_id', removed);
         if (error) throw error;
       }
@@ -220,7 +230,9 @@ function PlanEditor({
       const parts = [`${name} saved.`];
       if (made) parts.push(`Its profile is being added to ${made} router${made === 1 ? '' : 's'} (in MikroTicket's format, so MikroTicket shows it too).`);
       if (own) parts.push(`${own} router${own === 1 ? '' : 's'} use${own === 1 ? 's' : ''} its own matching profile as it is.`);
-      if (removed.length) parts.push(`Removed from ${removed.length} router${removed.length === 1 ? '' : 's'} (the profile stays there while users are on it).`);
+      const removedMade = (plan?.plan_routers ?? []).filter((l) => removed.includes(l.router_id) && l.managed).length;
+      if (removedMade) parts.push(`Its profile is being removed from ${removedMade} router${removedMade === 1 ? '' : 's'} (kept there while users are on it).`);
+      if (removed.length > removedMade) parts.push(`No longer sold on ${removed.length - removedMade} router${removed.length - removedMade === 1 ? '' : 's'}; their own profile stays on the router.`);
       if (plan && !added.length && (plan.plan_routers ?? []).some((l) => l.managed)) parts.push('Profiles made by Hotzonex are updated on the routers within a minute.');
       return parts.join(' ');
     },
@@ -311,7 +323,11 @@ function PlanEditor({
                     <span className="block font-medium text-slate-900">{r.name}</span>
                     {form.routerIds.includes(r.id) && <span className="block text-xs text-slate-500">{routerNote(r, previewName)}</span>}
                     {!form.routerIds.includes(r.id) && linkOf(r.id) && (
-                      <span className="block text-xs text-amber-700">No longer sold here; its profile is removed from this router (kept while users are on it)</span>
+                      <span className="block text-xs text-amber-700">
+                        {linkOf(r.id)?.managed
+                          ? 'No longer sold here; the profile Hotzonex made is removed from this router (kept while users are on it)'
+                          : 'No longer sold here; the router keeps its own profile'}
+                      </span>
                     )}
                   </span>
                 </label>
@@ -384,14 +400,16 @@ export function PlansPage() {
 
   const remove = useMutation({
     mutationFn: async (p: Plan) => {
-      if (
-        !window.confirm(
-          `Delete plan ${p.name}? Its profile is deleted from your routers too. If hotspot users still use that profile, the router keeps it and the plan is only switched off.`,
-        )
-      )
-        return null;
-      const r = await invokeFunction<{ deleted?: boolean; removing?: number; job_ids?: string[] }>('delete-items', { action: 'delete_plan', id: p.id });
-      if (r.deleted) return `${p.name} deleted.`;
+      const made = (p.plan_routers ?? []).some((l) => l.managed);
+      const own = (p.plan_routers ?? []).some((l) => !l.managed);
+      const what = [
+        made ? 'The profile Hotzonex made is deleted from the routers too (kept while hotspot users are on it).' : '',
+        own ? "Routers that use their own profile (e.g. MikroTicket's) keep it; it is just no longer a plan here." : '',
+      ].filter(Boolean);
+      if (!window.confirm(`Delete plan ${p.name}? ${what.join(' ')}`)) return null;
+      const r = await invokeFunction<{ deleted?: boolean; removing?: number; kept_on_routers?: number; job_ids?: string[] }>('delete-items', { action: 'delete_plan', id: p.id });
+      const kept = r.kept_on_routers ? ` The router${r.kept_on_routers === 1 ? '' : 's'} keep${r.kept_on_routers === 1 ? 's' : ''} its own profile.` : '';
+      if (r.deleted) return `${p.name} deleted.${kept}`;
       // The routers delete the profile first; the plan goes once they have.
       try {
         const jobs = await Promise.all((r.job_ids ?? []).map((id) => waitForJob(id)));

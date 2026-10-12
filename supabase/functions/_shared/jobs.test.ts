@@ -112,7 +112,8 @@ test('a profile deleted on the router retires its plan: deleted when unused, swi
     { id: 'pc', name: 'C', tenant_id: T, router_profile_name: 'profile_C', is_active: true },
     { id: 'ph', name: 'H', tenant_id: T, router_profile_name: 'hzc-1h', is_active: true },
   ];
-  // profile_C is still on another router of the business.
+  // profile_C is still on another router of the business (ticked there).
+  (t as Record<string, Row[]>).plan_routers = [{ plan_id: 'pc', router_id: 'r2', profile_name: 'profile_C' }];
   t.routers = [
     { id: 'r1', tenant_id: T, hotspot_info: { user_profiles: [{ name: 'default' }] } },
     { id: 'r2', tenant_id: T, hotspot_info: { user_profiles: [{ name: 'profile_C' }] } },

@@ -4,9 +4,10 @@
 //   Unsold vouchers are deleted. One that is on a router is switched off at once and deleted
 //   after the router has removed it (as soon as the router is reachable). Sold vouchers are kept
 //   for the sales records.
-// POST { action: "delete_plan", id } → { deleted: true } or { removing: <routers>, job_ids }
-//   A plan with vouchers or sales can only be switched off. Otherwise its profile is deleted from
-//   the routers that have it (only while no hotspot user is on it), then the plan.
+// POST { action: "delete_plan", id } → { deleted: true, kept_on_routers } or { removing, kept_on_routers, job_ids }
+//   A plan with Hotzonex vouchers or sales can only be switched off. Otherwise a profile Hotzonex
+//   made is deleted from its routers (only while no hotspot user is on it), then the plan. The
+//   routers' own profiles (MikroTicket's) stay on the routers and are not made into a plan again.
 import type { SupabaseClient } from 'npm:@supabase/supabase-js@2.117.3';
 import { audit, type Caller, requireAdmin, serviceClient } from '../_shared/auth.ts';
 import { HttpError, readBody, serveJson } from '../_shared/cors.ts';
@@ -79,50 +80,62 @@ async function deletePlan(db: SupabaseClient, caller: Caller, body: Record<strin
   if (error) throw new Error(`Plan lookup failed: ${error.message}`);
   if (!plan) throw new HttpError(404, 'This plan no longer exists.');
 
+  // Hotzonex vouchers and sales keep their plan (they cannot lose it). MikroTicket logins keep
+  // their own price, so a MikroTicket plan can go.
   const refs = await Promise.all([
     db.from('vouchers').select('id', { count: 'exact', head: true }).eq('plan_id', id),
     db.from('voucher_batches').select('id', { count: 'exact', head: true }).eq('plan_id', id),
     db.from('sales').select('id', { count: 'exact', head: true }).eq('plan_id', id),
-    db.from('router_logins').select('id', { count: 'exact', head: true }).eq('plan_id', id).eq('used', true),
   ]);
   if (refs.some((r) => r.error)) throw new Error('Could not check what uses this plan.');
-  const [vouchers, batches, sales, logins] = refs.map((r) => r.count ?? 0);
+  const [vouchers, batches, sales] = refs.map((r) => r.count ?? 0);
   if (vouchers || batches) {
     throw new HttpError(409, `${plan.name} still has vouchers in Hotzonex. Delete its unsold vouchers on the Vouchers page first, or switch the plan off instead.`);
   }
-  if (sales || logins) {
-    throw new HttpError(409, `${plan.name} has sales in your reports, so it is kept for them. Switch it off instead.`);
+  if (sales) {
+    throw new HttpError(409, `${plan.name} has Hotzonex sales in your reports, so it is kept for them. Switch it off instead.`);
   }
 
-  // Each router that carries the plan removes its own profile for it (names can differ per router).
+  // A profile Hotzonex made goes from the router too (unless users are on it). The router's own
+  // profiles (MikroTicket's) stay on the router; Hotzonex only stops making a plan of them.
   const profile = plan.router_profile_name as string;
-  const { data: links } = await db.from('plan_routers').select('router_id, profile_name').eq('plan_id', id);
+  const { data: links } = await db.from('plan_routers').select('router_id, profile_name, managed').eq('plan_id', id);
   const { data: routers } = await db.from('routers').select('id, status, hotspot_info').eq('tenant_id', caller.tenantId);
   const targets: { router_id: string; profile_name: string }[] = [];
+  const keepOnRouter: { router_id: string; profile_name: string }[] = [];
   for (const r of routers ?? []) {
-    if (r.status === 'pending') continue;
     const names = ((r.hotspot_info as HotspotInfo | null)?.user_profiles ?? []).map((p) => p.name);
     const link = (links ?? []).find((l) => l.router_id === r.id);
-    const name = link?.profile_name ?? (names.includes(profile) ? profile : null);
-    if (name && names.includes(name)) targets.push({ router_id: r.id as string, profile_name: name as string });
+    const name = (link?.profile_name as string | undefined) ?? (names.includes(profile) ? profile : null);
+    if (!name) continue;
+    if (link?.managed) {
+      if (r.status !== 'pending' && names.includes(name)) targets.push({ router_id: r.id as string, profile_name: name });
+    } else {
+      keepOnRouter.push({ router_id: r.id as string, profile_name: name });
+    }
+  }
+  if (keepOnRouter.length) {
+    const { error: ignoreError } = await db.from('router_profile_ignores').upsert(keepOnRouter, { onConflict: 'router_id,profile_name', ignoreDuplicates: true });
+    if (ignoreError) throw new Error(`Could not save the plan's removal: ${ignoreError.message}`);
+    await db.from('plan_routers').delete().eq('plan_id', id).in('router_id', keepOnRouter.map((k) => k.router_id));
   }
 
   if (!targets.length) {
     const { error: delError } = await db.from('plans').delete().eq('id', id);
     if (delError) throw new Error(`Could not delete the plan: ${delError.message}`);
-    await audit(db, caller, 'plan.deleted', { plan_id: id, name: plan.name, profile });
-    return { deleted: true };
+    await audit(db, caller, 'plan.deleted', { plan_id: id, name: plan.name, profile, kept_on_routers: keepOnRouter.length });
+    return { deleted: true, kept_on_routers: keepOnRouter.length };
   }
 
-  // Switched off now; deleted once the routers have removed the profile.
+  // Switched off now; deleted once the routers have removed the profiles Hotzonex made.
   await db.from('plans').update({ is_active: false }).eq('id', id);
   const { data: jobs, error: jobError } = await db
     .from('router_jobs')
     .insert(targets.map((t) => ({ router_id: t.router_id, type: 'sync_profiles', payload: { remove_profile: t.profile_name, plan_id: id }, created_by: caller.id })))
     .select('id');
   if (jobError) throw new Error(`Could not queue the router work: ${jobError.message}`);
-  await audit(db, caller, 'plan.delete_requested', { plan_id: id, name: plan.name, profile, routers: targets.length });
-  return { removing: targets.length, job_ids: (jobs ?? []).map((j) => j.id as string) };
+  await audit(db, caller, 'plan.delete_requested', { plan_id: id, name: plan.name, profile, routers: targets.length, kept_on_routers: keepOnRouter.length });
+  return { removing: targets.length, kept_on_routers: keepOnRouter.length, job_ids: (jobs ?? []).map((j) => j.id as string) };
 }
 
 serveJson(async (req) => {
