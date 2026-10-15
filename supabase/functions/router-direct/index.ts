@@ -19,6 +19,7 @@ import {
   pushVoucher,
   readUsage,
   removeExpired,
+  setWalledGarden,
   checkPushed,
   ownCodeLength,
   removeExpiredRouterUsers,
@@ -293,6 +294,14 @@ async function runJob(db: SupabaseClient, router: DirectRouter, client: RestClie
       const closed = await closeSessions(client, code, str(job.payload.mac_address));
       await clearDisconnected(db, router, job);
       await finishJob(db, job.id, true, { sessions_closed: closed });
+      return true;
+    }
+
+    case 'walled_garden': {
+      // The site's Buy page opened (or closed) to customers who are not logged in yet.
+      const hosts = Array.isArray(job.payload.hosts) ? (job.payload.hosts as unknown[]).filter((h): h is string => typeof h === 'string') : [];
+      const r = await setWalledGarden(client, hosts, job.payload.enable === true);
+      await finishJob(db, job.id, true, r);
       return true;
     }
 

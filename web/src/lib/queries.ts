@@ -15,7 +15,7 @@ export function useSites() {
     queryFn: async (): Promise<SiteRow[]> => {
       const { data, error } = await supabase
         .from('sites')
-        .select('id, name, timezone, auto_sale_on_login, is_active')
+        .select('id, name, timezone, auto_sale_on_login, is_active, buy_enabled, buy_slug, buy_instructions')
         .order('name');
       if (error) throw new Error(error.message);
       return data ?? [];

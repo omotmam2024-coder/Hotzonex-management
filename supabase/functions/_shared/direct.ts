@@ -297,6 +297,33 @@ export async function checkPushed(client: RestClient, codes: string[], profile: 
   return { checked: codes.length, missing, wrongProfile };
 }
 
+const WALLED_GARDEN_TAG = 'hzc-buy';
+
+/**
+ * Lets customers who are not logged in yet open the Buy page: walled-garden entries for the given
+ * hosts (the app and its Supabase project), both for plain web and HTTPS. Entries Hotzonex added
+ * before are replaced; with enable false they are only removed. Nothing else is touched.
+ */
+export async function setWalledGarden(client: RestClient, hosts: string[], enable: boolean): Promise<{ removed: number; added: number }> {
+  let removed = 0;
+  for (const menu of ['/ip/hotspot/walled-garden', '/ip/hotspot/walled-garden/ip']) {
+    const rows = await client.get<Json[]>(menu, { '.proplist': '.id,comment' });
+    for (const r of rows.filter((x) => s(x.comment) === WALLED_GARDEN_TAG)) {
+      await ignoreGone(client.post(`${menu}/remove`, { '.id': s(r['.id']) }));
+      removed++;
+    }
+  }
+  let added = 0;
+  if (enable) {
+    for (const host of hosts) {
+      await client.put('/ip/hotspot/walled-garden', { 'dst-host': host, action: 'allow', comment: WALLED_GARDEN_TAG });
+      await client.put('/ip/hotspot/walled-garden/ip', { 'dst-host': host, action: 'accept', comment: WALLED_GARDEN_TAG });
+      added++;
+    }
+  }
+  return { removed, added };
+}
+
 /** Names of the router's user profiles. */
 export async function routerProfileNames(client: RestClient): Promise<string[]> {
   const rows = await client.get<Json[]>('/ip/hotspot/user/profile', { '.proplist': 'name' });

@@ -12,7 +12,8 @@ export type IconName =
   | 'portal'
   | 'staff'
   | 'businesses'
-  | 'alerts';
+  | 'alerts'
+  | 'payments';
 
 export interface NavItem {
   path: string;
@@ -35,6 +36,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { path: '/plans', label: 'Plans', icon: 'plans', roles: ADMIN },
   { path: '/routers', label: 'Routers', icon: 'routers', roles: ADMIN },
   { path: '/portal', label: 'Login Portal', icon: 'portal', roles: ADMIN },
+  { path: '/payments', label: 'Payments', icon: 'payments', roles: ALL },
   { path: '/sales', label: 'Sales', icon: 'sales', roles: ALL },
   { path: '/reports', label: 'Reports', icon: 'reports', roles: ADMIN_MANAGER },
   { path: '/active-users', label: 'Active Users', icon: 'active', roles: ADMIN_MANAGER },

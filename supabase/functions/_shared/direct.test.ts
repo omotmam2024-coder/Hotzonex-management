@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { after, before, test } from 'node:test';
-import { closeSessions, directTest, removeLeftoverProfiles, disableVoucher, ensureProfileExists, installPortalDirect, pushVoucher, readUsage, removeExpired, removeProfileIfUnused, removeVoucherUsers, restorePortalDirect, upsertManagedProfile, RestClient, RouterError, matchRouterProfile, readRouterUsers, expiredRouterUsers, mikroticketSeconds, routerClockText } from './direct.ts';
+import { closeSessions, directTest, removeLeftoverProfiles, disableVoucher, ensureProfileExists, installPortalDirect, pushVoucher, readUsage, removeExpired, removeProfileIfUnused, removeVoucherUsers, restorePortalDirect, upsertManagedProfile, RestClient, RouterError, matchRouterProfile, readRouterUsers, expiredRouterUsers, mikroticketSeconds, routerClockText, setWalledGarden } from './direct.ts';
 
 type Row = Record<string, string>;
 const state: Record<string, Row[]> = {};
@@ -76,7 +76,7 @@ function handler(req: IncomingMessage, res: ServerResponse) {
     writes.push(`${req.method} ${path}`);
     if (req.method === 'PUT') {
       const body = JSON.parse(raw) as Row;
-      if (rows.some((r) => r.name === body.name)) return send(400, { error: 400, message: 'Bad Request', detail: 'failure: already have user with this name' });
+      if (body.name !== undefined && rows.some((r) => r.name === body.name)) return send(400, { error: 400, message: 'Bad Request', detail: 'failure: already have user with this name' });
       rows.push({ '.id': `*${rows.length + 10}`, ...body });
       return send(201, body);
     }
@@ -276,4 +276,16 @@ test('router clock text from new and old RouterOS dates', () => {
   assert.equal(routerClockText({ date: 'oct/15/2026', time: '19:03:07' }), '2026-10-15 19:03:07');
   assert.equal(routerClockText({}), null);
   assert.equal(mikroticketSeconds('profile_x-ut:0d 01:00:00-vl:1d 12:00:00', 'vl'), 129600);
+});
+
+test('Buy page walled garden: Hotzonex entries replaced, the owner\'s own entries kept, removed when switched off', async () => {
+  reset();
+  state['/ip/hotspot/walled-garden'] = [{ '.id': '*1', 'dst-host': 'mybank.example', action: 'allow', comment: 'owner' }, { '.id': '*2', 'dst-host': 'old.example', action: 'allow', comment: 'hzc-buy' }];
+  state['/ip/hotspot/walled-garden/ip'] = [];
+  const c = client();
+  assert.deepEqual(await setWalledGarden(c, ['app.hotzonex.net', 'x.supabase.co'], true), { removed: 1, added: 2 });
+  assert.deepEqual(state['/ip/hotspot/walled-garden']!.map((r) => r['dst-host']), ['mybank.example', 'app.hotzonex.net', 'x.supabase.co']);
+  assert.deepEqual(state['/ip/hotspot/walled-garden/ip']!.map((r) => [r['dst-host'], r.action]), [['app.hotzonex.net', 'accept'], ['x.supabase.co', 'accept']]);
+  assert.deepEqual(await setWalledGarden(c, [], false), { removed: 4, added: 0 });
+  assert.deepEqual(state['/ip/hotspot/walled-garden']!.map((r) => r.comment), ['owner']);
 });

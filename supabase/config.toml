@@ -51,3 +51,7 @@ verify_jwt = true
 # Telegram updates and the database (pg_net) call it; it checks their secrets itself, and admins' logins for link/test/unlink.
 [functions.alerts]
 verify_jwt = false
+
+# The public Buy page (customers have no login); it limits requests itself.
+[functions.buy]
+verify_jwt = false

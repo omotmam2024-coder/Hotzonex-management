@@ -17,6 +17,10 @@ export interface SiteRow extends Site {
   timezone: string;
   auto_sale_on_login: boolean;
   is_active: boolean;
+  /** The public Buy page (customers pay by mobile money; a cashier confirms). */
+  buy_enabled: boolean;
+  buy_slug: string | null;
+  buy_instructions: string | null;
 }
 
 export type RouterStatus = 'pending' | 'online' | 'offline';

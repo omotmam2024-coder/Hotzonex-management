@@ -27,6 +27,8 @@ const SellPage = page(() => import('./pages/SellPage'), 'SellPage');
 const StaffPage = page(() => import('./pages/StaffPage'), 'StaffPage');
 const BusinessesPage = page(() => import('./pages/BusinessesPage'), 'BusinessesPage');
 const VouchersPage = page(() => import('./pages/VouchersPage'), 'VouchersPage');
+const BuyPage = page(() => import('./pages/BuyPage'), 'BuyPage');
+const PaymentsPage = page(() => import('./pages/PaymentsPage'), 'PaymentsPage');
 const AlertsPage = page(() => import('./pages/AlertsPage'), 'AlertsPage');
 const ResetPasswordPage = page(() => import('./pages/ResetPasswordPage'), 'ResetPasswordPage');
 
@@ -46,6 +48,8 @@ export function App() {
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/reset-password" element={<ResetPasswordPage />} />
+        {/* Public: customers buy a card with mobile money (no login). */}
+        <Route path="/buy/:slug" element={<BuyPage />} />
         <Route element={<RequireAuth />}>
           {/* Print pages render without the app layout so only the paper prints. */}
           <Route element={<RequireRole roles={rolesFor('/vouchers')} />}>
@@ -86,6 +90,9 @@ export function App() {
             </Route>
             <Route element={<RequireRole roles={rolesFor('/portal')} />}>
               <Route path="/portal" element={<PortalPage />} />
+            </Route>
+            <Route element={<RequireRole roles={rolesFor('/payments')} />}>
+              <Route path="/payments" element={<PaymentsPage />} />
             </Route>
             <Route element={<RequireRole roles={rolesFor('/alerts')} />}>
               <Route path="/alerts" element={<AlertsPage />} />

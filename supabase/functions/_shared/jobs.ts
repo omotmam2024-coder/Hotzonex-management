@@ -286,7 +286,8 @@ export async function nextPushChunk(db: SupabaseClient, router: RouterRef, job: 
     .select('id, code')
     .eq('batch_id', batch.id)
     .eq('on_router', false)
-    .eq('status', 'unused')
+    // Sold too: a card sold before it reached the router (a confirmed mobile-money purchase).
+    .in('status', ['unused', 'sold'])
     .order('id')
     .limit(limit);
   if (error) throw new Error(`Could not load vouchers: ${error.message}`);
