@@ -25,7 +25,7 @@
 import type { SupabaseClient } from 'npm:@supabase/supabase-js@2.117.3';
 import { audit, type Caller, requireAdmin, serviceClient } from '../_shared/auth.ts';
 import { HttpError, readBody, serveJson } from '../_shared/cors.ts';
-import { encryptSecret } from '../_shared/crypto.ts';
+import { decryptSecret, encryptSecret } from '../_shared/crypto.ts';
 import { setupScript } from '../_shared/routeros.ts';
 import { generateWgKeyPair, nextTunnelIp, tunnelSetupScript } from '../_shared/tunnel.ts';
 
@@ -92,10 +92,14 @@ async function parseFields(admin: SupabaseClient, caller: Caller, body: Record<s
   };
 }
 
-async function encryptPassword(admin: SupabaseClient, password: string): Promise<string> {
+async function secretKey(admin: SupabaseClient): Promise<string> {
   const { data: key, error } = await admin.rpc('router_secret_key');
   if (error || typeof key !== 'string') throw new Error('The router password key could not be read.');
-  return encryptSecret(password, key);
+  return key;
+}
+
+async function encryptPassword(admin: SupabaseClient, password: string): Promise<string> {
+  return encryptSecret(password, await secretKey(admin));
 }
 
 function dbError(error: { code?: string; message: string }, name: string): never {
@@ -139,21 +143,40 @@ async function tunnelServer(admin: SupabaseClient): Promise<TunnelServer> {
 
 const tunnelReady = (t: TunnelServer) => Boolean(t.secret && t.relayUrl && t.vpsPublicKey && t.endpoint);
 
-/** Gives the router a tunnel address (kept if it has one) and a new WireGuard key; returns its script. */
+/**
+ * Gives the router a tunnel address (kept if it has one) and its WireGuard key; returns its script.
+ * The key is kept (encrypted), so showing the script again gives the same script: a router that
+ * already connected with it keeps working. A new key only when asked for (rotate).
+ */
 async function prepareTunnel(
   admin: SupabaseClient,
   t: TunnelServer,
-  router: { id: string; name: string; tunnel_ip: string | null },
+  router: { id: string; name: string; tunnel_ip: string | null; wg_public_key?: string | null; wg_private_enc?: string | null },
   wwwPort: number,
+  rotate = false,
 ): Promise<{ changes: Record<string, unknown>; script: string }> {
   let tunnelIp = router.tunnel_ip;
   if (!tunnelIp) {
     const { data: used } = await admin.from('routers').select('tunnel_ip').not('tunnel_ip', 'is', null);
     tunnelIp = nextTunnelIp((used ?? []).map((r) => r.tunnel_ip as string));
   }
-  const keys = await generateWgKeyPair();
+  let keys: { privateKey: string; publicKey: string } | null = null;
+  if (!rotate && router.wg_private_enc && router.wg_public_key) {
+    try {
+      keys = { privateKey: await decryptSecret(router.wg_private_enc, await secretKey(admin)), publicKey: router.wg_public_key };
+    } catch {
+      keys = null; // unreadable: a new key below
+    }
+  }
+  const fresh = !keys;
+  keys ??= await generateWgKeyPair();
   return {
-    changes: { connection: 'tunnel', tunnel_ip: tunnelIp, wg_public_key: keys.publicKey, token_hash: null },
+    changes: {
+      connection: 'tunnel',
+      tunnel_ip: tunnelIp,
+      token_hash: null,
+      ...(fresh ? { wg_public_key: keys.publicKey, wg_private_enc: await encryptSecret(keys.privateKey, await secretKey(admin)) } : {}),
+    },
     script: tunnelSetupScript({
       routerName: router.name,
       privateKey: keys.privateKey,
@@ -186,7 +209,7 @@ serveJson(async (req) => {
     if (!UUID_RE.test(routerId)) throw new HttpError(400, 'Router not found.');
     const { data: router } = await admin
       .from('routers')
-      .select('id, name, connection, tunnel_ip, port, status')
+      .select('id, name, connection, tunnel_ip, port, status, wg_public_key, wg_private_enc')
       .eq('id', routerId)
       .eq('tenant_id', caller.tenantId)
       .maybeSingle();
@@ -194,15 +217,13 @@ serveJson(async (req) => {
     if (router.connection === 'tunnel') {
       const t = await tunnelServer(admin);
       if (!tunnelReady(t)) throw new HttpError(400, 'The tunnel server is not set up yet. Ask Hotzonex Cloud to set it up.');
-      // Only the router keeps its private key, so a script always comes with a new key.
-      if (router.status === 'online' && body.new_key !== true) {
-        throw new HttpError(409, `${router.name} is connected. A new script gives it a new tunnel key, and it stays offline until you paste the new script on it.`);
-      }
-      const prepared = await prepareTunnel(admin, t, router, (router.port as number | null) ?? 80);
+      // The same script every time (the key is kept). A new key only when asked for explicitly.
+      const rotate = body.new_key === 'rotate';
+      const prepared = await prepareTunnel(admin, t, router, (router.port as number | null) ?? 80, rotate);
       const { error } = await admin.from('routers').update(prepared.changes).eq('id', routerId);
       if (error) throw new Error(error.message);
-      await audit(admin, caller, 'router.tunnel_script', { router_id: routerId, name: router.name });
-      return { script: prepared.script };
+      await audit(admin, caller, 'router.tunnel_script', { router_id: routerId, name: router.name, new_key: 'wg_public_key' in prepared.changes });
+      return { script: prepared.script, new_key: 'wg_public_key' in prepared.changes };
     }
     if (router.connection !== 'cloud') throw new HttpError(400, 'This router is connected by IP address and does not use a setup script.');
     const token = newToken();
@@ -363,6 +384,7 @@ serveJson(async (req) => {
     changes.token_hash = null; // an installed connector script stops working
     changes.tunnel_ip = null;
     changes.wg_public_key = null;
+    changes.wg_private_enc = null;
   } else {
     changes.password_enc = null;
     if (existing.connection !== 'cloud' || !existing.token_hash) {

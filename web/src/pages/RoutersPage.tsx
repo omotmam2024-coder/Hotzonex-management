@@ -70,16 +70,15 @@ function RouterCard({
   const cloud = router.connection === 'cloud';
   const tunnelServer = useTunnelServer();
   const setup = useMutation({
-    // new_key: the admin confirmed below that a connected router stops until the new script is pasted.
-    mutationFn: () => invokeFunction<{ script: string }>('add-router', { action: 'setup', router_id: router.id, new_key: true }),
+    // Tunnel routers get the same script every time (their key is kept), so it is always safe to show.
+    mutationFn: () => invokeFunction<{ script: string }>('add-router', { action: 'setup', router_id: router.id }),
     onSuccess: (data) => setScript(data.script),
   });
   function showSetup() {
-    const replaces = router.last_seen_at
-      ? tunnel
-        ? `This makes a new tunnel script for ${router.name} with a new key. The tunnel stops working until you paste the new script. Continue?`
-        : `This makes a new setup script for ${router.name}. The connector already on the router stops working until you paste the new script. Continue?`
-      : null;
+    const replaces =
+      router.last_seen_at && !tunnel
+        ? `This makes a new setup script for ${router.name}. The connector already on the router stops working until you paste the new script. Continue?`
+        : null;
     if (!replaces || window.confirm(replaces)) setup.mutate();
   }
 
@@ -167,7 +166,7 @@ function RouterCard({
             {direct
               ? 'The router has not answered for a while. Check that it is switched on, has internet, and is reachable at its address.'
               : tunnel
-                ? 'The router does not answer through the tunnel. Check that it is switched on and has internet, and that the tunnel server is running.'
+                ? 'The router does not answer through the tunnel. Check that it is switched on and has internet. If it still does not connect, click “Tunnel script” and paste it into the router’s terminal again (always safe: it is the same script).'
                 : 'The router stopped calling in. Check that it is switched on and has internet. If it was reset or updated, paste its setup script again.'}
           </Alert>
         </div>
