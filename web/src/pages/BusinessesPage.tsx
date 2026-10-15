@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { PlatformBilling } from '../components/PlatformBilling';
 import { useAuth } from '../auth/AuthProvider';
 import { PageHeader } from '../components/PageHeader';
 import { Alert, Badge, Button, Card, Field, Spinner, TextInput } from '../components/ui';
@@ -172,6 +173,7 @@ export function BusinessesPage() {
           </Card>
         ))}
       </div>
+      <PlatformBilling />
     </div>
   );
 }

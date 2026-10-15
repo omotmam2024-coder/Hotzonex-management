@@ -55,3 +55,7 @@ verify_jwt = false
 # The public Buy page (customers have no login); it limits requests itself.
 [functions.buy]
 verify_jwt = false
+
+# Public self sign-up (no login yet); it limits sign-ups per device itself.
+[functions.signup]
+verify_jwt = false

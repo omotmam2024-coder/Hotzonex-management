@@ -294,6 +294,42 @@ press **Install on router** again to update the router.
 
 ---
 
+## Alerts, mobile money, agents and billing
+
+### Alerts (Telegram)
+Every 2 minutes Hotzonex looks for: a router offline for 5 minutes (and back online), cards that
+failed or need checking after a push (missing on the router, wrong profile, code length unlike the
+router's own cards), low stock, mobile-money payments to confirm, and billing messages. They show on
+the **Alerts** page and go to Telegram:
+
+1. In Telegram, talk to **@BotFather** → `/newbot` → pick a name → copy the token it gives.
+2. Supabase → **Edge Functions → Secrets** → add `TELEGRAM_BOT_TOKEN` with that token (never paste it anywhere else).
+3. In Hotzonex: **Alerts → Connect Telegram** → press **Start** in Telegram. For a group, add the bot to the group first.
+
+### Selling by mobile money (send and confirm)
+**Payments → Buy page**: switch it on for a site, give the page an address and where to send the
+money (e.g. `MTN MoMo 092 … (Hotzonex WiFi)`), then print the QR poster. The site's routers let
+customers open the page before they log in (walled garden). The customer picks a card, sends the
+money, types the transaction ID; the cashier gets an alert, checks the money arrived, and taps
+**Confirm**: a card from stock (or one made on the spot, in the router's own code length) appears on
+the customer's phone. A transaction ID works once; requests are limited per phone and device; unconfirmed
+requests expire after a day.
+
+### Agents and cash-up
+**Cash-up**: per seller and day: cash cards sold, commission, cash to hand in, cash handed in, the
+difference, and the cash each seller holds now. **Receive cash** records what a seller hands in.
+**Commission & limit** (admins): a seller's commission on cash sales, and the most cash they may hold —
+over it, they cannot sell until they hand in cash. Sellers see their own figures.
+
+### Selling Hotzonex Cloud (sign-up and billing)
+New businesses sign up at `/signup` (free trial, default 14 days). As a platform admin, set the
+**price per router per month**, grace days, trial days and how businesses pay you under
+**Businesses → Billing for Hotzonex Cloud**. With price 0 nobody is invoiced. Existing businesses are
+**Not billed** until you untick it. Each morning an invoice is made per billed business (connected
+routers × price); reminders go out before the due day; unpaid after the grace days, the business is
+paused (its WiFi keeps working, its admins see only the invoice and can send their payment's
+transaction ID). **Mark paid** switches it back on.
+
 ## Security
 
 - Row Level Security is on for every table; policies read the caller's role and site from `profiles`.

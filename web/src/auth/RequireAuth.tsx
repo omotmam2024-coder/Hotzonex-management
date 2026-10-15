@@ -1,5 +1,6 @@
 import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from './AuthProvider';
+import { BillingPanel, useBillingOverview } from '../components/BillingPanel';
 import { FullScreenMessage, FullScreenSpinner } from '../components/FullScreen';
 
 /** Lets only signed-in, active staff with a profile through. */
@@ -17,6 +18,8 @@ export function RequireAuth() {
         onSignOut={signOut}
       />
     );
+  // An admin of a business paused for an unpaid invoice can still see it and send the payment.
+  if (status === 'inactive' && profile?.is_active && profile.role === 'admin') return <PausedBusiness onSignOut={signOut} />;
   if (status === 'inactive')
     return (
       <FullScreenMessage
@@ -38,4 +41,34 @@ export function RequireAuth() {
       />
     );
   return <Outlet />;
+}
+
+function PausedBusiness({ onSignOut }: { onSignOut: () => void }) {
+  const billing = useBillingOverview();
+  if (billing.isLoading) return <FullScreenSpinner />;
+  if (billing.data?.status !== 'suspended')
+    return (
+      <FullScreenMessage
+        title="Account disabled"
+        message="This business is switched off on Hotzonex Cloud. Contact Hotzonex Cloud to switch it back on."
+        onSignOut={onSignOut}
+      />
+    );
+  return (
+    <div className="min-h-full bg-slate-100 p-4">
+      <div className="mx-auto max-w-2xl space-y-4">
+        <div className="rounded-2xl bg-white p-5 shadow-sm">
+          <h1 className="text-xl font-bold text-slate-900">Hotzonex Cloud is paused</h1>
+          <p className="mt-2 text-slate-700">
+            An invoice is unpaid. Your WiFi and cards keep working, but the app is closed until it is paid. Pay it, then type the transaction ID
+            below: the app opens again as soon as Hotzonex Cloud confirms it.
+          </p>
+        </div>
+        <BillingPanel />
+        <button type="button" onClick={onSignOut} className="w-full text-center text-sm font-semibold text-slate-600 underline">
+          Log out
+        </button>
+      </div>
+    </div>
+  );
 }

@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react';
-import { Navigate, useLocation } from 'react-router-dom';
+import { Link, Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../auth/AuthProvider';
 import { supabase, supabaseConfigured } from '../lib/supabase';
 import { friendlyError } from '../lib/errors';
@@ -126,6 +126,12 @@ export function LoginPage() {
             {forgot ? 'Back to login' : 'Forgot password?'}
           </button>
         </form>
+        <p className="mt-5 border-t border-slate-100 pt-4 text-center text-sm text-slate-600">
+          New WiFi business?{' '}
+          <Link to="/signup" className="font-semibold text-brand-700 hover:underline">
+            Start a free trial
+          </Link>
+        </p>
       </div>
     </div>
   );
