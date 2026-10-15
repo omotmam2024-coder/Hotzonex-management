@@ -28,7 +28,8 @@ interface AuthContextValue {
   isPlatformAdmin: boolean;
   error: string | null;
   signIn: (email: string, password: string) => Promise<void>;
-  signOut: () => Promise<void>;
+  /** everywhere: also ends this login on every other phone and computer. */
+  signOut: (everywhere?: boolean) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -165,8 +166,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (signInError) throw new Error(friendlyError(signInError));
   }, []);
 
-  const signOut = useCallback(async () => {
-    await supabase.auth.signOut();
+  const signOut = useCallback(async (everywhere = false) => {
+    // Only an explicit true logs out everywhere (a button may pass its click event here).
+    await supabase.auth.signOut({ scope: everywhere === true ? 'global' : 'local' });
   }, []);
 
   const value = useMemo<AuthContextValue>(

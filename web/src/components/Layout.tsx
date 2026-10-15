@@ -74,6 +74,15 @@ export function Layout() {
           <Icon name="logout" />
           Log out
         </button>
+        <button
+          type="button"
+          onClick={() => {
+            if (window.confirm('Log out on all devices? Every phone and computer signed in with your account will need your password again.')) void signOut(true);
+          }}
+          className="mt-1 w-full rounded-xl px-3 py-2 text-left text-sm text-white/60 hover:bg-white/10 hover:text-white/85"
+        >
+          Log out on all devices
+        </button>
       </div>
     </nav>
   );
