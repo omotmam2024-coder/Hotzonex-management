@@ -343,6 +343,15 @@ transaction ID). **Mark paid** switches it back on.
   from Hotzonex Cloud. Protect the Supabase account with a strong password and two-factor sign-in.
 - The service role key never leaves Supabase (Edge Functions only).
 - Admin actions (router added/updated/removed, staff created/updated, sale voided) are written to `audit_log`.
+- **2-step login** (authenticator app, Security page): once someone turns it on, the database gives
+  their login no access at all until the code is typed (`mfa_satisfied`), so a stolen password alone
+  opens nothing. Platform powers (all businesses, support mode, billing) need it always.
+- **Support mode** (Businesses → Manage): a platform admin works inside a customer's business as its
+  admin for up to 2 hours, to set up and fix their routers. The customer gets an alert; every action
+  is in their audit log under the platform admin's name. Hotzonex Cloud's own business is never billed.
+- The functions the app calls answer only the app's own websites (CORS); the built site carries a
+  Content-Security-Policy (scripts only from the site, data only to its Supabase project).
+- Idle logins end after 8 hours without use; **Log out on all devices** ends every login at once.
 
 ## Backups
 
