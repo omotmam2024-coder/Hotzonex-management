@@ -2,6 +2,15 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Inter, bundled with the app (works offline and under the Content-Security-Policy). Latin letters only. */
+@font-face {
+  font-family: 'Inter Variable';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 900;
+  src: url('../node_modules/@fontsource-variable/inter/files/inter-latin-wght-normal.woff2') format('woff2-variations');
+}
+
 html,
 body,
 #root {
@@ -9,7 +18,13 @@ body,
 }
 
 body {
-  @apply bg-slate-100 text-slate-900 antialiased;
+  @apply bg-slate-50 text-slate-900 antialiased;
+  font-feature-settings: 'cv11', 'ss01';
+}
+
+/* Keyboard users see where they are; mouse and touch users get no outline. */
+:focus-visible {
+  @apply outline-none ring-2 ring-brand-500 ring-offset-2;
 }
 
 @media print {

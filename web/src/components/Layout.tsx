@@ -1,18 +1,46 @@
 import { Suspense, useEffect, useState } from 'react';
-import { NavLink, Outlet, useLocation } from 'react-router-dom';
+import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '../auth/AuthProvider';
-import { navForRole, ROLE_LABELS } from '../lib/nav';
+import { NAV_ITEMS, navForRole, ROLE_LABELS, tabsForRole, type NavGroup, type NavItem } from '../lib/nav';
 import { FullScreenSpinner } from './FullScreen';
 import { BillingBanner } from './BillingBanner';
 import { SupportBar } from './SupportBar';
 import { Icon } from './Icon';
 
+const GROUPS: NavGroup[] = ['Overview', 'Selling', 'Cards & WiFi', 'Business'];
+
 function Brand() {
   return (
-    <div className="flex items-center gap-2">
-      <img src="/icon-72.png" alt="" className="h-9 w-9" />
-      <span className="text-lg font-bold tracking-tight">Hotzonex Cloud</span>
-    </div>
+    <Link to="/" className="flex items-center gap-2.5">
+      <img src="/icon-72.png" alt="" className="h-8 w-8" />
+      <span className="text-[17px] font-bold tracking-tight">Hotzonex Cloud</span>
+    </Link>
+  );
+}
+
+function initials(name: string): string {
+  const parts = name.trim().split(/\s+/);
+  return ((parts[0]?.[0] ?? '') + (parts.length > 1 ? (parts[parts.length - 1]?.[0] ?? '') : '')).toUpperCase() || '?';
+}
+
+function MenuLink({ item }: { item: NavItem }) {
+  return (
+    <NavLink
+      to={item.path}
+      className={({ isActive }) =>
+        `group relative flex h-10 items-center gap-3 rounded-lg px-3 text-[15px] font-medium transition-colors ${
+          isActive ? 'bg-white/[0.12] text-white' : 'text-white/70 hover:bg-white/[0.06] hover:text-white'
+        }`
+      }
+    >
+      {({ isActive }) => (
+        <>
+          {isActive && <span className="absolute inset-y-2 left-0 w-1 rounded-r-full bg-brand-300" aria-hidden="true" />}
+          <Icon name={item.icon} className={`h-5 w-5 shrink-0 ${isActive ? 'text-brand-200' : 'text-white/50 group-hover:text-white/80'}`} />
+          {item.label}
+        </>
+      )}
+    </NavLink>
   );
 }
 
@@ -21,106 +49,142 @@ export function Layout() {
   const [menuOpen, setMenuOpen] = useState(false);
   const location = useLocation();
 
-  // Close the mobile menu whenever the page changes.
+  // Close the phone menu whenever the page changes.
   useEffect(() => {
     setMenuOpen(false);
   }, [location.pathname]);
 
   if (!profile) return null;
   const items = navForRole(profile.role, isPlatformAdmin);
+  const tabs = tabsForRole(profile.role)
+    .map((path) => items.find((i) => i.path === path))
+    .filter((i): i is NavItem => Boolean(i));
   const siteLabel = profile.site_id ? (siteName ?? 'Unknown site') : 'All sites';
+  const current = NAV_ITEMS.find((i) => location.pathname === i.path || location.pathname.startsWith(`${i.path}/`));
 
   const sidebar = (
-    <nav className="flex h-full flex-col bg-brand-900 text-white">
-      <div className="flex h-16 items-center justify-between px-4">
+    <nav className="flex h-full flex-col bg-gradient-to-b from-brand-900 to-brand-950 text-white">
+      <div className="flex h-16 shrink-0 items-center justify-between px-4">
         <Brand />
-        <button
-          type="button"
-          className="rounded-lg p-2 hover:bg-white/10 lg:hidden"
-          onClick={() => setMenuOpen(false)}
-          aria-label="Close menu"
-        >
+        <button type="button" className="rounded-lg p-2 text-white/70 hover:bg-white/10 lg:hidden" onClick={() => setMenuOpen(false)} aria-label="Close menu">
           <Icon name="close" className="h-6 w-6" />
         </button>
       </div>
-      <ul className="flex-1 space-y-1 overflow-y-auto px-2 py-2">
-        {items.map((item) => (
-          <li key={item.path}>
-            <NavLink
-              to={item.path}
-              className={({ isActive }) =>
-                `flex min-h-12 items-center gap-3 rounded-xl px-3 text-base font-medium transition ${
-                  isActive ? 'bg-white text-brand-900' : 'text-white/85 hover:bg-white/10'
-                }`
-              }
-            >
-              <Icon name={item.icon} />
-              {item.label}
-            </NavLink>
-          </li>
-        ))}
-      </ul>
-      <div className="border-t border-white/10 p-3">
-        <div className="px-1 pb-3 text-sm">
-          {business && <div className="truncate text-xs font-semibold uppercase tracking-wide text-white/60">{business.name}</div>}
-          <div className="truncate font-semibold">{profile.full_name}</div>
-          <div className="text-white/70">
-            {ROLE_LABELS[profile.role]} · {siteLabel}
+      <div className="flex-1 space-y-5 overflow-y-auto px-3 pb-4 pt-1">
+        {GROUPS.map((group) => {
+          const inGroup = items.filter((i) => i.group === group);
+          if (!inGroup.length) return null;
+          return (
+            <div key={group}>
+              <p className="mb-1 px-3 text-[11px] font-semibold uppercase tracking-wider text-white/40">{group}</p>
+              <ul className="space-y-0.5">
+                {inGroup.map((item) => (
+                  <li key={item.path}>
+                    <MenuLink item={item} />
+                  </li>
+                ))}
+              </ul>
+            </div>
+          );
+        })}
+      </div>
+      <div className="shrink-0 border-t border-white/10 p-3">
+        <div className="flex items-center gap-3 rounded-xl bg-white/[0.06] p-2.5">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-500 text-sm font-bold">{initials(profile.full_name)}</span>
+          <div className="min-w-0 flex-1 text-sm leading-tight">
+            <div className="truncate font-semibold">{profile.full_name}</div>
+            <div className="truncate text-white/60">
+              {ROLE_LABELS[profile.role]} · {siteLabel}
+            </div>
+            {business && <div className="truncate text-xs text-white/40">{business.name}</div>}
           </div>
+          <button
+            type="button"
+            onClick={() => void signOut()}
+            className="rounded-lg p-2 text-white/60 hover:bg-white/10 hover:text-white"
+            aria-label="Log out"
+            title="Log out"
+          >
+            <Icon name="logout" />
+          </button>
         </div>
-        <button
-          type="button"
-          onClick={() => void signOut()}
-          className="flex min-h-12 w-full items-center gap-3 rounded-xl px-3 text-white/85 hover:bg-white/10"
-        >
-          <Icon name="logout" />
-          Log out
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            if (window.confirm('Log out on all devices? Every phone and computer signed in with your account will need your password again.')) void signOut(true);
-          }}
-          className="mt-1 w-full rounded-xl px-3 py-2 text-left text-sm text-white/60 hover:bg-white/10 hover:text-white/85"
-        >
-          Log out on all devices
-        </button>
       </div>
     </nav>
   );
 
   return (
     <div className="flex h-full print:block print:h-auto">
-      {/* Desktop sidebar */}
+      {/* Computer: the menu stays on the left. */}
       <aside className="hidden w-64 shrink-0 lg:block print:!hidden">{sidebar}</aside>
 
-      {/* Mobile drawer */}
+      {/* Phone: the full menu slides in. */}
       {menuOpen && (
         <div className="fixed inset-0 z-40 lg:hidden">
-          <div className="absolute inset-0 bg-black/40" onClick={() => setMenuOpen(false)} aria-hidden="true" />
-          <aside className="absolute inset-y-0 left-0 w-72 max-w-[85vw] shadow-xl">{sidebar}</aside>
+          <div className="absolute inset-0 bg-slate-950/50 backdrop-blur-[1px]" onClick={() => setMenuOpen(false)} aria-hidden="true" />
+          <aside className="absolute inset-y-0 left-0 w-72 max-w-[85vw] shadow-2xl">{sidebar}</aside>
         </div>
       )}
 
       <div className="flex min-w-0 flex-1 flex-col print:block">
-        <header className="flex h-14 items-center gap-3 bg-brand-900 px-3 text-white lg:hidden print:hidden">
-          <button
-            type="button"
-            className="rounded-lg p-2 hover:bg-white/10"
-            onClick={() => setMenuOpen(true)}
-            aria-label="Open menu"
-          >
+        <header className="flex h-14 shrink-0 items-center gap-2 bg-brand-900 px-2 text-white shadow-sm lg:hidden print:hidden">
+          <button type="button" className="rounded-lg p-2 hover:bg-white/10" onClick={() => setMenuOpen(true)} aria-label="Open menu">
             <Icon name="menu" className="h-6 w-6" />
           </button>
           <Brand />
+          {business && <span className="ml-auto max-w-[40%] truncate pr-2 text-xs font-medium text-white/60">{business.name}</span>}
         </header>
-        <main className="min-w-0 flex-1 overflow-y-auto p-4 lg:p-8 print:overflow-visible print:p-0">
-          <SupportBar />
-          <BillingBanner />
-          <Suspense fallback={<FullScreenSpinner />}>
-            <Outlet />
-          </Suspense>
+        <main className="min-w-0 flex-1 overflow-y-auto px-4 pb-24 pt-4 sm:px-6 lg:px-10 lg:pb-10 lg:pt-8 print:overflow-visible print:p-0">
+          <div className="mx-auto w-full max-w-6xl">
+            <SupportBar />
+            <BillingBanner />
+            <Suspense fallback={<FullScreenSpinner />}>
+              <Outlet />
+            </Suspense>
+          </div>
         </main>
+
+        {/* Phone: the pages used most, one tap away. */}
+        <nav
+          className="fixed inset-x-0 bottom-0 z-30 border-t border-slate-200 bg-white/95 backdrop-blur lg:hidden print:hidden"
+          style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
+          aria-label="Main pages"
+        >
+          <ul className="mx-auto grid max-w-md grid-cols-5">
+            {tabs.map((t) => (
+              <li key={t.path}>
+                <NavLink
+                  to={t.path}
+                  className={({ isActive }) =>
+                    `flex h-16 flex-col items-center justify-center gap-1 text-[11px] font-semibold ${isActive ? 'text-brand-600' : 'text-slate-500'}`
+                  }
+                >
+                  {({ isActive }) => (
+                    <>
+                      <span className={`rounded-full px-4 py-1 ${isActive ? 'bg-brand-50' : ''}`}>
+                        <Icon name={t.icon} className="h-5 w-5" />
+                      </span>
+                      {t.label}
+                    </>
+                  )}
+                </NavLink>
+              </li>
+            ))}
+            <li>
+              <button
+                type="button"
+                onClick={() => setMenuOpen(true)}
+                className={`flex h-16 w-full flex-col items-center justify-center gap-1 text-[11px] font-semibold ${
+                  current && !tabs.some((t) => t.path === current.path) ? 'text-brand-600' : 'text-slate-500'
+                }`}
+              >
+                <span className="rounded-full px-4 py-1">
+                  <Icon name="menu" className="h-5 w-5" />
+                </span>
+                More
+              </button>
+            </li>
+          </ul>
+        </nav>
       </div>
     </div>
   );

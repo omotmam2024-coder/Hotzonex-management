@@ -4,10 +4,12 @@ import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '../auth/AuthProvider';
 import { PageHeader } from '../components/PageHeader';
 import { RevenueChart, type DayRevenue } from '../components/RevenueChart';
+import { Icon } from '../components/Icon';
 import { Alert, Card, Select, Spinner } from '../components/ui';
 import { friendlyError } from '../lib/errors';
 import { formatNumber, formatSSP } from '../lib/format';
 import { useSites } from '../lib/queries';
+import type { IconName } from '../lib/nav';
 import { readStored, writeStored } from '../lib/storage';
 import { supabase } from '../lib/supabase';
 
@@ -36,16 +38,57 @@ interface Dashboard {
 const SITE_KEY = 'hzc.dashboardSite';
 const LOW_STOCK = 20;
 
-function StatCard({ label, value, sub, to }: { label: string; value: string; sub: string; to?: string }) {
-  const body = (
-    <Card className="h-full">
-      <div className="text-sm font-medium text-slate-500">{label}</div>
-      <div className="mt-1 text-2xl font-extrabold tabular-nums text-slate-900 sm:text-3xl">{value}</div>
+const TONES = {
+  blue: 'bg-brand-50 text-brand-600',
+  green: 'bg-emerald-50 text-emerald-600',
+  violet: 'bg-violet-50 text-violet-600',
+  amber: 'bg-amber-50 text-amber-600',
+  sky: 'bg-sky-50 text-sky-600',
+  slate: 'bg-slate-100 text-slate-600',
+} as const;
+
+function StatCard({
+  label,
+  value,
+  sub,
+  to,
+  icon,
+  tone = 'blue',
+  highlight = false,
+}: {
+  label: string;
+  value: string;
+  sub: string;
+  to?: string;
+  icon: IconName;
+  tone?: keyof typeof TONES;
+  highlight?: boolean;
+}) {
+  const body = highlight ? (
+    <div className="h-full rounded-2xl bg-gradient-to-br from-brand-600 to-brand-800 p-4 text-white shadow-lift sm:p-5">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-sm font-medium text-white/80">{label}</span>
+        <span className="rounded-lg bg-white/15 p-1.5">
+          <Icon name={icon} className="h-4 w-4" />
+        </span>
+      </div>
+      <div className="mt-2 text-xl font-bold tabular-nums tracking-tight sm:text-3xl">{value}</div>
+      <div className="mt-1 text-sm text-white/75">{sub}</div>
+    </div>
+  ) : (
+    <Card className="h-full transition-shadow hover:shadow-lift">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-sm font-medium text-slate-500">{label}</span>
+        <span className={`rounded-lg p-1.5 ${TONES[tone]}`}>
+          <Icon name={icon} className="h-4 w-4" />
+        </span>
+      </div>
+      <div className="mt-2 text-xl font-bold tabular-nums tracking-tight text-slate-900 sm:text-3xl">{value}</div>
       <div className="mt-1 text-sm text-slate-500">{sub}</div>
     </Card>
   );
   return to ? (
-    <Link to={to} className="block rounded-2xl focus:outline-none focus:ring-2 focus:ring-brand-500">
+    <Link to={to} className="block rounded-2xl">
       {body}
     </Link>
   ) : (
@@ -107,12 +150,14 @@ export function DashboardPage() {
       {d && (
         <>
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
-            <StatCard label="Today" value={formatSSP(d.today.revenue)} sub={`${formatNumber(d.today.sold)} vouchers`} to="/reports?tab=day" />
-            <StatCard label="This week" value={formatSSP(d.week.revenue)} sub={`${formatNumber(d.week.sold)} vouchers · from Mon`} to="/reports?tab=week" />
-            <StatCard label="This month" value={formatSSP(d.month.revenue)} sub={`${formatNumber(d.month.sold)} vouchers`} to="/reports?tab=month" />
-            <StatCard label="Online now" value={formatNumber(d.online_now)} sub="users connected" to="/active-users" />
-            <StatCard label="Logged in today" value={formatNumber(d.logins_today)} sub="hotspot users seen on the router" to="/reports?tab=day" />
+            <StatCard label="Today" value={formatSSP(d.today.revenue)} sub={`${formatNumber(d.today.sold)} vouchers`} to="/reports?tab=day" icon="sales" highlight />
+            <StatCard label="This week" value={formatSSP(d.week.revenue)} sub={`${formatNumber(d.week.sold)} vouchers · from Mon`} to="/reports?tab=week" icon="reports" tone="violet" />
+            <StatCard label="This month" value={formatSSP(d.month.revenue)} sub={`${formatNumber(d.month.sold)} vouchers`} to="/reports?tab=month" icon="dashboard" tone="sky" />
+            <StatCard label="Online now" value={formatNumber(d.online_now)} sub="users connected" to="/active-users" icon="active" tone="green" />
+            <StatCard label="Logged in today" value={formatNumber(d.logins_today)} sub="hotspot users seen on the router" to="/reports?tab=day" icon="vouchers" tone="amber" />
             <StatCard
+              icon="routers"
+              tone="slate"
               label="Hotspot users on router"
               value={formatNumber(d.router_users.total)}
               sub={`${formatNumber(d.router_users.unused)} unused · ${formatNumber(d.router_users.used)} used`}

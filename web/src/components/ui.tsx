@@ -3,9 +3,9 @@ import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode, SelectHTMLAt
 type Variant = 'primary' | 'secondary' | 'danger' | 'ghost';
 
 const VARIANTS: Record<Variant, string> = {
-  primary: 'bg-brand-600 text-white hover:bg-brand-700',
-  secondary: 'bg-white text-slate-800 ring-1 ring-slate-300 hover:bg-slate-50',
-  danger: 'bg-white text-red-700 ring-1 ring-red-200 hover:bg-red-50',
+  primary: 'bg-brand-600 text-white shadow-sm hover:bg-brand-700',
+  secondary: 'bg-white text-slate-800 shadow-sm ring-1 ring-inset ring-slate-300 hover:bg-slate-50',
+  danger: 'bg-white text-red-700 shadow-sm ring-1 ring-inset ring-red-200 hover:bg-red-50',
   ghost: 'text-slate-700 hover:bg-slate-100',
 };
 
@@ -18,7 +18,7 @@ export function Button({
     <button
       type="button"
       {...props}
-      className={`inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-4 font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 ${VARIANTS[variant]} ${className}`}
+      className={`inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-4 font-semibold transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100 ${VARIANTS[variant]} ${className}`}
     />
   );
 }
@@ -29,7 +29,7 @@ const inputClass =
 export function Field({ label, hint, children }: { label: string; hint?: string; children: ReactNode }) {
   return (
     <label className="block">
-      <span className="mb-1 block text-sm font-medium text-slate-700">{label}</span>
+      <span className="mb-1.5 block text-sm font-medium text-slate-700">{label}</span>
       {children}
       {hint && <span className="mt-1 block text-xs text-slate-500">{hint}</span>}
     </label>
@@ -75,7 +75,7 @@ export function Alert({ tone, children }: { tone: Tone; children: ReactNode }) {
 }
 
 export function Card({ children, className = '' }: { children: ReactNode; className?: string }) {
-  return <div className={`rounded-2xl bg-white p-4 shadow-sm sm:p-5 ${className}`}>{children}</div>;
+  return <div className={`rounded-2xl bg-white p-4 shadow-card ring-1 ring-slate-200/70 sm:p-5 ${className}`}>{children}</div>;
 }
 
 export function Spinner({ className = 'h-5 w-5' }: { className?: string }) {

@@ -42,8 +42,8 @@ export function SignupPage() {
   );
 
   return (
-    <div className="flex min-h-full items-center justify-center bg-brand-900 p-4">
-      <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
+    <div className="flex min-h-full items-center justify-center bg-gradient-to-br from-brand-700 via-brand-900 to-brand-950 p-4">
+      <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl ring-1 ring-white/10 sm:p-8">
         <div className="mb-5 text-center">
           <img src="/logo.png" alt="Hotzonex WiFi" className="mx-auto h-20 w-auto" />
           <h1 className="mt-3 text-2xl font-bold text-slate-900">Start your free trial</h1>

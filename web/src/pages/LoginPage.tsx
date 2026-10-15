@@ -63,8 +63,8 @@ export function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-full items-center justify-center bg-brand-900 p-4">
-      <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl">
+    <div className="flex min-h-full items-center justify-center bg-gradient-to-br from-brand-700 via-brand-900 to-brand-950 p-4">
+      <div className="w-full max-w-sm rounded-3xl bg-white p-6 shadow-2xl ring-1 ring-white/10 sm:p-8">
         <div className="mb-6 flex flex-col items-center text-center">
           <img src="/logo.png" alt="Hotzonex WiFi" className="h-28 w-auto" />
           <h1 className="mt-3 text-2xl font-bold text-slate-900">Hotzonex Cloud</h1>
@@ -165,8 +165,8 @@ function TwoStepCode() {
   }
 
   return (
-    <div className="flex min-h-full items-center justify-center bg-brand-900 p-4">
-      <form onSubmit={verify} className="w-full max-w-sm space-y-4 rounded-2xl bg-white p-6 shadow-xl" noValidate>
+    <div className="flex min-h-full items-center justify-center bg-gradient-to-br from-brand-700 via-brand-900 to-brand-950 p-4">
+      <form onSubmit={verify} className="w-full max-w-sm space-y-4 rounded-3xl bg-white p-6 shadow-2xl ring-1 ring-white/10 sm:p-8" noValidate>
         <div className="text-center">
           <h1 className="text-2xl font-bold text-slate-900">2-step login</h1>
           <p className="text-slate-600">Type the 6-digit code from your authenticator app.</p>

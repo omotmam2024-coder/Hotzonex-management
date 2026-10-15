@@ -132,7 +132,7 @@ export function BuyPage() {
   const st = status.data;
 
   return (
-    <div className="min-h-full bg-brand-900 p-4">
+    <div className="min-h-full bg-gradient-to-br from-brand-700 via-brand-900 to-brand-950 p-4">
       <div className="mx-auto w-full max-w-md space-y-4">
         <header className="flex items-center gap-3 pt-2 text-white">
           {s?.logo_url ? <img src={s.logo_url} alt="" className="h-12 w-12 rounded-xl bg-white object-contain p-1" /> : null}
