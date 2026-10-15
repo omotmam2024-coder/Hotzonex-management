@@ -17,6 +17,7 @@ export function LoginPage() {
   const [sentTo, setSentTo] = useState<string | null>(null);
 
   if (status === 'loading') return <FullScreenSpinner />;
+  if (status === 'mfa') return <TwoStepCode />;
   if (status !== 'signed_out') {
     const from = (location.state as { from?: string } | null)?.from;
     const target = from && from !== '/login' ? from : profile ? homePathFor(profile.role) : '/';
@@ -133,6 +134,63 @@ export function LoginPage() {
           </Link>
         </p>
       </div>
+    </div>
+  );
+}
+
+/** The second step of the login: the 6-digit code from the authenticator app. */
+function TwoStepCode() {
+  const { reload, signOut } = useAuth();
+  const [code, setCode] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function verify(e: FormEvent) {
+    e.preventDefault();
+    setError(null);
+    setBusy(true);
+    try {
+      const { data, error: listError } = await supabase.auth.mfa.listFactors();
+      if (listError) throw listError;
+      const factor = data.totp.find((f) => f.status === 'verified');
+      if (!factor) throw new Error('No authenticator app is set up for this login.');
+      const { error: verifyError } = await supabase.auth.mfa.challengeAndVerify({ factorId: factor.id, code: code.trim() });
+      if (verifyError) throw new Error(/invalid|expired/i.test(verifyError.message) ? 'Wrong or expired code. Type the newest code from your app.' : verifyError.message);
+      await reload();
+    } catch (err) {
+      setError(friendlyError(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="flex min-h-full items-center justify-center bg-brand-900 p-4">
+      <form onSubmit={verify} className="w-full max-w-sm space-y-4 rounded-2xl bg-white p-6 shadow-xl" noValidate>
+        <div className="text-center">
+          <h1 className="text-2xl font-bold text-slate-900">2-step login</h1>
+          <p className="text-slate-600">Type the 6-digit code from your authenticator app.</p>
+        </div>
+        <input
+          value={code}
+          onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+          inputMode="numeric"
+          autoComplete="one-time-code"
+          autoFocus
+          className="min-h-14 w-full rounded-xl border border-slate-300 text-center font-mono text-3xl tracking-[0.4em] focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100"
+        />
+        {error && (
+          <p role="alert" className="rounded-xl bg-red-50 p-3 text-sm font-medium text-red-800">
+            {error}
+          </p>
+        )}
+        <button type="submit" disabled={busy || code.length !== 6} className="min-h-12 w-full rounded-xl bg-brand-600 text-lg font-semibold text-white disabled:opacity-50">
+          {busy ? 'Checking…' : 'Continue'}
+        </button>
+        <button type="button" onClick={() => void signOut()} className="w-full text-center text-sm font-semibold text-slate-600 hover:underline">
+          Use another account
+        </button>
+      </form>
     </div>
   );
 }

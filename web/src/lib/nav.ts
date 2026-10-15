@@ -15,7 +15,8 @@ export type IconName =
   | 'alerts'
   | 'payments'
   | 'cash'
-  | 'billing';
+  | 'billing'
+  | 'security';
 
 export interface NavItem {
   path: string;
@@ -46,6 +47,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { path: '/alerts', label: 'Alerts', icon: 'alerts', roles: ADMIN_MANAGER },
   { path: '/staff', label: 'Staff', icon: 'staff', roles: ADMIN },
   { path: '/billing', label: 'Billing', icon: 'billing', roles: ADMIN },
+  { path: '/security', label: 'Security', icon: 'security', roles: ALL },
   { path: '/businesses', label: 'Businesses', icon: 'businesses', roles: ADMIN, platformOnly: true },
 ];
 

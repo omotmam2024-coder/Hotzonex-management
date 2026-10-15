@@ -4,6 +4,7 @@ import { useAuth } from '../auth/AuthProvider';
 import { navForRole, ROLE_LABELS } from '../lib/nav';
 import { FullScreenSpinner } from './FullScreen';
 import { BillingBanner } from './BillingBanner';
+import { SupportBar } from './SupportBar';
 import { Icon } from './Icon';
 
 function Brand() {
@@ -114,6 +115,7 @@ export function Layout() {
           <Brand />
         </header>
         <main className="min-w-0 flex-1 overflow-y-auto p-4 lg:p-8 print:overflow-visible print:p-0">
+          <SupportBar />
           <BillingBanner />
           <Suspense fallback={<FullScreenSpinner />}>
             <Outlet />

@@ -39,7 +39,8 @@ export function useBillingOverview(enabled = true) {
     queryFn: async (): Promise<BillingOverview> => {
       const { data, error } = await supabase.rpc('billing_overview');
       if (error) throw new Error(friendlyError(error));
-      return data as BillingOverview;
+      const b = (data ?? {}) as Partial<BillingOverview>;
+      return { ...b, exempt: b.exempt ?? true, invoices: Array.isArray(b.invoices) ? b.invoices : [] } as BillingOverview;
     },
   });
 }

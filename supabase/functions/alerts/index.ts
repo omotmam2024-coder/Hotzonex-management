@@ -11,7 +11,7 @@
 // POST <Telegram update>       from Telegram (x-telegram-bot-api-secret-token): "/start <code>" connects, "/stop" disconnects.
 import type { SupabaseClient } from 'npm:@supabase/supabase-js@2.117.3';
 import { audit, requireAdmin, serviceClient } from '../_shared/auth.ts';
-import { corsHeaders, HttpError, json } from '../_shared/cors.ts';
+import { corsFor, HttpError, json } from '../_shared/cors.ts';
 import { alertMessage, LINK_CODE_RE, wantsAlert, type AlertRow, type AlertSettings } from '../_shared/alerts.ts';
 
 const TELEGRAM = 'https://api.telegram.org';
@@ -176,7 +176,13 @@ async function telegramUpdate(db: SupabaseClient, update: Record<string, unknown
 }
 
 Deno.serve(async (req) => {
-  if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
+  const res = await handle(req);
+  for (const [k, v] of Object.entries(corsFor(req))) res.headers.set(k, v);
+  return res;
+});
+
+async function handle(req: Request): Promise<Response> {
+  if (req.method === 'OPTIONS') return new Response('ok');
   if (req.method !== 'POST') return json({ error: 'Use POST.' }, 405);
   const db = serviceClient();
   try {
@@ -211,4 +217,4 @@ Deno.serve(async (req) => {
     console.error(err instanceof Error ? err.message : String(err));
     return json({ error: 'The server could not finish this request. Please try again.' }, 500);
   }
-});
+}

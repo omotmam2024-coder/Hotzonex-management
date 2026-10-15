@@ -9,7 +9,7 @@ export function RequireAuth() {
   const location = useLocation();
 
   if (status === 'loading') return <FullScreenSpinner />;
-  if (status === 'signed_out') return <Navigate to="/login" replace state={{ from: location.pathname }} />;
+  if (status === 'signed_out' || status === 'mfa') return <Navigate to="/login" replace state={{ from: location.pathname }} />;
   if (status === 'no_profile')
     return (
       <FullScreenMessage

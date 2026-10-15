@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { PlatformBilling } from '../components/PlatformBilling';
 import { useAuth } from '../auth/AuthProvider';
@@ -107,11 +108,23 @@ function NewBusiness({ onClose }: { onClose: () => void }) {
 
 /** Platform admins only: every business on Hotzonex Cloud. */
 export function BusinessesPage() {
-  const { business } = useAuth();
+  const { business, twoStep, support, reload } = useAuth();
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [adding, setAdding] = useState(false);
+  const manage = useMutation({
+    mutationFn: async (b: BusinessRow) => {
+      const { error } = await supabase.rpc('platform_support_start', { p_tenant_id: b.id, p_minutes: 120 });
+      if (error) throw new Error(friendlyError(error));
+    },
+    onSuccess: async () => {
+      await reload();
+      navigate('/routers');
+    },
+  });
   const list = useQuery({
     queryKey: ['businesses'],
+    enabled: twoStep,
     queryFn: async () => {
       const { data, error } = await supabase.rpc('platform_tenants');
       if (error) throw error;
@@ -128,8 +141,23 @@ export function BusinessesPage() {
     onSettled: () => void queryClient.invalidateQueries({ queryKey: ['businesses'] }),
   });
 
+  if (!twoStep)
+    return (
+      <div className="space-y-4">
+        <PageHeader title="Businesses" subtitle="Every hotspot business on Hotzonex Cloud" />
+        <Alert tone="warning">
+          Platform controls (all businesses, support mode, billing) open only after logging in with your 2-step code.{' '}
+          <Link to="/security" className="font-semibold underline">
+            Turn on the 2-step login
+          </Link>
+          , then log out and in again.
+        </Alert>
+      </div>
+    );
+
   return (
     <div className="space-y-4">
+      {manage.error && <Alert tone="error">{friendlyError(manage.error)}</Alert>}
       <PageHeader
         title="Businesses"
         subtitle="Every hotspot business on Hotzonex Cloud. Each one sees only its own data."
@@ -164,6 +192,11 @@ export function BusinessesPage() {
                   {!b.is_active && <Badge color="red">Switched off</Badge>}
                 </div>
               </div>
+              {(b.id !== business?.id || support) && b.id !== support?.tenant_id && (
+                <Button variant="secondary" disabled={manage.isPending} onClick={() => manage.mutate(b)} title="Manage this business's routers and settings for 2 hours (support mode)">
+                  Manage
+                </Button>
+              )}
               {b.id !== business?.id && (
                 <Button variant={b.is_active ? 'danger' : 'secondary'} disabled={toggle.isPending} onClick={() => toggle.mutate(b)}>
                   {b.is_active ? 'Switch off' : 'Switch on'}

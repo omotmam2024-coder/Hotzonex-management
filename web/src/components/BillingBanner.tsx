@@ -8,8 +8,8 @@ export function BillingBanner() {
   const { profile } = useAuth();
   const billing = useBillingOverview(profile?.role === 'admin');
   const b = billing.data;
-  if (!b || b.exempt) return null;
-  const open = b.invoices.find((i) => i.status === 'open' && !i.customer_ref);
+  if (!b || b.exempt !== false) return null;
+  const open = (b.invoices ?? []).find((i) => i.status === 'open' && !i.customer_ref);
   const left = daysLeft(b.trial_ends_at);
   let text: string | null = null;
   if (open) text = `Invoice ${open.number}: ${formatNumber(open.amount_ssp)} SSP, due ${formatJubaTime(open.due_at)}.`;

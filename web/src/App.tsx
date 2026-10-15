@@ -32,6 +32,7 @@ const PaymentsPage = page(() => import('./pages/PaymentsPage'), 'PaymentsPage');
 const CashPage = page(() => import('./pages/CashPage'), 'CashPage');
 const SignupPage = page(() => import('./pages/SignupPage'), 'SignupPage');
 const BillingPage = page(() => import('./pages/BillingPage'), 'BillingPage');
+const SecurityPage = page(() => import('./pages/SecurityPage'), 'SecurityPage');
 const AlertsPage = page(() => import('./pages/AlertsPage'), 'AlertsPage');
 const ResetPasswordPage = page(() => import('./pages/ResetPasswordPage'), 'ResetPasswordPage');
 
@@ -103,6 +104,9 @@ export function App() {
             </Route>
             <Route element={<RequireRole roles={rolesFor('/billing')} />}>
               <Route path="/billing" element={<BillingPage />} />
+            </Route>
+            <Route element={<RequireRole roles={rolesFor('/security')} />}>
+              <Route path="/security" element={<SecurityPage />} />
             </Route>
             <Route element={<RequireRole roles={rolesFor('/alerts')} />}>
               <Route path="/alerts" element={<AlertsPage />} />

@@ -57,8 +57,10 @@ function printPoster(site: SiteRow, business: string) {
 .qr{width:420px;margin:24px auto}.qr svg{width:100%;height:auto}.url{font-size:20px;font-weight:700;word-break:break-all}</style></head>
 <body><h1>Buy WiFi here</h1><p>${esc(business)} · ${esc(site.name)}</p><div class="qr">${qrSvg(url, 10)}</div>
 <p>1. Scan the code (or open the link) &nbsp; 2. Pay by mobile money &nbsp; 3. Get your card on your phone</p><p class="url">${esc(url)}</p>
-<script>window.onload=()=>window.print()</script></body></html>`);
+</body></html>`);
   w.document.close();
+  // Printed from here: the poster window may not run scripts of its own (Content-Security-Policy).
+  w.setTimeout(() => w.print(), 300);
 }
 
 function BuySettings({ site }: { site: SiteRow }) {
