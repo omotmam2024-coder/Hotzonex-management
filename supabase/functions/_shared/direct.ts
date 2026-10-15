@@ -168,7 +168,7 @@ export async function directTest(client: RestClient): Promise<DirectTest> {
       address_pool: s(h['address-pool']),
       disabled: s(h.disabled) === 'true' || s(h.disabled) === 'yes',
     })),
-    server_profiles: serverProfiles.map((h) => ({ name: s(h.name), dns_name: s(h['dns-name']), login_by: s(h['login-by']) })),
+    server_profiles: serverProfiles.map((h) => ({ name: s(h.name), dns_name: s(h['dns-name']), login_by: s(h['login-by']), html_directory: s(h['html-directory']) })),
     user_profiles: userProfiles.map((h) => ({ name: s(h.name), rate_limit: s(h['rate-limit']), shared_users: s(h['shared-users']) })),
     users: users.length,
     active: active.length,
@@ -271,6 +271,30 @@ export async function readRouterUsers(client: RestClient): Promise<RouterUsers> 
   const same = readable.filter((u) => s(u.password) === s(u.name)).length;
   const passwordStyle: PasswordStyle = readable.length >= 3 && empty > same && empty >= readable.length * 0.6 ? 'empty' : 'same';
   return { comments: new Map(users.map((u) => [s(u.name), s(u.comment)])), passwordStyle, sample: { empty, same, readable: readable.length } };
+}
+
+/** The usual length of the router's own numeric cards (MikroTicket's PINs), or null when unclear. */
+export function ownCodeLength(names: Iterable<string>, comments?: Map<string, string>): number | null {
+  const counts = new Map<number, number>();
+  for (const name of names) {
+    if (!/^[0-9]{4,12}$/.test(name) || comments?.get(name)?.startsWith('hzc:')) continue;
+    counts.set(name.length, (counts.get(name.length) ?? 0) + 1);
+  }
+  const best = [...counts].sort((a, b) => b[1] - a[1])[0];
+  return best && best[1] >= 5 ? best[0] : null;
+}
+
+/**
+ * Reads pushed cards back from the router: each must be there, with the profile it was given.
+ * Returns the codes that are missing and those on another profile.
+ */
+export async function checkPushed(client: RestClient, codes: string[], profile: string): Promise<{ checked: number; missing: string[]; wrongProfile: string[] }> {
+  if (!codes.length) return { checked: 0, missing: [], wrongProfile: [] };
+  const rows = await client.get<Json[]>('/ip/hotspot/user', { '.proplist': 'name,profile' });
+  const byName = new Map(rows.map((r) => [s(r.name), s(r.profile)]));
+  const missing = codes.filter((c) => !byName.has(c));
+  const wrongProfile = codes.filter((c) => byName.has(c) && byName.get(c) !== profile);
+  return { checked: codes.length, missing, wrongProfile };
 }
 
 /** Names of the router's user profiles. */

@@ -11,7 +11,7 @@ import { supabase } from '../lib/supabase';
 import { planOnRouter, type BatchStatus } from '../lib/types';
 
 const BATCH_COLUMNS =
-  'id, created_at, site_id, router_id, plan_id, quantity, code_length, site_name, router_name, plan_name, plan_color, price_ssp, uptime_seconds, voucher_count, pushed_count, push_status, push_error, push_finished_at';
+  'id, created_at, site_id, router_id, plan_id, quantity, code_length, site_name, router_name, plan_name, plan_color, price_ssp, uptime_seconds, voucher_count, pushed_count, push_status, push_error, push_finished_at, push_warnings';
 
 function isPushing(b: BatchStatus) {
   return b.push_status === 'queued' || b.push_status === 'running';
@@ -71,6 +71,14 @@ function BatchRow({ batch }: { batch: BatchStatus }) {
           </div>
           <div className="mt-1">{status}</div>
           {batch.push_status === 'failed' && batch.push_error && <p className="mt-1 text-sm text-red-700">{batch.push_error}</p>}
+          {(batch.push_warnings ?? []).map((w) => (
+            <p key={w} className="mt-1 text-sm text-amber-800">
+              ⚠ {w}
+            </p>
+          ))}
+          {batch.push_status === 'done' && !(batch.push_warnings ?? []).length && batch.pushed_count > 0 && (
+            <p className="mt-1 text-xs text-green-700">Checked on the router ✓</p>
+          )}
           {retry.error && <p className="mt-1 text-sm text-red-700">{retry.error.message}</p>}
         </div>
       </div>

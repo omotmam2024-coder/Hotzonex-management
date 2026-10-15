@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../auth/AuthProvider';
 import { PageHeader } from '../components/PageHeader';
+import { RouterHealth } from '../components/RouterHealth';
 import { HotspotSnapshot, SetupScriptCard } from '../components/RouterSetup';
 import { TunnelServerCard, useTunnelServer } from '../components/TunnelServer';
 import { Alert, Badge, Button, Card, Spinner, TextInput } from '../components/ui';
@@ -132,6 +133,13 @@ function RouterCard({
           </dd>
         </div>
       </dl>
+
+      {router.status !== 'pending' && (
+        <div className="mt-3 rounded-xl bg-slate-50 p-3">
+          <h3 className="mb-2 text-sm font-bold text-slate-700">Health</h3>
+          <RouterHealth router={router} />
+        </div>
+      )}
 
       {!direct && router.status === 'pending' && !router.last_seen_at && !script && (
         <div className="mt-3">

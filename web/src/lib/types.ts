@@ -26,7 +26,7 @@ export type RouterConnection = 'cloud' | 'direct' | 'tunnel';
 /** Read-only snapshot of the router's own hotspot setup, from its last connection test. */
 export interface HotspotInfo {
   servers: { name: string; interface: string; profile: string; address_pool: string; disabled: boolean }[];
-  server_profiles: { name: string; dns_name: string; login_by: string }[];
+  server_profiles: { name: string; dns_name: string; login_by: string; html_directory?: string }[];
   user_profiles: { name: string; rate_limit: string; shared_users: string }[];
   users: number;
   active: number;
@@ -155,5 +155,7 @@ export interface BatchStatus {
   pushed_count: number;
   push_status: JobStatus | null;
   push_error: string | null;
+  /** What the check on the router found after the push (missing cards, wrong profile, code length). */
+  push_warnings?: string[];
   push_finished_at: string | null;
 }

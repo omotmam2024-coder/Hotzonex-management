@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import type { SupabaseClient } from 'npm:@supabase/supabase-js@2.117.3';
-import { applyRouterRemovals, finishProfileRemoval, finishVoucherDelete, retireRemovedProfiles, type Job, type RouterRef } from './jobs.ts';
+import { applyRouterRemovals, finishProfileRemoval, finishVoucherDelete, recordPushCheck, retireRemovedProfiles, type Job, type RouterRef } from './jobs.ts';
 
 type Row = Record<string, unknown>;
 
@@ -168,4 +168,21 @@ test('a used voucher without a sale is kept (switched off) when it is deleted on
   const r = await applyRouterRemovals(fakeDb(t), router, new Set(['3333', 'mt-unused-here']));
   assert.deepEqual(r, { vouchers_deleted: 0, vouchers_disabled: 2, records_deleted: 1 });
   assert.deepEqual(t.vouchers.map((v) => [v.id, v.status]), [['v1', 'disabled'], ['v2', 'disabled'], ['v3', 'unused'], ['v4', 'unused']]);
+});
+
+test('push check: missing cards, wrong profile and code length become plain warnings, totals replace older ones', async () => {
+  const t = world();
+  t.router_jobs = [{ id: 'j1', status: 'running', result: {} }];
+  const db = fakeDb(t);
+  const job = { id: 'j1', result: {} } as unknown as Job;
+  await recordPushCheck(db, job, { checked: 10, missing: ['11111111'], wrongProfile: [], codeLength: 8, ownLength: 7 });
+  const w = await recordPushCheck(db, job, { checked: 5, missing: ['22222222'], wrongProfile: [], codeLength: 8, ownLength: 7 });
+  assert.deepEqual(w, [
+    "These codes have 8 digits but the router's own cards have 7; its login page may not take them.",
+    '2 card(s) are not on the router after the push: 11111111, 22222222',
+  ]);
+  assert.equal((t.router_jobs[0]!.result as Row).checked_on_router, 15);
+  const clean = { id: 'j2', result: {} } as unknown as Job;
+  t.router_jobs.push({ id: 'j2', status: 'running' });
+  assert.deepEqual(await recordPushCheck(db, clean, { checked: 3, missing: [], wrongProfile: [], codeLength: 7, ownLength: 7 }), []);
 });

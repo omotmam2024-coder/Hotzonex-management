@@ -27,6 +27,7 @@ const SellPage = page(() => import('./pages/SellPage'), 'SellPage');
 const StaffPage = page(() => import('./pages/StaffPage'), 'StaffPage');
 const BusinessesPage = page(() => import('./pages/BusinessesPage'), 'BusinessesPage');
 const VouchersPage = page(() => import('./pages/VouchersPage'), 'VouchersPage');
+const AlertsPage = page(() => import('./pages/AlertsPage'), 'AlertsPage');
 const ResetPasswordPage = page(() => import('./pages/ResetPasswordPage'), 'ResetPasswordPage');
 
 function PlatformOnly({ children }: { children: JSX.Element }) {
@@ -85,6 +86,9 @@ export function App() {
             </Route>
             <Route element={<RequireRole roles={rolesFor('/portal')} />}>
               <Route path="/portal" element={<PortalPage />} />
+            </Route>
+            <Route element={<RequireRole roles={rolesFor('/alerts')} />}>
+              <Route path="/alerts" element={<AlertsPage />} />
             </Route>
             <Route element={<RequireRole roles={rolesFor('/staff')} />}>
               <Route path="/staff" element={<StaffPage />} />

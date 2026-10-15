@@ -217,6 +217,52 @@ export async function applyPushResults(
   return result;
 }
 
+/**
+ * Saves what the router showed after a push (checkPushed) on the job, as plain warnings for the
+ * batch: cards missing on the router, on another profile, or with a code length the router's own
+ * login page may not take.
+ */
+export async function recordPushCheck(
+  db: SupabaseClient,
+  job: Job,
+  check: { checked: number; missing: string[]; wrongProfile: string[]; codeLength: number; ownLength: number | null },
+): Promise<string[]> {
+  const prev = job.result ?? {};
+  const warnings = new Set(Array.isArray(prev.warnings) ? (prev.warnings as string[]) : []);
+  const missing = [...(Array.isArray(prev.missing_on_router) ? (prev.missing_on_router as string[]) : []), ...check.missing];
+  const wrong = [...(Array.isArray(prev.wrong_profile) ? (prev.wrong_profile as string[]) : []), ...check.wrongProfile];
+  if (missing.length) warnings.add(`${missing.length} card(s) are not on the router after the push: ${missing.slice(0, 10).join(', ')}`);
+  if (wrong.length) warnings.add(`${wrong.length} card(s) are on another profile on the router: ${wrong.slice(0, 10).join(', ')}`);
+  if (check.ownLength && check.codeLength && check.ownLength !== check.codeLength) {
+    warnings.add(`These codes have ${check.codeLength} digits but the router's own cards have ${check.ownLength}; its login page may not take them.`);
+  }
+  const result = {
+    ...prev,
+    checked_on_router: (typeof prev.checked_on_router === 'number' ? prev.checked_on_router : 0) + check.checked,
+    missing_on_router: missing,
+    wrong_profile: wrong,
+    // Older "N card(s) are …" lines are replaced by the new totals.
+    warnings: dedupeCounts([...warnings]),
+  };
+  await db.from('router_jobs').update({ result }).eq('id', job.id);
+  job.result = result;
+  return result.warnings;
+}
+
+/** Keeps only the newest "N card(s) are …" line of each kind. */
+function dedupeCounts(list: string[]): string[] {
+  const out: string[] = [];
+  for (const w of list) {
+    const kind = /^\d+ card\(s\) are (not on|on another)/.exec(w)?.[1];
+    if (kind) {
+      const i = out.findIndex((o) => o.includes(`card(s) are ${kind}`));
+      if (i >= 0) out.splice(i, 1);
+    }
+    out.push(w);
+  }
+  return out;
+}
+
 export interface PushChunk {
   plan: PlanRow;
   vouchers: { id: string; code: string }[];

@@ -19,6 +19,8 @@ import {
   pushVoucher,
   readUsage,
   removeExpired,
+  checkPushed,
+  ownCodeLength,
   removeExpiredRouterUsers,
   removeLeftoverProfiles,
   removeProfileIfUnused,
@@ -37,6 +39,7 @@ import {
   applyPortalInstalled,
   applyPortalRestored,
   applyPushResults,
+  recordPushCheck,
   applyRouterRemovals,
   applyTestResult,
   applyUsage,
@@ -244,6 +247,16 @@ async function runJob(db: SupabaseClient, router: DirectRouter, client: RestClie
         } finally {
           await applyPushResults(db, router, job, items);
         }
+        // Checked on the router itself: every card is there, on the right profile, as long as the router's own cards.
+        await recordPushCheck(db, job, {
+          ...(await checkPushed(
+            client,
+            chunk.vouchers.filter((v) => items.some((i) => i.voucher === v.id && (i.result === 'added' || i.result === 'already'))).map((v) => v.code),
+            profile,
+          )),
+          codeLength: chunk.vouchers[0]?.code.length ?? 0,
+          ownLength: ownCodeLength(users.comments.keys(), users.comments),
+        });
         if (items.every((i) => i.result === 'error')) {
           await finishJob(db, job.id, false, {
             ...(job.result ?? {}),
