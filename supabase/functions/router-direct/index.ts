@@ -19,6 +19,7 @@ import {
   pushVoucher,
   readUsage,
   removeExpired,
+  removeExpiredRouterUsers,
   removeLeftoverProfiles,
   removeProfileIfUnused,
   matchRouterProfile,
@@ -408,6 +409,21 @@ async function checkRouter(db: SupabaseClient, router: DirectRouter, client: Res
       await applyRouterRemovals(db, router, new Set(usage.allUsers.map((u) => u.name)));
     } catch (err) {
       console.error(`Removed users not synced for ${router.name}: ${message(err)}`);
+    }
+    // MikroTicket cards whose time is over are deleted from the router (their sales stay in Hotzonex).
+    try {
+      const gone = await removeExpiredRouterUsers(client, deadline);
+      if (gone.length) {
+        console.log(`${router.name}: removed ${gone.length} expired cards`);
+        await db.from('audit_log').insert({
+          tenant_id: router.tenant_id,
+          user_id: null,
+          action: 'router.expired_cards_removed',
+          details: { router_id: router.id, name: router.name, count: gone.length, codes: gone },
+        });
+      }
+    } catch (err) {
+      console.warn(`${router.name}: expired cards not removed: ${message(err)}`);
     }
     if (result) {
       // Each kick and removal on its own: one that fails is tried again next minute and does not

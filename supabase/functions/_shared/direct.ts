@@ -333,6 +333,85 @@ export interface RouterUser {
   comment: string;
 }
 
+/** A router user with what is needed to tell whether its time is over. */
+export interface RouterUserLimits extends RouterUser {
+  /** RouterOS internal id (for removing it). */
+  id: string;
+  /** The user's own limit-uptime in seconds (0: none). */
+  limitUptime: number;
+}
+
+const MKT_TIME = (key: string) => new RegExp(`-${key}:(\\d+d \\d{1,3}:\\d{2}:\\d{2})`);
+
+/** Seconds of a MikroTicket time setting in a profile name ("-ut:0d 01:00:00" → 3600), or 0. */
+export function mikroticketSeconds(profile: string, key: 'ut' | 'vl'): number {
+  const m = MKT_TIME(key).exec(profile);
+  return m?.[1] ? fromRouterOsTime(m[1]) : 0;
+}
+
+/** The router's clock as "YYYY-MM-DD HH:MM:SS" (RouterOS 7 prints ISO dates; older ones "oct/15/2026"). */
+export function routerClockText(clock: Json): string | null {
+  const months = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+  const date = s(clock.date);
+  const time = s(clock.time);
+  if (!/^\d{2}:\d{2}:\d{2}$/.test(time)) return null;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(date)) return `${date} ${time}`;
+  const old = /^([a-z]{3})\/(\d{2})\/(\d{4})$/i.exec(date);
+  const month = old ? months.indexOf(old[1]!.toLowerCase()) + 1 : 0;
+  return old && month ? `${old[3]}-${String(month).padStart(2, '0')}-${old[2]} ${time}` : null;
+}
+
+const asUtc = (text: string) => Date.parse(`${text.replace(' ', 'T')}Z`);
+
+/**
+ * MikroTicket cards whose time is over and that are not online: all their time used (the user's
+ * limit-uptime, or "ut" in its profile), or their validity ("vl" in the profile) past since first
+ * login (MikroTicket's "-da:" stamp, in router time). Hotzonex's own vouchers ("hzc:") and users
+ * without such limits (staff, guests) are never chosen.
+ */
+export function expiredRouterUsers(users: RouterUserLimits[], online: Set<string>, routerNow: string | null): RouterUserLimits[] {
+  const now = routerNow ? asUtc(routerNow) : NaN;
+  return users.filter((u) => {
+    if (!u.id || online.has(u.name) || u.comment.startsWith('hzc:') || !u.profile.startsWith('profile_')) return false;
+    const limit = u.limitUptime > 0 ? u.limitUptime : mikroticketSeconds(u.profile, 'ut');
+    if (limit > 0 && u.uptime >= limit) return true;
+    const validity = mikroticketSeconds(u.profile, 'vl');
+    const firstLogin = /-da:(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})/.exec(u.comment)?.[1];
+    if (!validity || !firstLogin || Number.isNaN(now)) return false;
+    return asUtc(firstLogin) + validity * 1000 <= now;
+  });
+}
+
+/**
+ * Removes MikroTicket cards whose time is over from the router (at most `max`, stopping at the
+ * deadline). Their sales stay in Hotzonex (used router logins are kept). Returns the removed names.
+ */
+export async function removeExpiredRouterUsers(client: RestClient, deadline: number, max = 50): Promise<string[]> {
+  const [users, active, clock] = await Promise.all([
+    client.get<Json[]>('/ip/hotspot/user', { '.proplist': '.id,name,profile,comment,uptime,limit-uptime' }),
+    client.get<Json[]>('/ip/hotspot/active', { '.proplist': 'user' }),
+    client.get<Json>('/system/clock').catch(() => ({}) as Json),
+  ]);
+  const list: RouterUserLimits[] = users
+    .filter((u) => s(u.name))
+    .map((u) => ({
+      id: s(u['.id']),
+      name: s(u.name),
+      profile: s(u.profile),
+      uptime: fromRouterOsTime(s(u.uptime)),
+      limitUptime: fromRouterOsTime(s(u['limit-uptime'])),
+      comment: s(u.comment),
+    }));
+  const online = new Set(active.map((a) => s(a.user)).filter(Boolean));
+  const removed: string[] = [];
+  for (const u of expiredRouterUsers(list, online, routerClockText(clock)).slice(0, max)) {
+    if (Date.now() > deadline) break;
+    await ignoreGone(client.post('/ip/hotspot/user/remove', { '.id': u.id }));
+    removed.push(u.name);
+  }
+  return removed;
+}
+
 /**
  * Who is online, the counters of used voucher users (same shape as the cloud report), and every
  * hotspot user on the router (for the user counts and the router-login sales).

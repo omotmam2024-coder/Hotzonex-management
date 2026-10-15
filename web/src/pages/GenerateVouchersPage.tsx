@@ -125,6 +125,27 @@ export function GenerateVouchersPage() {
   }, [siteRouters, routerId]);
 
   const router = siteRouters.find((r) => r.id === routerId);
+
+  // The router's own cards (MikroTicket's) set the length: its login page is made for that many digits.
+  const routerCodeLength = useQuery({
+    queryKey: ['router-code-length', routerId],
+    enabled: Boolean(routerId),
+    staleTime: 10 * 60_000,
+    queryFn: async (): Promise<number | null> => {
+      const { data, error } = await supabase.from('router_logins').select('username').eq('router_id', routerId).limit(500);
+      if (error) throw new Error(error.message);
+      const counts = new Map<number, number>();
+      for (const { username } of data ?? []) {
+        if (/^[0-9]{6,10}$/.test(username as string)) counts.set((username as string).length, (counts.get((username as string).length) ?? 0) + 1);
+      }
+      const best = [...counts].sort((a, b) => b[1] - a[1])[0];
+      return best && best[1] >= 5 ? best[0] : null;
+    },
+  });
+  const ownLength = routerCodeLength.data ?? null;
+  useEffect(() => {
+    if (ownLength) setCodeLength(String(ownLength));
+  }, [ownLength, routerId]);
   // Only plans ticked for this router (Plans page): its vouchers use the router's own profile for the plan.
   const activePlans = (plans.data ?? []).filter((p) => p.is_active && (!routerId || planOnRouter(p, routerId)));
   useEffect(() => {
@@ -224,7 +245,7 @@ export function GenerateVouchersPage() {
               <Field label="Quantity" hint="1 to 1000">
                 <TextInput inputMode="numeric" value={quantity} onChange={(e) => setQuantity(e.target.value.replace(/\D/g, '').slice(0, 4))} />
               </Field>
-              <Field label="Code length" hint="Digits">
+              <Field label="Code length" hint={ownLength ? `Digits · this router's cards use ${ownLength}` : 'Digits'}>
                 <Select value={codeLength} onChange={(e) => setCodeLength(e.target.value)}>
                   {[6, 7, 8, 9, 10].map((n) => (
                     <option key={n} value={n}>
@@ -235,6 +256,12 @@ export function GenerateVouchersPage() {
               </Field>
             </div>
           </div>
+
+          {ownLength && Number(codeLength) !== ownLength && (
+            <Alert tone="warning">
+              {router?.name}'s own cards have {ownLength} digits, and its login page is made for that length. Codes of {codeLength} digits may not log in there.
+            </Alert>
+          )}
 
           {router?.status === 'offline' && (
             <Alert tone="warning">

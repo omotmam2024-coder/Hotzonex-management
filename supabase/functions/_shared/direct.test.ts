@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { after, before, test } from 'node:test';
-import { closeSessions, directTest, removeLeftoverProfiles, disableVoucher, ensureProfileExists, installPortalDirect, pushVoucher, readUsage, removeExpired, removeProfileIfUnused, removeVoucherUsers, restorePortalDirect, upsertManagedProfile, RestClient, RouterError, matchRouterProfile, readRouterUsers } from './direct.ts';
+import { closeSessions, directTest, removeLeftoverProfiles, disableVoucher, ensureProfileExists, installPortalDirect, pushVoucher, readUsage, removeExpired, removeProfileIfUnused, removeVoucherUsers, restorePortalDirect, upsertManagedProfile, RestClient, RouterError, matchRouterProfile, readRouterUsers, expiredRouterUsers, mikroticketSeconds, routerClockText } from './direct.ts';
 
 type Row = Record<string, string>;
 const state: Record<string, Row[]> = {};
@@ -251,4 +251,29 @@ test('a profile Hotzonex manages is added, then renamed and updated with the pla
   assert.equal(added['rate-limit'], '10M/10M');
   assert.equal(added['shared-users'], '2');
   assert.ok(!state['/ip/hotspot/user/profile']!.some((p) => p.name === first));
+});
+
+test('expired MikroTicket cards: time used up or validity over, never online ones, vouchers or staff users', () => {
+  const p1h = 'profile_1Hr-se:-co:1000-pr:-lu:7-lp:7-ut:0d 01:00:00-bt:-kt:true-nu:true-np:true-tp:2-vl:2d 00:00:00';
+  const base = { profile: p1h, limitUptime: 0, comment: '' };
+  const users = [
+    { ...base, id: '*1', name: 'used-up', uptime: 3600, comment: 'Mikroticket-dc:x-da:2026-10-15 08:00:00' },
+    { ...base, id: '*2', name: 'half', uptime: 1800, comment: 'Mikroticket-dc:x-da:2026-10-15 08:00:00' },
+    { ...base, id: '*3', name: 'validity-over', uptime: 600, comment: 'Mikroticket-dc:x-da:2026-10-13 09:00:00' },
+    { ...base, id: '*4', name: 'online', uptime: 3600 },
+    { ...base, id: '*5', name: 'unused', uptime: 0 },
+    { ...base, id: '*6', name: 'voucher', uptime: 9999, comment: 'hzc:3f2b2a4e-0000-4000-8000-000000000000' },
+    { ...base, id: '*7', name: 'staff', profile: 'Guest', uptime: 99999 },
+    { ...base, id: '*8', name: 'own-limit', uptime: 1300, limitUptime: 1200 },
+  ];
+  const out = expiredRouterUsers(users, new Set(['online']), '2026-10-15 10:00:00').map((u) => u.name);
+  assert.deepEqual(out, ['used-up', 'validity-over', 'own-limit']);
+  assert.deepEqual(expiredRouterUsers(users, new Set(['online']), null).map((u) => u.name), ['used-up', 'own-limit'], 'no router clock: only used-up time');
+});
+
+test('router clock text from new and old RouterOS dates', () => {
+  assert.equal(routerClockText({ date: '2026-10-15', time: '19:03:07' }), '2026-10-15 19:03:07');
+  assert.equal(routerClockText({ date: 'oct/15/2026', time: '19:03:07' }), '2026-10-15 19:03:07');
+  assert.equal(routerClockText({}), null);
+  assert.equal(mikroticketSeconds('profile_x-ut:0d 01:00:00-vl:1d 12:00:00', 'vl'), 129600);
 });
