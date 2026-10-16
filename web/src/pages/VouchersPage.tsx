@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../auth/AuthProvider';
@@ -65,13 +65,16 @@ export function VouchersPage() {
 
   useEffect(() => setCodeInput(code), [code]);
 
-  function setFilter(key: string, value: string) {
-    const next = new URLSearchParams(params);
-    if (value) next.set(key, value);
-    else next.delete(key);
-    if (key !== 'page') next.delete('page');
-    setParams(next, { replace: true });
-  }
+  const setFilter = useCallback(
+    (key: string, value: string) => {
+      const next = new URLSearchParams(params);
+      if (value) next.set(key, value);
+      else next.delete(key);
+      if (key !== 'page') next.delete('page');
+      setParams(next, { replace: true });
+    },
+    [params, setParams],
+  );
 
   // Search as the user types, after a short pause.
   useEffect(() => {
@@ -79,7 +82,7 @@ export function VouchersPage() {
     if (digits === code) return;
     const t = setTimeout(() => setFilter('code', digits), 350);
     return () => clearTimeout(t);
-  }, [codeInput]);
+  }, [codeInput, code, setFilter]);
 
   const batches = useQuery({
     queryKey: ['batch-options'],

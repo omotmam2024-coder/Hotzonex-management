@@ -9,7 +9,8 @@
     "build:web": "npm --prefix web run build",
     "typecheck": "npm --prefix web run typecheck",
     "test": "node --test supabase/functions/_shared/*.test.ts",
-    "build": "npm --prefix web ci --include=dev && npm --prefix web run build && rm -rf dist && cp -r web/dist dist"
+    "build": "npm --prefix web ci --include=dev && npm --prefix web run build && rm -rf dist && cp -r web/dist dist",
+    "lint": "npm --prefix web run lint"
   },
   "engines": {
     "node": "22.x"

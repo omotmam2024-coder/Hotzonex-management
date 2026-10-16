@@ -10,8 +10,8 @@ const DEFAULT_ANON_KEY =
 
 // Pasting into a dashboard can bring along invisible characters; both values are plain ASCII.
 const clean = (v: unknown, allowed: RegExp) => (typeof v === 'string' ? v.replace(allowed, '') : '') || undefined;
-const envUrl = clean(import.meta.env.VITE_SUPABASE_URL, /[^A-Za-z0-9:/.\-]/g)?.replace(/\/+$/, '');
-const envKey = clean(import.meta.env.VITE_SUPABASE_ANON_KEY, /[^A-Za-z0-9._\-]/g);
+const envUrl = clean(import.meta.env.VITE_SUPABASE_URL, /[^A-Za-z0-9:/.-]/g)?.replace(/\/+$/, '');
+const envKey = clean(import.meta.env.VITE_SUPABASE_ANON_KEY, /[^A-Za-z0-9._-]/g);
 
 /** The project ref inside a Supabase anon key, or null when it is not a readable anon key. */
 function keyRef(key: string | undefined): string | null {

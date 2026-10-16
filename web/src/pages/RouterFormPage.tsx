@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { HotspotSetup, RouterConnectionStatus, SetupScriptCard } from '../components/RouterSetup';
@@ -84,7 +84,7 @@ export function RouterFormPage() {
     }
   }, [existing.data]);
 
-  const activeSites = sites.data ?? [];
+  const activeSites = useMemo(() => sites.data ?? [], [sites.data]);
   useEffect(() => {
     if (!form.site_id && activeSites.length === 1) setForm((f) => ({ ...f, site_id: activeSites[0]!.id }));
   }, [form.site_id, activeSites]);
