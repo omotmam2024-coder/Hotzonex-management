@@ -42,7 +42,7 @@ export function Receipt({ data, width, brand, onReady }: { data: ReceiptData; wi
   const contentMm = CONTENT_MM[width];
   const sideMm = (width - contentMm) / 2;
   // Biggest code that fits the paper width (Arial digits are ~0.56 em wide), capped for balance.
-  const codePt = Math.min(width === 58 ? 30 : 40, Math.floor((contentMm * PT_PER_MM) / (data.code.length * 0.6)));
+  const codePt = Math.min(width === 58 ? 24 : 30, Math.floor((contentMm * PT_PER_MM) / (data.code.length * 0.6)));
 
   useLayoutEffect(() => {
     if (ref.current) setHeightMm(Math.ceil(ref.current.getBoundingClientRect().height / (96 / 25.4)) + 4);

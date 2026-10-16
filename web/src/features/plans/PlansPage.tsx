@@ -426,44 +426,38 @@ export function PlansPage() {
       {plans.isLoading && <Spinner className="h-8 w-8 text-brand-600" />}
       {plans.error && <Alert tone="error">{friendlyError(plans.error)}</Alert>}
 
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+      <div className="grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-3 xl:grid-cols-4">
         {currentPlans.map((p) => (
           <Card key={p.id} className={`overflow-hidden !p-0 ${p.is_active ? '' : 'opacity-60'}`}>
-            <div className="h-3" style={{ backgroundColor: p.color }} />
-            <div className="p-4">
-              <div className="flex items-start justify-between gap-2">
-                <div>
-                  <div className="text-lg font-bold">{p.name}</div>
-                  <div className="text-2xl font-extrabold tabular-nums">{formatSSP(p.price_ssp)}</div>
+            <div className="h-1.5" style={{ backgroundColor: p.color }} />
+            <div className="p-3">
+              <div className="flex items-start justify-between gap-1">
+                <div className="min-w-0">
+                  <div className="truncate text-base font-bold leading-tight">{p.name}</div>
+                  <div className="text-lg font-extrabold tabular-nums leading-tight">{formatSSP(p.price_ssp)}</div>
                 </div>
                 {!p.is_active && <Badge color="gray">Off</Badge>}
               </div>
-              <dl className="mt-3 grid grid-cols-2 gap-x-3 gap-y-1 text-sm">
-                <dt className="text-slate-500">Time</dt>
-                <dd className="font-medium">{formatDuration(p.uptime_seconds)}</dd>
-                <dt className="text-slate-500">Validity</dt>
-                <dd className="font-medium">{p.validity_seconds ? formatDuration(p.validity_seconds) : 'No limit'}</dd>
-                <dt className="text-slate-500">Speed</dt>
-                <dd className="font-medium">{p.rate_limit ?? 'No limit'}</dd>
-                <dt className="text-slate-500">Data</dt>
-                <dd className="font-medium">{p.data_limit_mb ? `${p.data_limit_mb} MB` : 'No limit'}</dd>
-                <dt className="text-slate-500">Devices per code</dt>
-                <dd className="font-medium">{p.shared_users}</dd>
-              </dl>
-              <div className="mt-3 flex flex-wrap gap-1">
-                {(p.plan_routers ?? []).length === 0 && <Badge color="red">No router: tick one to sell it</Badge>}
+              <p className="mt-1.5 text-xs leading-snug text-slate-600">
+                {formatDuration(p.uptime_seconds)} · valid {p.validity_seconds ? formatDuration(p.validity_seconds) : 'no limit'}
+                <br />
+                {p.rate_limit ?? 'any speed'} · {p.data_limit_mb ? `${p.data_limit_mb} MB` : 'no data limit'} · {p.shared_users} device{p.shared_users === 1 ? '' : 's'}
+              </p>
+              <div className="mt-2 flex flex-wrap gap-1">
+                {(p.plan_routers ?? []).length === 0 && <Badge color="red">No router: tick one</Badge>}
                 {(p.plan_routers ?? []).map((l) => (
                   <span key={l.router_id} title={l.profile_name}>
                     <Badge color={l.managed ? 'blue' : 'gray'}>{routerName(l.router_id)}</Badge>
                   </span>
                 ))}
               </div>
-              <div className="mt-4 flex gap-2">
-                <Button variant="secondary" className="flex-1" onClick={() => open(toForm(p), p)}>
+              <div className="mt-2 flex gap-1.5">
+                <Button variant="secondary" className="min-h-11 flex-1 !px-2 text-sm" onClick={() => open(toForm(p), p)}>
                   Edit
                 </Button>
                 <Button
                   variant="danger"
+                  className="min-h-11 !px-2 text-sm"
                   disabled={remove.isPending}
                   onClick={() => {
                     setNotice(null);
