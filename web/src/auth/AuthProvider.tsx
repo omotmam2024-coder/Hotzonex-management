@@ -126,8 +126,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setStatus('signed_out');
       return;
     }
-    // A login with a 2-step code set up is only complete once the code is typed.
-    const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+    // A login with a 2-step code set up is only complete once the code is typed. The token is
+    // passed so the 2-step codes are read from the server: the copy of the user kept in this
+    // browser can be from before the code was set up, and the business would then look switched off.
+    const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel(current.access_token);
     const level = aal?.currentLevel ?? 'aal1';
     setTwoStep(level === 'aal2');
     if (aal?.nextLevel === 'aal2' && level !== 'aal2') {
@@ -172,6 +174,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setError(null);
     writeStored('local', ACCOUNT_KEY, { userId: current.user.id, profile: rest, siteName: sites?.name ?? null, business: tenants, isPlatformAdmin: Boolean(platform) } satisfies CachedAccount);
     // A switched-off business can no longer read its own row, so a missing one counts as switched off.
+    // Unless the 2-step code is still owed: the database hides the business until it is typed.
+    if (!tenants && level !== 'aal2') {
+      const { data: factors } = await supabase.auth.mfa.listFactors();
+      if (factors?.totp.length) {
+        setStatus('mfa');
+        return;
+      }
+    }
     setStatus(rest.is_active && tenants?.is_active ? 'ready' : 'inactive');
   }, [queryClient]);
 
