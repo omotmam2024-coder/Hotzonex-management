@@ -8,9 +8,9 @@ from this release are written but not applied** — see "What you need to do" be
 
 ### Phase 1 — security and bugs
 - **Audit trail** (migration `20261016170000_audit_trail.sql`): every sale, void, voucher batch,
-  plan or price change and staff role/access change is written to `audit_log` (cash handovers and
-  seller terms were already logged by their own functions)
-  (who, what, when, which business), whatever screen or worker made it.
+  plan or price change and staff role/access change is written to `audit_log` (who, what, when,
+  which business), whatever screen or worker made it. Cash handovers and seller terms were already
+  logged by their own functions.
 - **Retry-safe selling** (migration `20261016171000_idempotent_sell.sql` + Sell page): each sale
   attempt carries a request id; a lost reply is retried automatically and returns the same card, so
   a bad connection can no longer sell two cards. Works before the migration too (old behaviour).
