@@ -31,6 +31,7 @@ const BuyPage = page(() => import('./pages/BuyPage'), 'BuyPage');
 const PaymentsPage = page(() => import('./pages/PaymentsPage'), 'PaymentsPage');
 const CashPage = page(() => import('./pages/CashPage'), 'CashPage');
 const SignupPage = page(() => import('./pages/SignupPage'), 'SignupPage');
+const TermsPage = page(() => import('./pages/TermsPage'), 'TermsPage');
 const BillingPage = page(() => import('./pages/BillingPage'), 'BillingPage');
 const SecurityPage = page(() => import('./pages/SecurityPage'), 'SecurityPage');
 const AlertsPage = page(() => import('./pages/AlertsPage'), 'AlertsPage');
@@ -55,6 +56,7 @@ export function App() {
         {/* Public: customers buy a card with mobile money (no login). */}
         <Route path="/buy/:slug" element={<BuyPage />} />
         <Route path="/signup" element={<SignupPage />} />
+        <Route path="/terms" element={<TermsPage />} />
         <Route element={<RequireAuth />}>
           {/* Print pages render without the app layout so only the paper prints. */}
           <Route element={<RequireRole roles={rolesFor('/vouchers')} />}>

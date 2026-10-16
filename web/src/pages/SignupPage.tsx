@@ -68,6 +68,13 @@ export function SignupPage() {
           >
             {busy ? 'Creating your account…' : 'Start free trial'}
           </button>
+          <p className="text-center text-xs text-slate-500">
+            By starting the free trial you agree to the{' '}
+            <Link to="/terms" className="font-semibold text-brand-700 underline">
+              terms of service and privacy
+            </Link>
+            .
+          </p>
           <p className="text-center text-sm text-slate-600">
             Already have an account?{' '}
             <Link to="/login" className="font-semibold text-brand-700 hover:underline">

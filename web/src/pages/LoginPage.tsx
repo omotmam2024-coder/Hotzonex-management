@@ -133,6 +133,11 @@ export function LoginPage() {
             Start a free trial
           </Link>
         </p>
+        <p className="mt-2 text-center text-xs">
+          <Link to="/terms" className="text-slate-500 hover:underline">
+            Terms and privacy
+          </Link>
+        </p>
       </div>
     </div>
   );
