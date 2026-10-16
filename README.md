@@ -64,11 +64,21 @@ setting. What it does write is limited to:
    automatically, and the router password key is generated in Supabase Vault by a migration.
 
    ```bash
+   # Called by logged-in staff (the Supabase gateway checks the login first):
    supabase functions deploy add-router
    supabase functions deploy create-staff
-   supabase functions deploy router-gateway --no-verify-jwt   # called by routers (token checked inside)
-   supabase functions deploy router-direct --no-verify-jwt    # called by the database (secret checked inside)
+   supabase functions deploy delete-items
+   # Check their caller themselves (router token, worker secret, public page, Telegram webhook):
+   supabase functions deploy router-gateway --no-verify-jwt   # called by routers
+   supabase functions deploy router-direct --no-verify-jwt    # called by the database every minute
+   supabase functions deploy tunnel --no-verify-jwt           # the VPS tunnel server
+   supabase functions deploy portal --no-verify-jwt           # login-page files for routers
+   supabase functions deploy alerts --no-verify-jwt           # Telegram alerts
+   supabase functions deploy buy --no-verify-jwt              # the public Buy page
+   supabase functions deploy signup --no-verify-jwt           # public sign-up
    ```
+
+   Optional secret: `TELEGRAM_BOT_TOKEN` (Edge Functions → Secrets) turns on Telegram alerts.
 
    For another Supabase project, change the `direct_worker_url` row in `app_config`
    (migration `…_router_secrets_in_vault.sql`) to that project's URL.
@@ -183,8 +193,12 @@ script-connected router: `/system scheduler remove [find name="hzc-cloud"]` and
 
 | Where | Variable | What / where to get it |
 | --- | --- | --- |
-| `web/.env`, Vercel | `VITE_SUPABASE_URL` | Supabase → Project Settings → API → Project URL |
-| `web/.env`, Vercel | `VITE_SUPABASE_ANON_KEY` | Supabase → Project Settings → API → `anon` public key |
+| `web/.env`, DigitalOcean, Vercel | `VITE_SUPABASE_URL` | Supabase → Project Settings → API → Project URL (optional: the app has Hotzonex Cloud's project built in) |
+| `web/.env`, DigitalOcean, Vercel | `VITE_SUPABASE_ANON_KEY` | Supabase → Project Settings → API → `anon` public key (used only together with a matching URL) |
+| Supabase Edge Functions → Secrets | `TELEGRAM_BOT_TOKEN` | Optional. From @BotFather; turns on Telegram alerts |
+
+No other secret is needed: the router password key and the worker secret are created inside the
+database (Vault) by the migrations. The service-role key is never put in the web app.
 
 ---
 
@@ -192,11 +206,13 @@ script-connected router: `/system scheduler remove [find name="hzc-cloud"]` and
 
 ### Roles
 
-| Role | Menu | Can do |
+| Role (database value) | Menu | Can do |
 | --- | --- | --- |
-| Admin | Dashboard, Sell, Vouchers, Plans, Routers, Sales, Reports, Active Users, Staff | Everything, all sites; voids; Disconnect |
-| Manager | Dashboard, Sell, Vouchers, Sales, Reports, Active Users | Own site: generate and print vouchers, sell, mark as sold, sales and reports |
-| Seller | Sell, Sales | Own site: sell and print receipts; sees only own sales for today |
+| Owner (`admin`) | Everything, incl. Plans, Routers, Staff, Billing, Business settings | Everything, all sites; voids; Disconnect |
+| Manager (`manager`) | Dashboard, Sell, Vouchers, Sales, Reports, Active Users | Own site: generate and print vouchers, sell, mark as sold, sales and reports |
+| Cashier / Agent (`seller`) | Sell, Payments, Sales, Cash-up | Own site: sell and print receipts; own sales and cash; agents get a commission and credit limit |
+
+Roles are enforced in the database (RLS policies and checks inside every function), not only by the menu.
 
 ### Router jobs
 
@@ -409,8 +425,31 @@ transaction ID). **Mark paid** switches it back on.
 ```bash
 npm run install:all      # web dependencies
 npm run typecheck        # strict TypeScript for the web app
-npm test                 # RouterOS script builder and report parser (Node 22.18+)
+npm run lint             # ESLint (TypeScript + React hooks), no warnings allowed
+npm test                 # router/billing/buy logic and the form checks (Node 22.18+)
 npm run build:web
 ```
 
-Migrations are in `supabase/migrations/` (one file per build phase, applied in order).
+All four must pass before a push: DigitalOcean (and Vercel) build every commit on the branch.
+
+### Database migrations
+
+Migrations are in `supabase/migrations/`, applied in file-name order. Never edit a file that was
+applied; add a new one. To apply new ones to the live project:
+
+```bash
+supabase link --project-ref tyiwnaxdejtsdofgnuow
+supabase migration list        # shows which files are not applied yet
+supabase db push               # applies them, in order
+```
+
+(Or paste each new file into Supabase → SQL Editor, oldest first.) The web app keeps working
+before a migration is applied: features that need it stay hidden or say so.
+
+After applying, regenerate the database types used by the web app:
+
+```bash
+supabase gen types typescript --project-id tyiwnaxdejtsdofgnuow > web/src/lib/database.types.ts
+```
+
+and remove the matching entries from `web/src/lib/database.pending.ts`.
