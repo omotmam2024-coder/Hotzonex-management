@@ -9,6 +9,7 @@ import { formatJubaTime, formatNumber } from '../lib/format';
 import { invalidateSalesData, usePlans, useSites } from '../lib/queries';
 import { supabase, supabaseUrl } from '../lib/supabase';
 import type { SiteRow } from '../lib/types';
+import { readStored, writeStored } from '../lib/storage';
 
 interface PaymentRow {
   id: string;
@@ -34,7 +35,8 @@ function qrSvg(text: string, cell = 6): string {
   const qr = qrcode(0, 'M');
   qr.addData(text);
   qr.make();
-  return qr.createSvgTag({ cellSize: cell, margin: 2, scalable: true });
+  // A white border of 4 squares (the QR standard): every scanner app reads it.
+  return qr.createSvgTag({ cellSize: cell, margin: 4, scalable: true });
 }
 
 function slugFrom(name: string): string {
@@ -46,17 +48,32 @@ function slugFrom(name: string): string {
     .padEnd(3, '0');
 }
 
-/** A printable A4 poster: the QR code and link to the Buy page. */
-function printPoster(site: SiteRow, business: string) {
+/** The QR text phones read as "join this WiFi" (an open hotspot network, no password). */
+function wifiQrText(ssid: string): string {
+  return `WIFI:T:nopass;S:${ssid.replace(/([\\;,:"])/g, '\\$1')};;`;
+}
+
+/**
+ * A printable A4 poster: the QR code and link to the Buy page and, when the WiFi name is given, a
+ * second code that joins the phone to the WiFi (the only kind the scanner in WiFi settings reads).
+ */
+function printPoster(site: SiteRow, business: string, wifiName: string) {
   const url = buyUrl(site.buy_slug ?? '');
   const esc = (t: string) => t.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
   const w = window.open('', '_blank');
   if (!w) return;
+  const ssid = wifiName.trim();
+  const codes = ssid
+    ? `<div class="row"><div class="box"><h2>1. Join the WiFi</h2><div class="qr">${qrSvg(wifiQrText(ssid), 10)}</div>
+<p>Scan in WiFi settings or with the camera</p><p class="url">${esc(ssid)}</p></div>
+<div class="box"><h2>2. Buy a card</h2><div class="qr">${qrSvg(url, 10)}</div><p>Scan with the camera app</p></div></div>`
+    : `<div class="qr big">${qrSvg(url, 10)}</div><p>Scan with the camera app (or open the link)</p>`;
   w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Buy WiFi – ${esc(site.name)}</title>
-<style>body{font-family:system-ui,sans-serif;text-align:center;margin:40px}h1{font-size:44px;margin:0 0 8px}p{font-size:22px;margin:8px 0}
-.qr{width:420px;margin:24px auto}.qr svg{width:100%;height:auto}.url{font-size:20px;font-weight:700;word-break:break-all}</style></head>
-<body><h1>Buy WiFi here</h1><p>${esc(business)} · ${esc(site.name)}</p><div class="qr">${qrSvg(url, 10)}</div>
-<p>1. Scan the code (or open the link) &nbsp; 2. Pay by mobile money &nbsp; 3. Get your card on your phone</p><p class="url">${esc(url)}</p>
+<style>body{font-family:system-ui,sans-serif;text-align:center;margin:32px}h1{font-size:44px;margin:0 0 8px}h2{font-size:28px;margin:0}p{font-size:20px;margin:6px 0}
+.row{display:flex;gap:24px;justify-content:center;margin:24px 0}.box{flex:1;max-width:340px}.qr{width:300px;margin:12px auto}.qr.big{width:420px;margin:24px auto}
+.qr svg{width:100%;height:auto}.url{font-size:20px;font-weight:700;word-break:break-all}.steps{font-size:22px}</style></head>
+<body><h1>Buy WiFi here</h1><p>${esc(business)} · ${esc(site.name)}</p>${codes}
+<p class="steps">Pay by mobile money, then get your card code on your phone.</p><p class="url">${esc(url)}</p>
 </body></html>`);
   w.document.close();
   // Printed from here: the poster window may not run scripts of its own (Content-Security-Policy).
@@ -67,6 +84,12 @@ function BuySettings({ site }: { site: SiteRow }) {
   const { business } = useAuth();
   const queryClient = useQueryClient();
   const [enabled, setEnabled] = useState(site.buy_enabled);
+  const wifiKey = `hzc.posterWifi.${site.id}`;
+  const [wifiName, setWifiNameState] = useState(() => readStored<string>('local', wifiKey) ?? '');
+  const setWifiName = (v: string) => {
+    setWifiNameState(v);
+    writeStored('local', wifiKey, v || null);
+  };
   const [slug, setSlug] = useState(site.buy_slug ?? slugFrom(`${business?.name ?? ''} ${site.name}`));
   const [instructions, setInstructions] = useState(site.buy_instructions ?? '');
   useEffect(() => {
@@ -131,7 +154,10 @@ function BuySettings({ site }: { site: SiteRow }) {
             <a href={buyUrl(site.buy_slug!)} target="_blank" rel="noopener" className="block break-all font-semibold text-brand-700 underline">
               {buyUrl(site.buy_slug!)}
             </a>
-            <Button variant="secondary" onClick={() => printPoster(site, business?.name ?? '')}>
+            <Field label="WiFi name on the poster (optional)" hint="Adds a second QR code that joins the phone to this WiFi.">
+              <TextInput value={wifiName} onChange={(e) => setWifiName(e.target.value.slice(0, 32))} placeholder="e.g. Hotzonex WiFi" />
+            </Field>
+            <Button variant="secondary" onClick={() => printPoster(site, business?.name ?? '', wifiName)}>
               Print poster
             </Button>
           </div>
