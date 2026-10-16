@@ -181,7 +181,7 @@ export function CashPage() {
       <Card>
         {rows.isLoading && <Spinner />}
         {rows.error && <Alert tone="error">{friendlyError(rows.error)}</Alert>}
-        {!rows.isLoading && !list.length && <p className="text-slate-600">No sellers or cash on this day.</p>}
+        {!rows.isLoading && !list.length && <p className="text-slate-600">No cashiers, agents or cash on this day.</p>}
         <ul className="divide-y divide-slate-100">
           {list.map((r) => {
             const over = r.credit_limit_ssp !== null && r.held_now >= r.credit_limit_ssp;

@@ -82,13 +82,13 @@ function NewBusiness({ onClose }: { onClose: () => void }) {
           <Field label="Time zone" hint="Reports count days in this time zone">
             <TextInput value={form.timezone} onChange={(e) => set('timezone', e.target.value)} placeholder="Africa/Juba" />
           </Field>
-          <Field label="Admin's full name">
+          <Field label="Owner's full name">
             <TextInput value={form.full_name} onChange={(e) => set('full_name', e.target.value)} maxLength={80} />
           </Field>
-          <Field label="Admin's email (login)">
+          <Field label="Owner's email (login)">
             <TextInput type="email" value={form.email} onChange={(e) => set('email', e.target.value)} autoComplete="off" />
           </Field>
-          <Field label="Admin's first password" hint="At least 8 characters; they can change it later">
+          <Field label="Owner's first password" hint="At least 8 characters; they can change it later">
             <TextInput type="password" value={form.password} onChange={(e) => set('password', e.target.value)} autoComplete="new-password" />
           </Field>
         </div>
@@ -183,7 +183,7 @@ export function BusinessesPage() {
                 <div className="truncate font-bold">
                   {b.name} {b.id === business?.id && <span className="font-normal text-slate-500">(yours)</span>}
                 </div>
-                <div className="truncate text-sm text-slate-600">{b.admin_names ? `Admin: ${b.admin_names}` : 'No admin yet'}</div>
+                <div className="truncate text-sm text-slate-600">{b.admin_names ? `Owner: ${b.admin_names}` : 'No owner yet'}</div>
                 <div className="mt-2 flex flex-wrap gap-2">
                   <Badge color="gray">{formatNumber(b.sites)} sites</Badge>
                   <Badge color="gray">{formatNumber(b.routers)} routers</Badge>

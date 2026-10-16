@@ -152,7 +152,7 @@ export function MarkSoldPage() {
               ))}
             </Select>
           </Field>
-          <Field label="Seller who handed out the cards">
+          <Field label="Cashier or agent who handed out the cards">
             <Select value={sellerId} onChange={(e) => setSellerId(e.target.value)} disabled={!router}>
               <option value="">Choose a seller…</option>
               {sellers.map((s) => (

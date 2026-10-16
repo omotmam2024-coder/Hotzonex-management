@@ -206,7 +206,7 @@ export function SalesPage() {
             </Field>
             <Field label="Seller">
               <Select value={sellerId} onChange={(e) => resetPage(setSellerId)(e.target.value)}>
-                <option value="">All sellers</option>
+                <option value="">All cashiers and agents</option>
                 {(staff.data ?? []).map((s) => (
                   <option key={s.id} value={s.id}>
                     {s.full_name}
@@ -252,7 +252,7 @@ export function SalesPage() {
                 <th className="px-4 py-3">Code</th>
                 <th className="px-4 py-3">Plan</th>
                 <th className="px-4 py-3 text-right">Amount</th>
-                <th className="px-4 py-3">Seller</th>
+                <th className="px-4 py-3">Cashier / agent</th>
                 <th className="px-4 py-3">Site</th>
                 <th className="px-4 py-3">
                   <span className="sr-only">Actions</span>

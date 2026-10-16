@@ -69,9 +69,9 @@ function StaffEditor({ initial, onClose }: { initial: StaffForm; onClose: () => 
           </Field>
           <Field label="Role">
             <Select value={form.role} onChange={(e) => set('role', e.target.value as Role)}>
-              <option value="seller">Seller — sells and prints receipts</option>
+              <option value="seller">Cashier / Agent — sells cards and prints receipts</option>
               <option value="manager">Manager — runs one site</option>
-              <option value="admin">Admin — everything</option>
+              <option value="admin">Owner — everything, all sites</option>
             </Select>
           </Field>
           <Field label="Site" hint={form.role === 'admin' ? 'Admins can leave this empty to see all sites' : undefined}>
@@ -115,7 +115,7 @@ export function StaffPage() {
     <div className="space-y-4">
       <PageHeader
         title="Staff"
-        subtitle="Logins for admins, managers and sellers"
+        subtitle="Logins for owners, managers, cashiers and agents"
         actions={
           !editing && (
             <Button onClick={() => setEditing(NEW_FORM)} className="min-h-11">

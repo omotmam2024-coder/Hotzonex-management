@@ -128,7 +128,7 @@ export function ReportsPage() {
   const r = report.data;
   const scope = isAdmin ? (siteId ? (sites.data?.find((s) => s.id === siteId)?.name ?? '') : 'All sites') : (mySite ?? '');
   const planName = planId ? (plans.data?.find((p) => p.id === planId)?.name ?? '') : 'All plans';
-  const sellerName = sellerId ? (staff.data?.find((s) => s.id === sellerId)?.full_name ?? '') : 'All sellers';
+  const sellerName = sellerId ? (staff.data?.find((s) => s.id === sellerId)?.full_name ?? '') : 'All cashiers and agents';
   const label = r ? periodLabel(tab, r.start, r.end) : '';
   const noun = TABS.find((t) => t.key === tab)?.noun ?? '';
   const isCurrent = r ? jubaToday() >= r.start && jubaToday() <= r.end : true;
@@ -168,7 +168,7 @@ export function ReportsPage() {
       ['Period', label],
       ['Site', scope],
       ['Plan', planName],
-      ['Seller', sellerName],
+      ['Cashier / agent', sellerName],
       ['Generated', generatedFmt.format(new Date())],
       ['Note', 'Africa/Juba time. Voided sales are excluded.'],
       [],
@@ -184,7 +184,7 @@ export function ReportsPage() {
       ...r.by_plan.map((p) => [p.name, p.sold, p.revenue, p.share_pct]),
       [],
       ['By seller'],
-      ['Seller', 'Vouchers sold', 'Revenue (SSP)'],
+      ['Cashier / agent', 'Vouchers sold', 'Revenue (SSP)'],
       ...r.by_seller.map((p) => [p.name, p.sold, p.revenue]),
     ];
     if (!r.site_id) rows.push([], ['By site'], ['Site', 'Vouchers sold', 'Revenue (SSP)'], ...r.by_site.map((p) => [p.name, p.sold, p.revenue]));
@@ -286,7 +286,7 @@ export function ReportsPage() {
           </Field>
           <Field label="Seller">
             <Select value={sellerId} onChange={(e) => set('seller', e.target.value)}>
-              <option value="">All sellers</option>
+              <option value="">All cashiers and agents</option>
               {(staff.data ?? []).map((s) => (
                 <option key={s.id} value={s.id}>
                   {s.full_name}
@@ -375,7 +375,7 @@ export function ReportsPage() {
               <table className="w-full text-left text-sm">
                 <thead>
                   <tr>
-                    <th className={th}>Seller</th>
+                    <th className={th}>Cashier / agent</th>
                     <th className={`${th} text-right`}>Sold</th>
                     <th className={`${th} text-right`}>Revenue</th>
                   </tr>
