@@ -77,7 +77,7 @@ export function Layout() {
           if (!inGroup.length) return null;
           return (
             <div key={group}>
-              <p className="mb-1 px-3 text-[11px] font-semibold uppercase tracking-wider text-white/40">{group}</p>
+              <p className="mb-1 px-3 text-[11px] font-semibold uppercase tracking-wider text-white/60">{group}</p>
               <ul className="space-y-0.5">
                 {inGroup.map((item) => (
                   <li key={item.path}>
@@ -97,7 +97,7 @@ export function Layout() {
             <div className="truncate text-white/60">
               {ROLE_LABELS[profile.role]} · {siteLabel}
             </div>
-            {business && <div className="truncate text-xs text-white/40">{business.name}</div>}
+            {business && <div className="truncate text-xs text-white/60">{business.name}</div>}
           </div>
           <button
             type="button"

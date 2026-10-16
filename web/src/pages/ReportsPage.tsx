@@ -472,7 +472,7 @@ export function ReportsPage() {
                       <td className={`${td} text-right tabular-nums`}>{formatSSP(b.revenue)}</td>
                     </tr>
                   ) : (
-                    <tr key={i} className={`border-t border-slate-100 ${b.sold === 0 ? 'text-slate-400' : ''}`}>
+                    <tr key={i} className={`border-t border-slate-100 ${b.sold === 0 ? 'text-slate-500' : ''}`}>
                       <td className={`${td} tabular-nums`}>{b.label}</td>
                       <td className={`${td} text-right tabular-nums`}>{formatNumber(b.sold)}</td>
                       <td className={`${td} text-right tabular-nums`}>{formatSSP(b.revenue)}</td>
@@ -509,7 +509,7 @@ export function ReportsPage() {
                     <td className={`${td} font-mono`}>{l.username}</td>
                     <td className={td}>{l.plan ? profileLabel(l.plan) : '—'}</td>
                     <td className={`${td} tabular-nums`}>{l.first_login_at ? formatJubaTime(l.first_login_at) : 'before this period'}</td>
-                    <td className={`${td} text-right tabular-nums ${l.new && l.price_ssp ? 'font-semibold' : 'text-slate-400'}`}>
+                    <td className={`${td} text-right tabular-nums ${l.new && l.price_ssp ? 'font-semibold' : 'text-slate-500'}`}>
                       {l.new && l.price_ssp ? formatSSP(l.price_ssp) : '—'}
                     </td>
                   </tr>

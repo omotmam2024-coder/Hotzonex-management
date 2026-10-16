@@ -197,7 +197,7 @@ export function DashboardPage() {
               <div className="mb-2 flex items-center justify-between gap-2">
                 <h2 className="text-lg font-bold">Routers</h2>
                 {isAdmin && (
-                  <Link to="/routers" className="text-sm font-semibold text-brand-700 hover:underline">
+                  <Link to="/routers" className="inline-flex min-h-11 items-center text-sm font-semibold text-brand-700 hover:underline">
                     Manage
                   </Link>
                 )}
@@ -254,7 +254,7 @@ export function DashboardPage() {
           <Card className="!p-0">
             <div className="flex flex-wrap items-center justify-between gap-2 px-4 pt-4">
               <h2 className="text-lg font-bold">Stock left</h2>
-              <Link to="/vouchers/generate" className="text-sm font-semibold text-brand-700 hover:underline">
+              <Link to="/vouchers/generate" className="inline-flex min-h-11 items-center text-sm font-semibold text-brand-700 hover:underline">
                 Generate vouchers
               </Link>
             </div>

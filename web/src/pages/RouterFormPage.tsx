@@ -43,7 +43,7 @@ function Outlined({ label, children, className = '' }: { label: string; children
   );
 }
 
-const inputClass = 'w-full bg-transparent py-1 text-lg text-slate-900 outline-none placeholder:text-slate-400 disabled:text-slate-400';
+const inputClass = 'min-h-11 w-full bg-transparent py-1 text-lg text-slate-900 outline-none placeholder:text-slate-500 disabled:text-slate-500';
 
 export function RouterFormPage() {
   const { id } = useParams<{ id: string }>();
@@ -150,7 +150,7 @@ export function RouterFormPage() {
   const header = (title: string) => (
     <div className="-mx-4 -mt-4 mb-6 border-b-2 border-brand-600 bg-slate-50 px-4 py-4 sm:-mx-6 sm:px-6">
       <div className="flex items-center gap-4">
-        <button type="button" aria-label="Back" className="text-2xl text-slate-800" onClick={() => navigate('/routers')}>
+        <button type="button" aria-label="Back" className="-ml-2 flex h-11 w-11 items-center justify-center rounded-lg text-2xl text-slate-800 hover:bg-slate-200" onClick={() => navigate('/routers')}>
           ←
         </button>
         <h1 className="text-2xl font-bold text-slate-900">{title}</h1>
@@ -250,7 +250,7 @@ export function RouterFormPage() {
               autoComplete="new-password"
               disabled={busy}
             />
-            <button type="button" className="px-1 text-sm font-semibold text-slate-700" onClick={() => setShowPassword((v) => !v)}>
+            <button type="button" className="min-h-11 px-2 text-sm font-semibold text-slate-700" onClick={() => setShowPassword((v) => !v)}>
               {showPassword ? 'Hide' : 'Show'}
             </button>
           </div>
