@@ -7,6 +7,7 @@ import { ErrorBoundary } from './ErrorBoundary';
 import { BillingBanner } from './BillingBanner';
 import { SupportBar } from './SupportBar';
 import { Icon } from './Icon';
+import { getThemePref, setThemePref, type ThemePref } from '../lib/theme';
 
 const GROUPS: NavGroup[] = ['Overview', 'Selling', 'Cards & WiFi', 'Business'];
 
@@ -42,6 +43,36 @@ function MenuLink({ item }: { item: NavItem }) {
         </>
       )}
     </NavLink>
+  );
+}
+
+const THEMES: { key: ThemePref; label: string }[] = [
+  { key: 'light', label: 'Light' },
+  { key: 'dark', label: 'Dark' },
+  { key: 'system', label: 'Auto' },
+];
+
+/** Light / Dark / Auto (follows the phone), saved on this device. */
+function ThemeSwitch() {
+  const [pref, setPref] = useState<ThemePref>(getThemePref);
+  return (
+    <div className="grid grid-cols-3 gap-1 rounded-xl bg-white/[0.06] p-1" role="radiogroup" aria-label="Theme">
+      {THEMES.map((t) => (
+        <button
+          key={t.key}
+          type="button"
+          role="radio"
+          aria-checked={pref === t.key}
+          onClick={() => {
+            setThemePref(t.key);
+            setPref(t.key);
+          }}
+          className={`min-h-11 rounded-lg text-xs font-semibold ${pref === t.key ? 'bg-white/15 text-white' : 'text-white/60 hover:bg-white/10 hover:text-white'}`}
+        >
+          {t.label}
+        </button>
+      ))}
+    </div>
   );
 }
 
@@ -89,7 +120,8 @@ export function Layout() {
           );
         })}
       </div>
-      <div className="shrink-0 border-t border-white/10 p-3">
+      <div className="shrink-0 space-y-2 border-t border-white/10 p-3">
+        <ThemeSwitch />
         <div className="flex items-center gap-3 rounded-xl bg-white/[0.06] p-2.5">
           <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-500 text-sm font-bold">{initials(profile.full_name)}</span>
           <div className="min-w-0 flex-1 text-sm leading-tight">

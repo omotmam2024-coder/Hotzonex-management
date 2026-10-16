@@ -75,6 +75,10 @@ limits, the Buy page stuck on "Loading…", poster QR border and join-WiFi QR, 2
   to the audit log), applied on 16 October 2026 and recorded in the migration history.
 - Category **Feeding** added (migration `20261016220000_expense_feeding.sql`, applied).
 
+### Dark mode
+- **Light / Dark / Auto** switch at the bottom of the menu (Auto follows the phone or computer).
+  Saved on each device; Light is the default. Printed cards, receipts and reports are always light.
+
 ## What you need to do
 
 1. **Make the GitHub repository private** (Settings → General → Danger Zone → Change visibility).

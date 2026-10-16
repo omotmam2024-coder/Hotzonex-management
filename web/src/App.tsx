@@ -1,5 +1,6 @@
-import { Suspense } from 'react';
-import { Navigate, Route, Routes } from 'react-router-dom';
+import { Suspense, useEffect } from 'react';
+import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
+import { applyTheme, watchSystemTheme } from './lib/theme';
 import { useAuth } from './auth/AuthProvider';
 import { RequireAuth } from './auth/RequireAuth';
 import { RequireRole } from './auth/RequireRole';
@@ -64,6 +65,11 @@ function HomeRedirect() {
 }
 
 export function App() {
+  const { pathname } = useLocation();
+  // Print pages stay light; every other page follows the saved theme.
+  useEffect(() => applyTheme(pathname), [pathname]);
+  useEffect(() => watchSystemTheme(), []);
+
   return (
     <Suspense fallback={<FullScreenSpinner />}>
       <Routes>

@@ -44,3 +44,201 @@ body {
 .overflow-x-auto {
   position: relative;
 }
+
+/* ---------------------------------------------------------------------------------------------
+   Dark theme (html.dark, set by public/theme.js and lib/theme.ts). It recolours the light
+   utility classes the app uses, so pages need no dark: variants. Screens only: printing is
+   always light. The menu, the phone header and solid brand buttons are already dark and stay.
+   --------------------------------------------------------------------------------------------- */
+@media screen {
+  html.dark {
+    color-scheme: dark;
+    --d-page: #0b1120;
+    --d-surface: #131c2e;
+    --d-raised: #182235;
+    --d-hover: #1d2940;
+    --d-muted: #1e293b;
+    --d-strong: #2a3850;
+    --d-line: #223047;
+    --d-line-strong: #34445e;
+    --d-text: #e5eaf2;
+    --d-text-2: #cfd8e5;
+    --d-text-3: #a7b4c7;
+    --d-text-4: #8796ad;
+  }
+  html.dark body {
+    background-color: var(--d-page);
+    color: var(--d-text);
+  }
+
+  /* Surfaces */
+  html.dark .bg-white,
+  html.dark .bg-white\/90 {
+    background-color: var(--d-surface);
+  }
+  html.dark .bg-white\/60 {
+    background-color: rgb(11 17 32 / 0.6);
+  }
+  html.dark .bg-white\/95 {
+    background-color: rgb(19 28 46 / 0.95);
+  }
+  html.dark .bg-slate-50 {
+    background-color: var(--d-raised);
+  }
+  html.dark .bg-red-50\/50 {
+    background-color: rgb(239 68 68 / 0.08);
+  }
+  html.dark .bg-slate-100,
+  html.dark .disabled\:bg-slate-100:disabled {
+    background-color: var(--d-muted);
+  }
+  html.dark .bg-slate-200 {
+    background-color: var(--d-strong);
+  }
+  html.dark .hover\:bg-white:hover,
+  html.dark .hover\:bg-slate-50:hover,
+  html.dark .hover\:bg-slate-100:hover {
+    background-color: var(--d-hover);
+  }
+  html.dark .hover\:bg-slate-200:hover {
+    background-color: var(--d-strong);
+  }
+
+  /* Tinted panels: badges, alerts, selected rows */
+  html.dark .bg-brand-50,
+  html.dark .hover\:bg-brand-50:hover {
+    background-color: rgb(31 111 235 / 0.16);
+  }
+  html.dark .bg-brand-100,
+  html.dark .hover\:bg-brand-100:hover {
+    background-color: rgb(31 111 235 / 0.26);
+  }
+  html.dark .bg-red-50,
+  html.dark .hover\:bg-red-50:hover {
+    background-color: rgb(239 68 68 / 0.13);
+  }
+  html.dark .bg-red-100 {
+    background-color: rgb(239 68 68 / 0.22);
+  }
+  html.dark .bg-amber-50 {
+    background-color: rgb(245 158 11 / 0.13);
+  }
+  html.dark .bg-amber-100 {
+    background-color: rgb(245 158 11 / 0.22);
+  }
+  html.dark .bg-green-50,
+  html.dark .bg-emerald-50 {
+    background-color: rgb(34 197 94 / 0.12);
+  }
+  html.dark .bg-green-100 {
+    background-color: rgb(34 197 94 / 0.2);
+  }
+  html.dark .bg-violet-50 {
+    background-color: rgb(139 92 246 / 0.14);
+  }
+  html.dark .bg-sky-50 {
+    background-color: rgb(14 165 233 / 0.14);
+  }
+
+  /* Text */
+  html.dark .text-slate-900 {
+    color: var(--d-text);
+  }
+  html.dark .text-slate-800 {
+    color: var(--d-text-2);
+  }
+  html.dark .text-slate-700 {
+    color: var(--d-text-2);
+  }
+  html.dark .text-slate-600 {
+    color: var(--d-text-3);
+  }
+  html.dark .text-slate-500,
+  html.dark .placeholder\:text-slate-500::placeholder,
+  html.dark .disabled\:text-slate-500:disabled {
+    color: var(--d-text-4);
+  }
+  html.dark .text-brand-600,
+  html.dark .text-brand-700 {
+    color: #7cb4ff;
+  }
+  html.dark .text-brand-800,
+  html.dark .text-brand-900 {
+    color: #a9cdff;
+  }
+  html.dark .text-red-700,
+  html.dark .text-red-800 {
+    color: #fca5a5;
+  }
+  html.dark .text-green-700,
+  html.dark .text-green-800,
+  html.dark .text-emerald-600,
+  html.dark .text-emerald-700 {
+    color: #86efac;
+  }
+  html.dark .text-amber-600,
+  html.dark .text-amber-700,
+  html.dark .text-amber-800,
+  html.dark .text-amber-900,
+  html.dark .text-amber-950 {
+    color: #fcd34d;
+  }
+  /* Dark text on a bright solid chip (e.g. "Only 3 left" on amber) stays dark. */
+  html.dark .bg-amber-300.text-amber-950 {
+    color: #451a03;
+  }
+  html.dark .text-violet-600 {
+    color: #c4b5fd;
+  }
+  html.dark .text-sky-600 {
+    color: #7dd3fc;
+  }
+
+  /* Lines and rings */
+  html.dark .border-slate-100,
+  html.dark .sm\:border-slate-100,
+  html.dark .border-slate-200,
+  html.dark .divide-slate-100 > :not([hidden]) ~ :not([hidden]) {
+    border-color: var(--d-line);
+  }
+  html.dark .border-slate-300 {
+    border-color: var(--d-line-strong);
+  }
+  html.dark .border-slate-900 {
+    border-color: var(--d-text-3);
+  }
+  html.dark .border-brand-100 {
+    border-color: rgb(31 111 235 / 0.35);
+  }
+  html.dark .ring-slate-200,
+  html.dark .ring-slate-200\/70 {
+    --tw-ring-color: var(--d-line);
+  }
+  html.dark .ring-slate-300 {
+    --tw-ring-color: var(--d-line-strong);
+  }
+  html.dark .ring-slate-900 {
+    --tw-ring-color: var(--d-text-3);
+  }
+  html.dark .ring-red-200 {
+    --tw-ring-color: rgb(239 68 68 / 0.4);
+  }
+  html.dark .ring-amber-200 {
+    --tw-ring-color: rgb(245 158 11 / 0.4);
+  }
+  html.dark .ring-green-200 {
+    --tw-ring-color: rgb(34 197 94 / 0.4);
+  }
+  html.dark .ring-brand-100,
+  html.dark .ring-brand-200,
+  html.dark .focus\:ring-brand-100:focus {
+    --tw-ring-color: rgb(31 111 235 / 0.4);
+  }
+  html.dark .shadow-card,
+  html.dark .shadow-sm {
+    --tw-shadow: 0 1px 2px rgb(0 0 0 / 0.4);
+  }
+  html.dark :focus-visible {
+    --tw-ring-offset-color: var(--d-page);
+  }
+}
