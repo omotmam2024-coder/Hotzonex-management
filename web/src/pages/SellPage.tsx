@@ -90,6 +90,29 @@ function PlanButton({ plan, stock, busy, onSell }: { plan: Plan; stock: number |
   );
 }
 
+/** A sale that failed; `network` when the reply never arrived (the sale may have happened). */
+class SellError extends Error {
+  readonly network: boolean;
+  constructor(message: string, network: boolean) {
+    super(message);
+    this.network = network;
+  }
+}
+
+/** A random UUID (crypto.randomUUID is missing on older Android browsers). */
+function newRequestId(): string {
+  if (typeof crypto.randomUUID === 'function') return crypto.randomUUID();
+  const b = crypto.getRandomValues(new Uint8Array(16));
+  b[6] = (b[6]! & 0x0f) | 0x40;
+  b[8] = (b[8]! & 0x3f) | 0x80;
+  const h = [...b].map((x) => x.toString(16).padStart(2, '0')).join('');
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
+}
+
+function isNetworkError(message: string): boolean {
+  return /failed to fetch|networkerror|load failed|network request failed|timeout|aborted/i.test(message);
+}
+
 export function SellPage() {
   const { profile, siteName: mySiteName } = useAuth();
   const navigate = useNavigate();
@@ -127,17 +150,25 @@ export function SellPage() {
 
   // A double tap must not sell two vouchers: the second tap comes before isPending re-renders.
   const inFlight = useRef(false);
+  // One id per sale attempt, kept until it succeeds: when the reply is lost on a bad connection,
+  // trying again (automatically, or by tapping again) returns the same card instead of a second one.
+  const attempt = useRef<{ key: string; id: string } | null>(null);
   const sellPlan = (plan: Plan) => {
     if (inFlight.current) return;
     inFlight.current = true;
+    const key = `${router?.id ?? ''}|${plan.id}`;
+    if (attempt.current?.key !== key) attempt.current = { key, id: newRequestId() };
     sell.mutate(plan);
   };
 
   const sell = useMutation({
     mutationFn: async (plan: Plan): Promise<LastSale> => {
       if (!router) throw new Error('Choose a router first.');
-      const { data, error } = await supabase.rpc('sell_voucher', { p_router_id: router.id, p_plan_id: plan.id });
-      if (error) throw new Error(friendlyError(error));
+      const args = { p_router_id: router.id, p_plan_id: plan.id };
+      let { data, error } = await supabase.rpc('sell_voucher', { ...args, p_request_id: attempt.current?.id ?? null });
+      // A database without the retry-safe sell yet (migration 20261016171000 not applied): sell as before.
+      if (error?.code === 'PGRST202') ({ data, error } = await supabase.rpc('sell_voucher', args));
+      if (error) throw new SellError(friendlyError(error), isNetworkError(error.message));
       const row = (data as SaleRow[] | null)?.[0];
       if (!row) throw new Error('The sale did not return a code. Please try again.');
       return {
@@ -154,9 +185,17 @@ export function SellPage() {
         },
       };
     },
+    // Lost connection: asked again (same request id, so never a second card).
+    retry: (count, err) => count < 2 && err instanceof SellError && err.network,
+    retryDelay: (count) => 1500 * (count + 1),
     onSuccess: (sale) => {
+      attempt.current = null;
       setLastSale(sale);
       writeStored('session', LAST_SALE_KEY, sale);
+    },
+    onError: (err) => {
+      // The server answered (e.g. out of stock): the next tap is a new sale attempt.
+      if (!(err instanceof SellError && err.network)) attempt.current = null;
     },
     onSettled: () => {
       inFlight.current = false;
