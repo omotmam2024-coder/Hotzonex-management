@@ -38,6 +38,8 @@ const anonKey = envValid ? envKey : DEFAULT_ANON_KEY;
 export const supabaseConfigured = Boolean(url && anonKey);
 /** The project URL as the client uses it (cleaned). */
 export const supabaseUrl = url ?? 'http://localhost:54321';
+/** The public (anon) key, for pages that call the server without a login (the Buy page). */
+export const supabaseAnonKey = anonKey ?? 'missing-anon-key';
 
 export const supabase = createClient(supabaseUrl, anonKey ?? 'missing-anon-key', {
   auth: {

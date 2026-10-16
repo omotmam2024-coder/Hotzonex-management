@@ -3,7 +3,7 @@ import { useParams } from 'react-router-dom';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { friendlyError } from '../lib/errors';
 import { formatDuration, formatNumber } from '../lib/format';
-import { invokeFunction } from '../lib/functions';
+import { callPublicFunction } from '../lib/functions';
 
 interface BuyPlan {
   id: string;
@@ -84,14 +84,17 @@ export function BuyPage() {
 
   const site = useQuery({
     queryKey: ['buy-site', slug],
-    queryFn: () => invokeFunction<BuySite>('buy', { action: 'site', slug }),
+    queryFn: () => callPublicFunction<BuySite>('buy', { action: 'site', slug }),
     retry: false,
+    // Always asked (a phone that thinks it is offline must not wait for ever without a message).
+    networkMode: 'always',
   });
 
   const status = useQuery({
     queryKey: ['buy-status', claim?.id],
     enabled: Boolean(claim),
-    queryFn: () => invokeFunction<BuyStatus>('buy', { action: 'status', id: claim!.id, token: claim!.token }),
+    queryFn: () => callPublicFunction<BuyStatus>('buy', { action: 'status', id: claim!.id, token: claim!.token }),
+    networkMode: 'always',
     refetchInterval: (q) => {
       const s = q.state.data;
       return !s || s.status === 'pending' || (s.status === 'confirmed' && !s.ready) ? 5000 : false;
@@ -108,7 +111,8 @@ export function BuyPage() {
   }, [status.error, slug]);
 
   const send = useMutation({
-    mutationFn: () => invokeFunction<Claim>('buy', { action: 'request', slug, plan_id: planId, phone, provider, txn_ref: txn }),
+    mutationFn: () => callPublicFunction<Claim>('buy', { action: 'request', slug, plan_id: planId, phone, provider, txn_ref: txn }),
+    networkMode: 'always',
     onSuccess: (c) => {
       saveClaim(slug, c);
       setClaim(c);
