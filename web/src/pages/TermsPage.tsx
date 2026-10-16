@@ -84,7 +84,16 @@ export function TermsPage() {
           </p>
         </Section>
 
-        <Section title="7. Changes and contact">
+        <Section title="7. Ownership of Hotzonex Cloud">
+          <p>
+            Hotzonex Cloud, its software, designs, texts and name belong to Hotzonex WiFi. Businesses get the right to use the hosted service while
+            they subscribe, nothing more. It is not allowed to copy, imitate, resell or publish the service or its code, to extract or
+            reverse-engineer it (including with artificial-intelligence tools), or to build a competing service from it. Breaking this ends the
+            account at once and may lead to legal action.
+          </p>
+        </Section>
+
+        <Section title="8. Changes and contact">
           <p>
             We may update these terms; the date above shows the latest version, and important changes are announced in the app. Questions, data
             requests or complaints: call or WhatsApp <b>{CONTACT_PHONE}</b>, or visit our office in Juba.

@@ -1,5 +1,8 @@
 # Hotzonex Cloud
 
+> **Proprietary and confidential.** Copyright (c) 2026 Hotzonex WiFi. All rights reserved. This is not open-source software: no permission is given to copy, modify, resell or publish it. See [LICENSE](LICENSE).
+
+
 MikroTik hotspot voucher management for Hotzonex WiFi in Juba, South Sudan
 (sites: Gorom, Jebel Iraq, HQ, Sub-Office — one RouterOS v7 router per site).
 

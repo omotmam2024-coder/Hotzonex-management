@@ -1,6 +1,7 @@
 {
   "name": "hotzonex-cloud",
   "private": true,
+  "license": "UNLICENSED",
   "description": "Hotzonex Cloud \u2014 MikroTik hotspot voucher management (web, supabase)",
   "scripts": {
     "install:all": "npm --prefix web install",
