@@ -1,9 +1,9 @@
 // OWNER: REVIEW AND EDIT. This is plain-language starter text, not legal advice. Have it checked by a
 // lawyer in South Sudan before relying on it; change the contact details in lib/contact.ts.
 import { Link } from 'react-router-dom';
+import { CONTACT } from '../lib/contact';
 
 const UPDATED = '16 October 2026';
-const CONTACT_PHONE = '+211 924 904 216';
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -98,7 +98,7 @@ export function TermsPage() {
         <Section title="8. Changes and contact">
           <p>
             We may update these terms; the date above shows the latest version, and important changes are announced in the app. Questions, data
-            requests or complaints: call or WhatsApp <b>{CONTACT_PHONE}</b>, or visit our office in Juba.
+            requests or complaints: call or WhatsApp <b>{CONTACT.phone}</b>, or visit our office in Juba.
           </p>
         </Section>
 
