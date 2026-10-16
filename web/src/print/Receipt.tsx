@@ -1,8 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { formatDuration, formatSSP } from '../lib/format';
 import type { PrintBrand } from './brand';
-import { QrCode } from './QrCode';
-import { loginAddress, loginUrl } from './voucherLinks';
+import { loginAddress } from './voucherLinks';
 
 export type ReceiptWidth = 58 | 80;
 
@@ -10,7 +9,7 @@ export interface ReceiptData {
   code: string;
   siteName: string;
   dnsName: string;
-  /** The hotspot's IP (QR code, and printed as a second address); '' when not known. */
+  /** The hotspot's IP, printed as a second address; '' when not known. */
   hotspotIp?: string;
   planName: string;
   planColor: string;
@@ -81,10 +80,7 @@ export function Receipt({ data, width, brand, onReady }: { data: ReceiptData; wi
             {formatSSP(data.priceSsp)} · {formatDuration(data.uptimeSeconds)}
           </p>
           <p style={{ ...line, fontSize: '8pt' }}>{data.planName}</p>
-          <div style={{ display: 'flex', justifyContent: 'center', margin: '2.5mm 0' }}>
-            <QrCode text={loginUrl(data.dnsName, data.code, data.hotspotIp)} sizeMm={width === 58 ? 28 : 36} />
-          </div>
-          <p style={{ ...line, fontSize: '8.5pt' }}>Connect to the WiFi, then open</p>
+          <p style={{ ...line, fontSize: '8.5pt', marginTop: '2.5mm' }}>Connect to the WiFi, then open</p>
           <p style={{ ...line, fontSize: width === 58 ? '10pt' : '12pt', fontWeight: 800, wordBreak: 'break-all' }}>{loginAddress(data.dnsName)}</p>
           {data.hotspotIp && <p style={{ ...line, fontSize: '8.5pt' }}>or {loginAddress(data.hotspotIp)}</p>}
           <p style={{ ...line, fontSize: '8.5pt' }}>Username and password are the same code.</p>

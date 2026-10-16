@@ -11,7 +11,6 @@ export interface SheetLayout {
   sitePt: number;
   pricePt: number;
   smallPt: number;
-  qrMm: number;
   barMm: number;
   padMm: number;
   /** Height of the business logo in the card's top line. */
@@ -24,7 +23,7 @@ export const SHEET_WIDTH_MM = 194;
 export const SHEET_HEIGHT_MM = 280;
 
 export const LAYOUTS: Record<CardsPerPage, SheetLayout> = {
-  24: { perPage: 24, cols: 3, rows: 8, maxCodeLength: 10, codePt: 20, sitePt: 7.5, pricePt: 10, smallPt: 7, qrMm: 15, barMm: 2.5, padMm: 1.6, logoMm: 4.2 },
-  40: { perPage: 40, cols: 4, rows: 10, maxCodeLength: 10, codePt: 17, sitePt: 6, pricePt: 7.5, smallPt: 6, qrMm: 11, barMm: 1.8, padMm: 1.2, logoMm: 3.4 },
-  50: { perPage: 50, cols: 5, rows: 10, maxCodeLength: 8, codePt: 16, sitePt: 5.5, pricePt: 6.8, smallPt: 5.5, qrMm: 10.5, barMm: 1.8, padMm: 1.2, logoMm: 3.4 },
+  24: { perPage: 24, cols: 3, rows: 8, maxCodeLength: 10, codePt: 20, sitePt: 7.5, pricePt: 10, smallPt: 7, barMm: 2.5, padMm: 1.6, logoMm: 4.2 },
+  40: { perPage: 40, cols: 4, rows: 10, maxCodeLength: 10, codePt: 17, sitePt: 6, pricePt: 7.5, smallPt: 6, barMm: 1.8, padMm: 1.2, logoMm: 3.4 },
+  50: { perPage: 50, cols: 5, rows: 10, maxCodeLength: 8, codePt: 16, sitePt: 5.5, pricePt: 6.8, smallPt: 5.5, barMm: 1.8, padMm: 1.2, logoMm: 3.4 },
 };
