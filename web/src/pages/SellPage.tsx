@@ -4,7 +4,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../auth/AuthProvider';
 import { Alert, Button, Select, Spinner } from '../components/ui';
 import { friendlyError } from '../lib/errors';
-import { codeGroups, formatDuration, formatJubaTime, formatSSP } from '../lib/format';
+import { codeGroups, formatDuration, formatJubaTime, formatSSP, formatUsd } from '../lib/format';
+import { useUsdRate } from '../lib/business';
 import { invalidateSalesData, usePlans, useRouters, useSites } from '../lib/queries';
 import { readStored, writeStored } from '../lib/storage';
 import { supabase } from '../lib/supabase';
@@ -28,12 +29,42 @@ interface LastSale {
   receipt: ReceiptData;
 }
 
+/** The text a customer receives when the code is shared (WhatsApp, SMS…). */
+function shareText(r: ReceiptData): string {
+  const login = loginAddress(r.dnsName);
+  return [
+    `WiFi code: ${r.code}`,
+    `${r.planName} · ${formatDuration(r.uptimeSeconds)} · ${formatSSP(r.priceSsp)}`,
+    'Username and password are the same code.',
+    login ? `Log in at ${login}` : '',
+    r.siteName ? `— ${r.siteName}` : '',
+  ]
+    .filter(Boolean)
+    .join('\n');
+}
+
+/** The phone's share sheet when it has one; otherwise WhatsApp (works on every Android phone). */
+async function shareCode(r: ReceiptData) {
+  const text = shareText(r);
+  if (typeof navigator.share === 'function') {
+    try {
+      await navigator.share({ text });
+      return;
+    } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') return; // closed by the cashier
+    }
+  }
+  window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank', 'noopener');
+}
+
 function SaleResult({ sale, onPrint, onNext }: { sale: LastSale; onPrint: () => void; onNext: () => void }) {
   const r = sale.receipt;
+  const usd = formatUsd(r.priceSsp, useUsdRate());
   return (
     <div className="fixed inset-0 z-50 flex flex-col overflow-y-auto bg-white" role="dialog" aria-label="Voucher sold">
       <div className="px-4 py-5 text-center text-white" style={{ backgroundColor: r.planColor }}>
         <div className="text-3xl font-extrabold tabular-nums sm:text-5xl">{formatSSP(r.priceSsp)}</div>
+        {usd && <div className="text-lg font-semibold opacity-90">{usd}</div>}
         <div className="text-2xl font-bold sm:text-3xl">{formatDuration(r.uptimeSeconds)}</div>
       </div>
       <div className="flex flex-1 flex-col items-center justify-center px-4 py-6 text-center">
@@ -46,11 +77,14 @@ function SaleResult({ sale, onPrint, onNext }: { sale: LastSale; onPrint: () => 
         <p className="mt-6 text-lg text-slate-700">Username and password are the same code.</p>
         <p className="text-xl font-bold text-slate-900">{loginAddress(r.dnsName)}</p>
       </div>
-      <div className="grid gap-3 p-4 sm:grid-cols-2">
+      <div className="grid grid-cols-2 gap-3 p-4 sm:grid-cols-3">
         <Button variant="secondary" onClick={onPrint} className="min-h-16 text-xl">
-          🖨 Print receipt
+          🖨 Print
         </Button>
-        <Button onClick={onNext} className="min-h-16 text-xl">
+        <Button variant="secondary" onClick={() => void shareCode(r)} className="min-h-16 text-xl">
+          ↗ Share
+        </Button>
+        <Button onClick={onNext} className="col-span-2 min-h-16 text-xl sm:col-span-1">
           Sell another
         </Button>
       </div>

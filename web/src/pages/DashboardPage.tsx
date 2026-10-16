@@ -7,8 +7,9 @@ import { RevenueChart, type DayRevenue } from '../components/RevenueChart';
 import { Icon } from '../components/Icon';
 import { Alert, Card, Select, Spinner } from '../components/ui';
 import { friendlyError } from '../lib/errors';
-import { formatNumber, formatSSP } from '../lib/format';
-import { useSites } from '../lib/queries';
+import { useUsdRate } from '../lib/business';
+import { formatJubaTime, formatNumber, formatSSP, formatUsd } from '../lib/format';
+import { useRouters, useSites } from '../lib/queries';
 import type { IconName } from '../lib/nav';
 import { readStored, writeStored } from '../lib/storage';
 import { supabase } from '../lib/supabase';
@@ -33,6 +34,13 @@ interface Dashboard {
   logins_today: number;
   last_14_days: DayRevenue[];
   stock: StockRow[];
+}
+
+interface ExpiringRow {
+  plan_id: string;
+  plan_name: string;
+  plan_color: string;
+  cards: number;
 }
 
 const SITE_KEY = 'hzc.dashboardSite';
@@ -112,6 +120,25 @@ export function DashboardPage() {
     },
   });
 
+  // Cards whose validity ends in the next 24 hours (needs migration 20261016181000; hidden without it).
+  const expiring = useQuery({
+    queryKey: ['expiring', siteId],
+    refetchInterval: 5 * 60_000,
+    queryFn: async (): Promise<ExpiringRow[] | null> => {
+      const { data, error } = await supabase.rpc('expiring_soon', { p_site_id: siteId || null, p_hours: 24 });
+      if (error?.code === 'PGRST202') return null;
+      if (error) throw new Error(friendlyError(error));
+      return (data ?? []) as ExpiringRow[];
+    },
+  });
+  const routers = useRouters(60_000);
+  const usdRate = useUsdRate();
+  const withUsd = (ssp: number) => {
+    const usd = formatUsd(ssp, usdRate);
+    return usd ? ` · ${usd}` : '';
+  };
+  const siteRouters = (routers.data ?? []).filter((r) => !siteId || r.site_id === siteId);
+
   const d = dashboard.data;
   const scope = isAdmin ? (sites.data?.find((s) => s.id === siteId)?.name ?? 'All sites') : (siteName ?? '');
   const showSiteColumn = !siteId && isAdmin && new Set((d?.stock ?? []).map((s) => s.site_id)).size > 1;
@@ -150,9 +177,9 @@ export function DashboardPage() {
       {d && (
         <>
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
-            <StatCard label="Today" value={formatSSP(d.today.revenue)} sub={`${formatNumber(d.today.sold)} vouchers`} to="/reports?tab=day" icon="sales" highlight />
-            <StatCard label="This week" value={formatSSP(d.week.revenue)} sub={`${formatNumber(d.week.sold)} vouchers · from Mon`} to="/reports?tab=week" icon="reports" tone="violet" />
-            <StatCard label="This month" value={formatSSP(d.month.revenue)} sub={`${formatNumber(d.month.sold)} vouchers`} to="/reports?tab=month" icon="dashboard" tone="sky" />
+            <StatCard label="Today" value={formatSSP(d.today.revenue)} sub={`${formatNumber(d.today.sold)} vouchers${withUsd(d.today.revenue)}`} to="/reports?tab=day" icon="sales" highlight />
+            <StatCard label="This week" value={formatSSP(d.week.revenue)} sub={`${formatNumber(d.week.sold)} vouchers · from Mon${withUsd(d.week.revenue)}`} to="/reports?tab=week" icon="reports" tone="violet" />
+            <StatCard label="This month" value={formatSSP(d.month.revenue)} sub={`${formatNumber(d.month.sold)} vouchers${withUsd(d.month.revenue)}`} to="/reports?tab=month" icon="dashboard" tone="sky" />
             <StatCard label="Online now" value={formatNumber(d.online_now)} sub="users connected" to="/active-users" icon="active" tone="green" />
             <StatCard label="Logged in today" value={formatNumber(d.logins_today)} sub="hotspot users seen on the router" to="/reports?tab=day" icon="vouchers" tone="amber" />
             <StatCard
@@ -163,6 +190,61 @@ export function DashboardPage() {
               sub={`${formatNumber(d.router_users.unused)} unused · ${formatNumber(d.router_users.used)} used`}
               to={isAdmin ? '/routers' : '/reports?tab=day'}
             />
+          </div>
+
+          <div className="grid gap-3 lg:grid-cols-2">
+            <Card>
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <h2 className="text-lg font-bold">Routers</h2>
+                {isAdmin && (
+                  <Link to="/routers" className="text-sm font-semibold text-brand-700 hover:underline">
+                    Manage
+                  </Link>
+                )}
+              </div>
+              {siteRouters.length === 0 ? (
+                <p className="text-slate-600">No router yet. {isAdmin ? 'Add your MikroTik router on the Routers page.' : 'Ask the owner to add one.'}</p>
+              ) : (
+                <ul className="divide-y divide-slate-100">
+                  {siteRouters.map((r) => (
+                    <li key={r.id} className="flex items-center justify-between gap-3 py-2">
+                      <span className="min-w-0 truncate font-medium text-slate-900">{r.name}</span>
+                      {r.status === 'online' ? (
+                        <span className="shrink-0 rounded-full bg-emerald-50 px-2.5 py-0.5 text-sm font-semibold text-emerald-700">● Online</span>
+                      ) : (
+                        <span className="shrink-0 text-right text-sm">
+                          <span className="rounded-full bg-red-50 px-2.5 py-0.5 font-semibold text-red-700">● {r.status === 'pending' ? 'Not connected yet' : 'Offline'}</span>
+                          {r.last_seen_at && <span className="block text-xs text-slate-600">last seen {formatJubaTime(r.last_seen_at)}</span>}
+                        </span>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </Card>
+            {expiring.data && (
+              <Card>
+                <h2 className="mb-2 text-lg font-bold">Expiring in the next 24 hours</h2>
+                {expiring.data.length === 0 ? (
+                  <p className="text-slate-600">No customer's card runs out in the next 24 hours.</p>
+                ) : (
+                  <ul className="divide-y divide-slate-100">
+                    {expiring.data.map((e) => (
+                      <li key={e.plan_id} className="flex items-center justify-between gap-3 py-2">
+                        <span className="flex items-center gap-2 font-medium text-slate-900">
+                          <span className="h-3 w-3 shrink-0 rounded-full" style={{ backgroundColor: e.plan_color }} />
+                          {e.plan_name}
+                        </span>
+                        <span className="font-semibold tabular-nums">
+                          {formatNumber(e.cards)} card{e.cards === 1 ? '' : 's'}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                <p className="mt-2 text-sm text-slate-600">These customers may want a new card soon.</p>
+              </Card>
+            )}
           </div>
 
           <Card>

@@ -33,6 +33,7 @@ const CashPage = page(() => import('./pages/CashPage'), 'CashPage');
 const SignupPage = page(() => import('./pages/SignupPage'), 'SignupPage');
 const TermsPage = page(() => import('./pages/TermsPage'), 'TermsPage');
 const NotFoundPage = page(() => import('./pages/NotFoundPage'), 'NotFoundPage');
+const BusinessSettingsPage = page(() => import('./pages/BusinessSettingsPage'), 'BusinessSettingsPage');
 const BillingPage = page(() => import('./pages/BillingPage'), 'BillingPage');
 const SecurityPage = page(() => import('./pages/SecurityPage'), 'SecurityPage');
 const AlertsPage = page(() => import('./pages/AlertsPage'), 'AlertsPage');
@@ -113,6 +114,9 @@ export function App() {
             </Route>
             <Route element={<RequireRole roles={rolesFor('/alerts')} />}>
               <Route path="/alerts" element={<AlertsPage />} />
+            </Route>
+            <Route element={<RequireRole roles={rolesFor('/business')} />}>
+              <Route path="/business" element={<BusinessSettingsPage />} />
             </Route>
             <Route element={<RequireRole roles={rolesFor('/staff')} />}>
               <Route path="/staff" element={<StaffPage />} />

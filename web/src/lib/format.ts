@@ -39,6 +39,13 @@ export function formatSSP(amount: number): string {
   return `${numberFmt.format(amount)} SSP`;
 }
 
+/** An SSP amount in USD at the business's rate ("≈ $1.25"), or '' when no rate is set. */
+export function formatUsd(amountSsp: number, usdRate: number | null | undefined): string {
+  if (!usdRate || !(usdRate > 0)) return '';
+  const usd = amountSsp / usdRate;
+  return `≈ ${usd.toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
 export function formatNumber(n: number): string {
   return numberFmt.format(n);
 }

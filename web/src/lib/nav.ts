@@ -16,7 +16,8 @@ export type IconName =
   | 'payments'
   | 'cash'
   | 'billing'
-  | 'security';
+  | 'security'
+  | 'settings';
 
 export type NavGroup = 'Overview' | 'Selling' | 'Cards & WiFi' | 'Business';
 
@@ -49,6 +50,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { path: '/routers', label: 'Routers', icon: 'routers', roles: ADMIN, group: 'Cards & WiFi' },
   { path: '/active-users', label: 'Active Users', icon: 'active', roles: ADMIN_MANAGER, group: 'Cards & WiFi' },
   { path: '/portal', label: 'Login Portal', icon: 'portal', roles: ADMIN, group: 'Cards & WiFi' },
+  { path: '/business', label: 'Business settings', icon: 'settings', roles: ADMIN, group: 'Business' },
   { path: '/staff', label: 'Staff', icon: 'staff', roles: ADMIN, group: 'Business' },
   { path: '/billing', label: 'Billing', icon: 'billing', roles: ADMIN, group: 'Business' },
   { path: '/security', label: 'Security', icon: 'security', roles: ALL, group: 'Business' },

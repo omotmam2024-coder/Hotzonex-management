@@ -5,7 +5,8 @@ import { useAuth } from '../auth/AuthProvider';
 import { Alert, Button, Card, Field, Select, Spinner, TextInput } from '../components/ui';
 import { downloadText, toCsv } from '../lib/csv';
 import { friendlyError } from '../lib/errors';
-import { formatJubaTime, formatNumber, formatSSP, jubaToday } from '../lib/format';
+import { useUsdRate } from '../lib/business';
+import { formatJubaTime, formatNumber, formatSSP, formatUsd, jubaToday } from '../lib/format';
 import { profileLabel } from '../lib/mikroticket';
 import { usePlans, useSites } from '../lib/queries';
 import { supabase } from '../lib/supabase';
@@ -85,6 +86,7 @@ export function ReportsPage() {
   const { profile, siteName: mySite } = useAuth();
   const isAdmin = profile?.role === 'admin';
   const sites = useSites();
+  const usdRate = useUsdRate();
   const plans = usePlans();
   const [params, setParams] = useSearchParams();
   const tab = (['day', 'week', 'month'].includes(params.get('tab') ?? '') ? params.get('tab') : 'day') as Period;
@@ -321,6 +323,7 @@ export function ReportsPage() {
             <Card>
               <div className="text-sm text-slate-500">Revenue</div>
               <div className="text-2xl font-extrabold tabular-nums sm:text-3xl">{formatSSP(r.summary.revenue)}</div>
+              {usdRate && <div className="text-sm font-semibold text-slate-600">{formatUsd(r.summary.revenue, usdRate)}</div>}
             </Card>
             <Card>
               <div className="text-sm text-slate-500">Average sale</div>
