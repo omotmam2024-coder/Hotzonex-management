@@ -7,6 +7,7 @@ import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../auth/AuthProvider';
 import { brandOf } from '../../print/brand';
 import { Receipt, type ReceiptData, type ReceiptWidth } from '../../print/Receipt';
+import { hotspotAddress } from '../../lib/routers';
 
 const WIDTH_KEY = 'hzc.receiptWidth';
 
@@ -30,7 +31,7 @@ async function loadReceipt(voucherId: string): Promise<ReceiptData> {
   if (!v.on_router) throw new Error('This voucher is not on the router yet, so it cannot be printed.');
 
   const [router, plan, site, sale] = await Promise.all([
-    supabase.from('routers').select('dns_name').eq('id', v.router_id).single(),
+    supabase.from('routers').select('dns_name, hotspot_server, hotspot_info').eq('id', v.router_id).single(),
     supabase.from('plans').select('name, color, price_ssp, uptime_seconds').eq('id', v.plan_id).single(),
     supabase.from('sites').select('name').eq('id', v.site_id).single(),
     supabase.from('sales').select('sold_at, seller_id, amount_ssp').eq('voucher_id', v.id).is('voided_at', null).maybeSingle(),
@@ -51,6 +52,7 @@ async function loadReceipt(voucherId: string): Promise<ReceiptData> {
     code: v.code,
     siteName: site.data.name,
     dnsName: router.data.dns_name ?? '',
+    hotspotIp: hotspotAddress(router.data),
     planName: plan.data.name,
     planColor: plan.data.color,
     priceSsp: sale.data?.amount_ssp ?? plan.data.price_ssp,

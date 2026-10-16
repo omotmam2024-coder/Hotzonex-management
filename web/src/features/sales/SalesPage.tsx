@@ -9,6 +9,7 @@ import { formatJubaTime, formatNumber, formatSSP, jubaToday } from '../../lib/fo
 import { invalidateSalesData, usePlans, useRouters, useSites } from '../../hooks/queries';
 import { supabase } from '../../lib/supabase';
 import type { ReceiptData } from '../../print/Receipt';
+import { hotspotAddress } from '../../lib/routers';
 
 const PAGE_SIZE = 100;
 const VOID_WINDOW_MS = 24 * 3600 * 1000;
@@ -145,6 +146,7 @@ export function SalesPage() {
       code: row.code,
       siteName: row.site_name,
       dnsName: router?.dns_name ?? '',
+      hotspotIp: hotspotAddress(router),
       planName: row.plan_name,
       planColor: row.plan_color,
       priceSsp: row.amount_ssp,

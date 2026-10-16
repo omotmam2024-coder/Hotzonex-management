@@ -151,14 +151,24 @@ export interface DirectTest {
 
 /** Reads the router's own hotspot setup without changing anything. */
 export async function directTest(client: RestClient): Promise<DirectTest> {
-  const [resource, servers, serverProfiles, userProfiles, users, active] = await Promise.all([
+  const [resource, servers, serverProfiles, userProfiles, users, active, addresses] = await Promise.all([
     client.get<Json>('/system/resource'),
     client.get<Json[]>('/ip/hotspot'),
     client.get<Json[]>('/ip/hotspot/profile'),
     client.get<Json[]>('/ip/hotspot/user/profile'),
     client.get<Json[]>('/ip/hotspot/user', { '.proplist': '.id' }),
     client.get<Json[]>('/ip/hotspot/active', { '.proplist': '.id' }),
+    client.get<Json[]>('/ip/address', { '.proplist': 'address,interface,disabled' }).catch(() => [] as Json[]),
   ]);
+  // The hotspot's own address: its profile's hotspot-address, else the IP on its interface.
+  const ipOf = (v: string) => (/^\d{1,3}(\.\d{1,3}){3}/.exec(v) ?? [''])[0];
+  const addressOf = (h: Json): string => {
+    const profile = serverProfiles.find((p) => s(p.name) === s(h.profile));
+    const fromProfile = ipOf(s(profile?.['hotspot-address']));
+    if (fromProfile && fromProfile !== '0.0.0.0') return fromProfile;
+    const onInterface = addresses.find((a) => s(a.interface) === s(h.interface) && s(a.disabled) !== 'true');
+    return onInterface ? ipOf(s(onInterface.address)) : '';
+  };
   const hotspot: HotspotInfo = {
     ...emptyHotspotInfo(),
     servers: servers.map((h) => ({
@@ -167,6 +177,7 @@ export async function directTest(client: RestClient): Promise<DirectTest> {
       profile: s(h.profile),
       address_pool: s(h['address-pool']),
       disabled: s(h.disabled) === 'true' || s(h.disabled) === 'yes',
+      address: addressOf(h),
     })),
     server_profiles: serverProfiles.map((h) => ({ name: s(h.name), dns_name: s(h['dns-name']), login_by: s(h['login-by']), html_directory: s(h['html-directory']) })),
     user_profiles: userProfiles.map((h) => ({ name: s(h.name), rate_limit: s(h['rate-limit']), shared_users: s(h['shared-users']) })),

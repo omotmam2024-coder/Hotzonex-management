@@ -16,6 +16,7 @@ function reset() {
   state['/ip/hotspot/user/profile'] = [{ '.id': '*1', name: 'default', 'shared-users': '1' }, { '.id': '*2', name: 'mine', 'rate-limit': '1M/1M', 'shared-users': '2' }];
   state['/ip/hotspot/user'] = [{ '.id': '*A', name: '11112222', comment: 'my own user', uptime: '0s', 'bytes-in': '0', 'bytes-out': '0' }];
   state['/ip/hotspot/active'] = [];
+  state['/ip/address'] = [{ '.id': '*1', address: '10.5.50.1/24', interface: 'bridge', disabled: 'false' }, { '.id': '*2', address: '192.168.88.1/24', interface: 'ether2', disabled: 'false' }];
   writes.length = 0;
 }
 
@@ -105,6 +106,7 @@ test('connection test reads the hotspot setup without writing anything', async (
   const t = await directTest(client());
   assert.equal(t.hotspot.servers[0]?.name, 'hotspot1');
   assert.equal(t.hotspot.server_profiles[0]?.dns_name, 'hotzonex.wifi');
+  assert.equal(t.hotspot.servers[0]?.address, '10.5.50.1', 'the IP on the hotspot interface');
   assert.equal(t.version, '7.19.6 (stable)');
   assert.deepEqual(t.hotspot.user_profiles.map((p) => p.name), ['default', 'mine']);
   assert.equal(t.hotspot.users, 1);

@@ -11,6 +11,7 @@ import { brandOf } from '../../print/brand';
 import { CardSheet } from '../../print/CardSheet';
 import { LAYOUTS, type CardsPerPage } from '../../print/layouts';
 import type { CardData } from '../../print/VoucherCard';
+import { hotspotAddress } from '../../lib/routers';
 
 const MAX_CARDS = 1000;
 
@@ -48,7 +49,7 @@ async function loadCards(params: URLSearchParams): Promise<CardData[]> {
   const planIds = [...new Set(vouchers.map((v) => v.plan_id))];
   const siteIds = [...new Set(vouchers.map((v) => v.site_id))];
   const [routers, plans, sites] = await Promise.all([
-    supabase.from('routers').select('id, dns_name').in('id', routerIds),
+    supabase.from('routers').select('id, dns_name, hotspot_server, hotspot_info').in('id', routerIds),
     supabase.from('plans').select('id, price_ssp, uptime_seconds, color').in('id', planIds),
     supabase.from('sites').select('id, name').in('id', siteIds),
   ]);
@@ -56,6 +57,7 @@ async function loadCards(params: URLSearchParams): Promise<CardData[]> {
   if (err) throw new Error(err.message);
 
   const dns = new Map((routers.data ?? []).map((r) => [r.id, r.dns_name]));
+  const ips = new Map((routers.data ?? []).map((r) => [r.id, hotspotAddress(r)]));
   const planMap = new Map((plans.data ?? []).map((p) => [p.id as string, p]));
   const siteMap = new Map((sites.data ?? []).map((s) => [s.id as string, s.name as string]));
 
@@ -66,6 +68,7 @@ async function loadCards(params: URLSearchParams): Promise<CardData[]> {
       code: v.code,
       siteName: siteMap.get(v.site_id) ?? '',
       dnsName: dns.get(v.router_id) ?? '',
+      hotspotIp: ips.get(v.router_id) ?? '',
       planColor: (p?.color as string) ?? '#000000',
       priceSsp: (p?.price_ssp as number) ?? 0,
       uptimeSeconds: (p?.uptime_seconds as number) ?? 0,

@@ -10,6 +10,8 @@ export interface ReceiptData {
   code: string;
   siteName: string;
   dnsName: string;
+  /** The hotspot's IP (QR code, and printed as a second address); '' when not known. */
+  hotspotIp?: string;
   planName: string;
   planColor: string;
   priceSsp: number;
@@ -80,10 +82,11 @@ export function Receipt({ data, width, brand, onReady }: { data: ReceiptData; wi
           </p>
           <p style={{ ...line, fontSize: '8pt' }}>{data.planName}</p>
           <div style={{ display: 'flex', justifyContent: 'center', margin: '2.5mm 0' }}>
-            <QrCode text={loginUrl(data.dnsName, data.code)} sizeMm={width === 58 ? 28 : 36} />
+            <QrCode text={loginUrl(data.dnsName, data.code, data.hotspotIp)} sizeMm={width === 58 ? 28 : 36} />
           </div>
           <p style={{ ...line, fontSize: '8.5pt' }}>Connect to the WiFi, then open</p>
           <p style={{ ...line, fontSize: width === 58 ? '10pt' : '12pt', fontWeight: 800, wordBreak: 'break-all' }}>{loginAddress(data.dnsName)}</p>
+          {data.hotspotIp && <p style={{ ...line, fontSize: '8.5pt' }}>or {loginAddress(data.hotspotIp)}</p>}
           <p style={{ ...line, fontSize: '8.5pt' }}>Username and password are the same code.</p>
           <div style={{ borderTop: '0.3mm dashed #000', margin: '2.5mm 0 1.5mm' }} />
           <p style={{ ...line, fontSize: '8.5pt' }}>{data.soldAt ? `Sold ${dateTime.format(new Date(data.soldAt))}` : `Printed ${dateTime.format(new Date())}`}</p>

@@ -9,6 +9,8 @@ export interface CardData {
   code: string;
   siteName: string;
   dnsName: string;
+  /** The hotspot's IP (the QR code opens the login page there); '' when not known. */
+  hotspotIp?: string;
   planColor: string;
   priceSsp: number;
   uptimeSeconds: number;
@@ -58,7 +60,7 @@ export function VoucherCard({ card, layout, brand }: { card: CardData; layout: S
             <div style={{ fontSize: `${layout.pricePt}pt`, lineHeight: 1.15, fontWeight: 700 }}>{formatDuration(card.uptimeSeconds)}</div>
             <div style={{ fontSize: `${layout.smallPt}pt`, lineHeight: 1.15, wordBreak: 'break-all' }}>{loginAddress(card.dnsName)}</div>
           </div>
-          <QrCode text={loginUrl(card.dnsName, card.code)} sizeMm={layout.qrMm} />
+          <QrCode text={loginUrl(card.dnsName, card.code, card.hotspotIp)} sizeMm={layout.qrMm} />
         </div>
       </div>
     </div>

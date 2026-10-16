@@ -187,7 +187,8 @@ export interface TestReport {
 
 /** Read-only snapshot of the hotspot setup the admin made on the router (Hotzonex never changes it). */
 export interface HotspotInfo {
-  servers: { name: string; interface: string; profile: string; address_pool: string; disabled: boolean }[];
+  /** address: the IP the hotspot answers on (its login page works there without any DNS). */
+  servers: { name: string; interface: string; profile: string; address_pool: string; disabled: boolean; address?: string }[];
   /** html_directory: the folder of login pages the hotspot shows (MikroTicket's mkt_…, Hotzonex's, or the router's own). */
   server_profiles: { name: string; dns_name: string; login_by: string; html_directory?: string }[];
   user_profiles: { name: string; rate_limit: string; shared_users: string }[];

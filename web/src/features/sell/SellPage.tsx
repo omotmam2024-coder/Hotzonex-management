@@ -12,6 +12,7 @@ import { supabase } from '../../lib/supabase';
 import { planOnRouter, type Plan, type RouterInfo } from '../../lib/types';
 import type { ReceiptData } from '../../print/Receipt';
 import { loginAddress } from '../../print/voucherLinks';
+import { hotspotAddress } from '../../lib/routers';
 
 const LOW_STOCK = 20;
 const LAST_SALE_KEY = 'hzc.lastSale';
@@ -36,7 +37,7 @@ function shareText(r: ReceiptData): string {
     `WiFi code: ${r.code}`,
     `${r.planName} · ${formatDuration(r.uptimeSeconds)} · ${formatSSP(r.priceSsp)}`,
     'Username and password are the same code.',
-    login ? `Log in at ${login}` : '',
+    login ? `Log in at ${login}${r.hotspotIp ? ` (or ${loginAddress(r.hotspotIp)})` : ''}` : '',
     r.siteName ? `— ${r.siteName}` : '',
   ]
     .filter(Boolean)
@@ -76,6 +77,7 @@ function SaleResult({ sale, onPrint, onNext }: { sale: LastSale; onPrint: () => 
         </div>
         <p className="mt-6 text-lg text-slate-700">Username and password are the same code.</p>
         <p className="text-xl font-bold text-slate-900">{loginAddress(r.dnsName)}</p>
+        {r.hotspotIp && <p className="text-slate-600">or {loginAddress(r.hotspotIp)}</p>}
       </div>
       <div className="grid grid-cols-2 gap-3 p-4 sm:grid-cols-3">
         <Button variant="secondary" onClick={onPrint} className="min-h-16 text-xl">
@@ -210,6 +212,7 @@ export function SellPage() {
           code: row.code,
           siteName,
           dnsName: router.dns_name ?? '',
+          hotspotIp: hotspotAddress(router),
           planName: plan.name,
           planColor: plan.color,
           priceSsp: row.amount_ssp,
