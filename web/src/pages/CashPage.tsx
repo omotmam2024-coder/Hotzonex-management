@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../auth/AuthProvider';
 import { PageHeader } from '../components/PageHeader';
@@ -44,6 +44,13 @@ function ReceiveCash({ row, onDone }: { row: CashRow; onDone: () => void }) {
     },
     onSuccess: onDone,
   });
+  // A double tap must not record the cash twice.
+  const inFlight = useRef(false);
+  const save = () => {
+    if (inFlight.current) return;
+    inFlight.current = true;
+    receive.mutate(undefined, { onSettled: () => (inFlight.current = false) });
+  };
   return (
     <div className="mt-2 grid gap-2 rounded-xl bg-slate-50 p-3 sm:grid-cols-[10rem_1fr_auto] sm:items-end">
       <Field label="Cash received (SSP)">
@@ -52,7 +59,7 @@ function ReceiveCash({ row, onDone }: { row: CashRow; onDone: () => void }) {
       <Field label="Note (optional)">
         <TextInput value={note} onChange={(e) => setNote(e.target.value.slice(0, 200))} placeholder="e.g. evening cash" />
       </Field>
-      <Button onClick={() => receive.mutate()} disabled={receive.isPending}>
+      <Button onClick={save} disabled={receive.isPending}>
         {receive.isPending && <Spinner />} Save
       </Button>
       {receive.error && (

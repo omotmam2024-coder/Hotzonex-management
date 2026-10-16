@@ -48,12 +48,23 @@ async function deleteVouchers(db: SupabaseClient, caller: Caller, body: Record<s
   // On a router: switched off now (no longer sold or printed), deleted once the router has removed it.
   const onRouter = free.filter((v) => v.on_router);
   const byRouter = new Map<string, VoucherRow[]>();
+  let removing = 0;
   for (const v of onRouter) byRouter.set(v.router_id, [...(byRouter.get(v.router_id) ?? []), v]);
   for (const [routerId, list] of byRouter) {
     for (let i = 0; i < list.length; i += PER_JOB) {
-      const part = list.slice(i, i + PER_JOB);
-      const { error: offError } = await db.from('vouchers').update({ status: 'disabled' }).in('id', part.map((v) => v.id));
+      const slice = list.slice(i, i + PER_JOB);
+      // Not one sold meanwhile (a cashier or a mobile-money confirmation just now): it stays.
+      const { data: off, error: offError } = await db
+        .from('vouchers')
+        .update({ status: 'disabled' })
+        .in('id', slice.map((v) => v.id))
+        .neq('status', 'sold')
+        .select('id');
       if (offError) throw new Error(`Could not switch the vouchers off: ${offError.message}`);
+      const offIds = new Set((off ?? []).map((v) => v.id as string));
+      const part = slice.filter((v) => offIds.has(v.id));
+      removing += part.length;
+      if (!part.length) continue;
       const { error: jobError } = await db.from('router_jobs').insert({
         router_id: routerId,
         type: 'disable_voucher',
@@ -64,8 +75,9 @@ async function deleteVouchers(db: SupabaseClient, caller: Caller, body: Record<s
     }
   }
 
-  await audit(db, caller, 'vouchers.deleted', { deleted, removing: onRouter.length, kept: sold.size, codes: rows.slice(0, 50).map((v) => v.code) });
-  return { deleted, removing: onRouter.length, kept: sold.size };
+  const kept = rows.length - deleted - removing;
+  await audit(db, caller, 'vouchers.deleted', { deleted, removing, kept, codes: rows.slice(0, 50).map((v) => v.code) });
+  return { deleted, removing, kept };
 }
 
 async function deletePlan(db: SupabaseClient, caller: Caller, body: Record<string, unknown>) {

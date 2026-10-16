@@ -254,6 +254,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await loadProfile(data.session);
   }, [loadProfile, queryClient]);
 
+  // Support mode ends by itself (the database stops it at its end time): the app follows at once,
+  // so the customer's name is never shown over the platform's own business.
+  useEffect(() => {
+    if (!support) return;
+    const left = Date.parse(support.until) - Date.now();
+    const timer = window.setTimeout(() => void reload(), Math.max(0, Math.min(left + 1000, 2 ** 31 - 1)));
+    return () => window.clearTimeout(timer);
+  }, [support, reload]);
+
   const value = useMemo<AuthContextValue>(
     () => ({ status, session, profile, siteName, business, isPlatformAdmin, twoStep, support, reload, error, signIn, signOut }),
     [status, session, profile, siteName, business, isPlatformAdmin, twoStep, support, reload, error, signIn, signOut],

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../auth/AuthProvider';
@@ -198,10 +198,14 @@ export function GenerateVouchersPage() {
     },
   });
 
+  // A double tap must not make two batches: the second tap comes before isPending re-renders.
+  const inFlight = useRef(false);
   function submit(e: FormEvent) {
     e.preventDefault();
+    if (inFlight.current) return;
+    inFlight.current = true;
     setNotice(null);
-    generate.mutate();
+    generate.mutate(undefined, { onSettled: () => (inFlight.current = false) });
   }
 
   return (
