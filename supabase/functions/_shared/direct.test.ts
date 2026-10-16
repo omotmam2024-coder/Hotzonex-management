@@ -266,9 +266,28 @@ test('expired MikroTicket cards: time used up or validity over, never online one
     { ...base, id: '*7', name: 'staff', profile: 'Guest', uptime: 99999 },
     { ...base, id: '*8', name: 'own-limit', uptime: 1300, limitUptime: 1200 },
   ];
-  const out = expiredRouterUsers(users, new Set(['online']), '2026-10-15 10:00:00').map((u) => u.name);
+  const real = Date.parse('2026-10-15T08:00:00Z'); // 10:00 in Juba
+  const out = expiredRouterUsers(users, new Set(['online']), '2026-10-15 10:00:00', real).map((u) => u.name);
   assert.deepEqual(out, ['used-up', 'validity-over', 'own-limit']);
   assert.deepEqual(expiredRouterUsers(users, new Set(['online']), null).map((u) => u.name), ['used-up', 'own-limit'], 'no router clock: only used-up time');
+});
+
+test('expired MikroTicket cards: a wrong router clock never ends a card early', () => {
+  const p1h = 'profile_1Hr-se:-co:1000-pr:-lu:7-lp:7-ut:0d 01:00:00-bt:-kt:true-nu:true-np:true-tp:2-vl:2d 00:00:00';
+  const base = { profile: p1h, limitUptime: 0, uptime: 600 };
+  const real = Date.parse('2026-10-15T08:00:00Z');
+  // Stamped in 1970 after a power cut, read once the clock synced: the card just started.
+  const reset = [{ ...base, id: '*1', name: 'after-power-cut', comment: 'Mikroticket-dc:x-da:1970-01-01 00:00:12' }];
+  assert.deepEqual(expiredRouterUsers(reset, new Set(), '2026-10-15 10:00:00', real), []);
+  // The clock itself still in 2000: validity is not judged, used-up time still is.
+  const users = [
+    { ...base, id: '*2', name: 'old-stamp', comment: 'Mikroticket-dc:x-da:2026-10-10 09:00:00' },
+    { ...base, id: '*3', name: 'used-up', uptime: 3600, comment: '' },
+  ];
+  assert.deepEqual(expiredRouterUsers(users, new Set(), '2000-01-01 00:05:00', real).map((u) => u.name), ['used-up']);
+  // A stamp in the future (clock was ahead) is not trusted either.
+  const ahead = [{ ...base, id: '*4', name: 'ahead', comment: 'Mikroticket-dc:x-da:2027-01-01 00:00:00' }];
+  assert.deepEqual(expiredRouterUsers(ahead, new Set(), '2026-10-15 10:00:00', real), []);
 });
 
 test('router clock text from new and old RouterOS dates', () => {

@@ -90,6 +90,7 @@ const ROUTER_COLUMNS =
 const BUDGET_MS = 100_000; // stay well inside the Edge Function time limit
 const LEASE_MS = BUDGET_MS + 30_000; // one worker per router at a time; expires if a worker is stopped
 const STALE_RUNNING_MS = 5 * 60_000;
+const TEST_WAIT_MS = 2 * 60_000;
 const PUSH_CHUNK = 50;
 // A router that was answering is shown offline only after missing two checks in a row (one minute
 // apart): a short internet drop at the site does not flash it offline.
@@ -271,7 +272,13 @@ async function runJob(db: SupabaseClient, router: DirectRouter, client: RestClie
     case 'disable_voucher': {
       // Vouchers deleted in Hotzonex: deleted from the router, then from Hotzonex.
       if (job.payload.delete === true) {
-        await finishVoucherDelete(db, job, await removeVoucherUsers(client, jobVouchers(job)));
+        const removed = await removeVoucherUsers(client, jobVouchers(job), deadline);
+        if (removed === null) {
+          // Out of time: the rest is deleted on the next wake-up (this try does not count).
+          await db.from('router_jobs').update({ status: 'queued', started_at: null, attempts: job.attempts - 1 }).eq('id', job.id);
+          return false;
+        }
+        await finishVoucherDelete(db, job, removed);
         return true;
       }
       const voucherId = str(job.payload.voucher_id);
@@ -333,15 +340,39 @@ async function runJob(db: SupabaseClient, router: DirectRouter, client: RestClie
   }
 }
 
-/** Claims and runs this router's waiting jobs, oldest first, until none are left or time runs out. */
-async function runJobs(db: SupabaseClient, router: DirectRouter, client: RestClient, deadline: number): Promise<void> {
-  // Jobs left "running" by a worker that was stopped are picked up again.
+/** Jobs left "running" by a worker that was stopped are picked up again. */
+async function requeueStaleJobs(db: SupabaseClient, router: DirectRouter): Promise<void> {
   await db
     .from('router_jobs')
     .update({ status: 'queued', started_at: null })
     .eq('router_id', router.id)
     .eq('status', 'running')
     .lt('started_at', new Date(Date.now() - STALE_RUNNING_MS).toISOString());
+}
+
+/**
+ * The router did not answer: a "Test again" waiting for it gets the answer (instead of spinning
+ * until the router is back). Other jobs keep waiting for the router.
+ */
+async function failWaitingTests(db: SupabaseClient, router: DirectRouter): Promise<void> {
+  await requeueStaleJobs(db, router);
+  const { data: tests } = await db
+    .from('router_jobs')
+    .select('id, result')
+    .eq('router_id', router.id)
+    .eq('type', 'test_connection')
+    .eq('status', 'queued')
+    .lt('created_at', new Date(Date.now() - TEST_WAIT_MS).toISOString());
+  for (const t of tests ?? []) {
+    const reason = router.last_error ?? (typeof t.result?.last_error === 'string' ? t.result.last_error : 'The router did not answer.');
+    await finishJob(db, t.id as string, false, { ...((t.result as Record<string, unknown>) ?? {}), error: `${router.name} is offline: ${reason}` });
+  }
+}
+
+/** Claims and runs this router's waiting jobs, oldest first, until none are left or time runs out. */
+async function runJobs(db: SupabaseClient, router: DirectRouter, client: RestClient, deadline: number): Promise<void> {
+  await requeueStaleJobs(db, router);
+  let seenAt = 0;
 
   while (Date.now() < deadline) {
     let q = db.from('router_jobs').select(JOB_COLUMNS).eq('router_id', router.id).eq('status', 'queued');
@@ -366,6 +397,12 @@ async function runJobs(db: SupabaseClient, router: DirectRouter, client: RestCli
 
     try {
       const done = await runJob(db, router, client, job, deadline);
+      // A router answering a long job (a big push) is not missing its checks: it stays online.
+      if (router.status === 'online' && Date.now() - seenAt > 30_000) {
+        seenAt = Date.now();
+        router.last_seen_at = new Date(seenAt).toISOString();
+        await db.from('routers').update({ last_seen_at: router.last_seen_at }).eq('id', router.id).eq('status', 'online');
+      }
       if (!done) return;
     } catch (err) {
       const msg = message(err);
@@ -483,6 +520,7 @@ async function checkRouter(db: SupabaseClient, router: DirectRouter, client: Res
       await db.from('active_sessions').delete().eq('router_id', router.id);
     }
     router.status = 'offline';
+    router.last_error = msg;
     return false;
   }
 }
@@ -491,9 +529,10 @@ async function serveRouter(db: SupabaseClient, router: DirectRouter, relay: Rela
   // Another worker is busy with this router (a long push, or the previous minute's check):
   // it also picks up newly queued jobs, so this one stops here.
   const now = new Date();
+  const lease = new Date(now.getTime() + LEASE_MS).toISOString();
   const { data: leased } = await db
     .from('routers')
-    .update({ worker_lease_until: new Date(now.getTime() + LEASE_MS).toISOString() })
+    .update({ worker_lease_until: lease })
     .eq('id', router.id)
     .or(`worker_lease_until.is.null,worker_lease_until.lt."${now.toISOString()}"`)
     .select('id');
@@ -501,7 +540,8 @@ async function serveRouter(db: SupabaseClient, router: DirectRouter, relay: Rela
   try {
     return await serveLeased(db, router, relay, tick, deadline);
   } finally {
-    await db.from('routers').update({ worker_lease_until: null }).eq('id', router.id);
+    // Only this worker's lease: one that ran over may not free a newer worker's.
+    await db.from('routers').update({ worker_lease_until: null }).eq('id', router.id).eq('worker_lease_until', lease);
   }
 }
 
@@ -515,7 +555,10 @@ async function serveLeased(db: SupabaseClient, router: DirectRouter, relay: Rela
   }
   if (tick && router.status !== 'pending') {
     const reachable = await checkRouter(db, router, client, deadline);
-    if (!reachable) return `${router.name}: offline`;
+    if (!reachable) {
+      if (router.status === 'offline') await failWaitingTests(db, router);
+      return `${router.name}: offline`;
+    }
   }
   await runJobs(db, router, client, deadline);
   return `${router.name}: ok`;

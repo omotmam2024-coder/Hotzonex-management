@@ -420,8 +420,18 @@ const asUtc = (text: string) => Date.parse(`${text.replace(' ', 'T')}Z`);
  * login (MikroTicket's "-da:" stamp, in router time). Hotzonex's own vouchers ("hzc:") and users
  * without such limits (staff, guests) are never chosen.
  */
-export function expiredRouterUsers(users: RouterUserLimits[], online: Set<string>, routerNow: string | null): RouterUserLimits[] {
-  const now = routerNow ? asUtc(routerNow) : NaN;
+export function expiredRouterUsers(
+  users: RouterUserLimits[],
+  online: Set<string>,
+  routerNow: string | null,
+  realNow = Date.now(),
+): RouterUserLimits[] {
+  let now = routerNow ? asUtc(routerNow) : NaN;
+  // A router without a battery clock starts at 1970 or 2000 after a power cut until it syncs: its
+  // clock (and any "-da:" stamped meanwhile) is then wrong, so validity is not judged by it. Router
+  // time is local time, so up to 14 hours either side of real time is fine.
+  const DAY = 86400_000;
+  if (Math.abs(now - realNow) > 14 * 3600_000) now = NaN;
   return users.filter((u) => {
     if (!u.id || online.has(u.name) || u.comment.startsWith('hzc:') || !u.profile.startsWith('profile_')) return false;
     const limit = u.limitUptime > 0 ? u.limitUptime : mikroticketSeconds(u.profile, 'ut');
@@ -429,7 +439,10 @@ export function expiredRouterUsers(users: RouterUserLimits[], online: Set<string
     const validity = mikroticketSeconds(u.profile, 'vl');
     const firstLogin = /-da:(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})/.exec(u.comment)?.[1];
     if (!validity || !firstLogin || Number.isNaN(now)) return false;
-    return asUtc(firstLogin) + validity * 1000 <= now;
+    const first = asUtc(firstLogin);
+    // A stamp from a wrong clock (long ago, or in the future) cannot say when the card started.
+    if (Number.isNaN(first) || first < now - 400 * DAY || first > now + 60_000) return false;
+    return first + validity * 1000 <= now;
   });
 }
 
@@ -525,18 +538,29 @@ export async function removeLeftoverProfiles(client: RestClient, keep: Set<strin
  * Deletes vouchers' hotspot users from the router (closing their sessions first). Only a user that
  * still carries the voucher's tag is removed; one that is already gone counts as removed.
  */
-export async function removeVoucherUsers(client: RestClient, vouchers: { id: string; code: string }[]): Promise<number> {
+export async function removeVoucherUsers(
+  client: RestClient,
+  vouchers: { id: string; code: string }[],
+  deadline = Infinity,
+): Promise<number | null> {
   if (!vouchers.length) return 0;
-  const users = await client.get<Json[]>('/ip/hotspot/user', { '.proplist': '.id,name,comment' });
+  // Users and sessions are read once (not once per card): deleting hundreds of cards through the
+  // tunnel stays within the time limit. Returns null when time ran out (call again to finish).
+  const [users, active] = await Promise.all([
+    client.get<Json[]>('/ip/hotspot/user', { '.proplist': '.id,name,comment' }),
+    client.get<Json[]>('/ip/hotspot/active', { '.proplist': '.id,user' }),
+  ]);
   const byTag = new Map(users.map((u) => [`${s(u.name)}|${s(u.comment)}`, s(u['.id'])]));
+  const codes = new Set(vouchers.map((v) => v.code));
+  const sessions = active.filter((a) => codes.has(s(a.user))).map((a) => s(a['.id']));
+  if (sessions.length) await ignoreGone(client.post('/ip/hotspot/active/remove', { '.id': sessions.join(',') }));
   let removed = 0;
   for (const v of vouchers) {
     const id = byTag.get(`${v.code}|hzc:${v.id}`);
-    await closeSessions(client, v.code, null);
-    if (id) {
-      await ignoreGone(client.post('/ip/hotspot/user/remove', { '.id': id }));
-      removed++;
-    }
+    if (!id) continue;
+    if (Date.now() > deadline) return null;
+    await ignoreGone(client.post('/ip/hotspot/user/remove', { '.id': id }));
+    removed++;
   }
   return removed;
 }

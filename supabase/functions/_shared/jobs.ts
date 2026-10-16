@@ -349,23 +349,41 @@ export async function clearDisconnected(db: SupabaseClient, router: RouterRef, j
 }
 
 const RETRY_PUSH_AFTER_MS = 5 * 60_000;
+const RETRY_PUSH_MAX_MS = 6 * 3600_000;
 
-/** Re-queues vouchers that never reached the router (e.g. a push that gave up), at most every 5 minutes per batch. */
+/**
+ * Re-queues vouchers that never reached the router (e.g. a push that gave up). After a failed
+ * push the next try waits 5 minutes, then twice as long after each further failure (at most
+ * 6 hours): a push that cannot work (no matching profile on the router) does not fail, and
+ * alert, every 5 minutes for ever.
+ */
 export async function resumeUnfinishedPushes(db: SupabaseClient, router: RouterRef): Promise<void> {
-  const { data: pending } = await db.from('vouchers').select('batch_id').eq('router_id', router.id).eq('on_router', false).eq('status', 'unused').limit(1);
-  const batchId = pending?.[0]?.batch_id as string | undefined;
-  if (!batchId) return;
-  const { data: lastJob } = await db
-    .from('router_jobs')
-    .select('status, finished_at')
-    .eq('type', 'push_vouchers')
-    .eq('payload->>batch_id', batchId)
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  if (lastJob && (lastJob.status === 'queued' || lastJob.status === 'running')) return;
-  if (lastJob?.finished_at && Date.now() - new Date(lastJob.finished_at).getTime() < RETRY_PUSH_AFTER_MS) return;
-  await db.from('router_jobs').insert({ router_id: router.id, type: 'push_vouchers', payload: { batch_id: batchId, resumed: true } });
+  const { data: pending } = await db
+    .from('vouchers')
+    .select('batch_id')
+    .eq('router_id', router.id)
+    .eq('on_router', false)
+    .eq('status', 'unused')
+    .order('created_at')
+    .limit(500);
+  const batches = [...new Set((pending ?? []).map((v) => v.batch_id as string | null).filter((b): b is string => Boolean(b)))].slice(0, 5);
+  for (const batchId of batches) {
+    const { data: jobs } = await db
+      .from('router_jobs')
+      .select('status, finished_at')
+      .eq('type', 'push_vouchers')
+      .eq('payload->>batch_id', batchId)
+      .order('created_at', { ascending: false })
+      .limit(8);
+    const last = jobs?.[0];
+    if (last && (last.status === 'queued' || last.status === 'running')) continue;
+    let failures = 0;
+    while (jobs && failures < jobs.length && jobs[failures]!.status === 'failed') failures++;
+    const wait = Math.min(RETRY_PUSH_AFTER_MS * 2 ** Math.max(0, failures - 1), RETRY_PUSH_MAX_MS);
+    if (last?.finished_at && Date.now() - new Date(last.finished_at).getTime() < wait) continue;
+    await db.from('router_jobs').insert({ router_id: router.id, type: 'push_vouchers', payload: { batch_id: batchId, resumed: true } });
+    return; // one batch at a time
+  }
 }
 
 /** The hotspot server profile (on the router) of the hotspot server Hotzonex uses, from the last check. */
