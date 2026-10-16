@@ -9,6 +9,7 @@
  *   20261016190000_subscription_plans.sql  subscription_plans, tenant_billing.plan_id, billing_usage(),
  *                                          public_pricing(), platform_plans(), platform_set_business_plan(),
  *                                          platform_save_plan()
+ *   20261016210000_expenses.sql            expenses, save_expense(), remove_expense(), profit_report()
  *
  * These entries go away once the migrations are applied and the types are regenerated: delete the
  * matching entry from `PendingTables` / `PendingFunctions`.
@@ -50,7 +51,26 @@ type SubscriptionPlanRow = {
   updated_at: string;
 };
 
+type ExpenseRow = {
+  id: string;
+  tenant_id: string;
+  site_id: string | null;
+  spent_on: string;
+  category: string;
+  amount_ssp: number;
+  note: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
 type PendingTables = {
+  expenses: {
+    Row: ExpenseRow;
+    Insert: Partial<ExpenseRow>;
+    Update: Partial<ExpenseRow>;
+    Relationships: [];
+  };
   sales: WithColumns<Public['Tables']['sales'], { request_id: string | null }>;
   tenants: WithColumns<Public['Tables']['tenants'], { usd_rate: number | null }>;
   tenant_billing: WithColumns<
@@ -75,6 +95,12 @@ type PendingTables = {
 };
 
 type PendingFunctions = {
+  save_expense: {
+    Args: { p_id: string | null; p_spent_on: string; p_category: string; p_amount_ssp: number; p_note: string | null; p_site_id: string | null };
+    Returns: string;
+  };
+  remove_expense: { Args: { p_id: string }; Returns: undefined };
+  profit_report: { Args: { p_period: string; p_date: string; p_site_id?: string | null }; Returns: Json };
   sell_voucher: {
     Args: { p_plan_id: string; p_router_id: string; p_request_id?: string | null };
     Returns: Public['Functions']['sell_voucher']['Returns'];

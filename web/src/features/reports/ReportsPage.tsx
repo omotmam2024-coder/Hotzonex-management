@@ -1,8 +1,8 @@
 import { useMemo, useState, type ReactNode } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { useAuth } from '../../auth/AuthProvider';
-import { Alert, Button, Card, Field, Select, Spinner, TextInput } from '../../components/ui';
+import { Alert, Button, Card, Field, Select, Spinner } from '../../components/ui';
 import { downloadText, toCsv } from '../../lib/csv';
 import { friendlyError } from '../../lib/errors';
 import { useUsdRate } from '../../hooks/useBusinessSettings';
@@ -10,8 +10,9 @@ import { formatJubaTime, formatNumber, formatSSP, formatUsd, jubaToday } from '.
 import { profileLabel } from '../../lib/mikroticket';
 import { usePlans, useSites } from '../../hooks/queries';
 import { fromJson, supabase } from '../../lib/supabase';
-
-type Period = 'day' | 'week' | 'month';
+import { PERIODS, currentPeriodName, parsePeriod, periodLabel, shortDay, utc, type Period } from '../../lib/period';
+import { PeriodPicker } from '../../components/PeriodPicker';
+import { fetchProfit } from '../expenses/ExpensesPage';
 
 interface Row {
   sold: number;
@@ -34,37 +35,7 @@ interface Report {
   router_logins: { router_id: string; username: string; plan: string | null; price_ssp: number | null; first_login_at: string | null; last_seen_at: string | null; new: boolean }[];
 }
 
-const TABS: { key: Period; label: string; noun: string }[] = [
-  { key: 'day', label: 'Daily', noun: 'Daily' },
-  { key: 'week', label: 'Weekly', noun: 'Weekly' },
-  { key: 'month', label: 'Monthly', noun: 'Monthly' },
-];
-
-const utc = (d: string) => new Date(`${d}T00:00:00Z`);
-const iso = (d: Date) => d.toISOString().slice(0, 10);
-const fmt = (opts: Intl.DateTimeFormatOptions) => new Intl.DateTimeFormat('en-GB', { ...opts, timeZone: 'UTC' });
-const longDay = fmt({ weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
-const shortDay = fmt({ weekday: 'short', day: 'numeric', month: 'short' });
-const monthYear = fmt({ month: 'long', year: 'numeric' });
 const generatedFmt = new Intl.DateTimeFormat('en-GB', { timeZone: 'Africa/Juba', day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-
-/** Moves a date by whole periods (days, weeks or calendar months). */
-function shift(date: string, period: Period, steps: number): string {
-  const d = utc(date);
-  if (period === 'day') d.setUTCDate(d.getUTCDate() + steps);
-  else if (period === 'week') d.setUTCDate(d.getUTCDate() + 7 * steps);
-  else {
-    d.setUTCDate(1);
-    d.setUTCMonth(d.getUTCMonth() + steps);
-  }
-  return iso(d);
-}
-
-export function periodLabel(period: Period, start: string, end: string): string {
-  if (period === 'day') return longDay.format(utc(start));
-  if (period === 'week') return `${shortDay.format(utc(start))} – ${shortDay.format(utc(end))} ${utc(end).getUTCFullYear()}`;
-  return monthYear.format(utc(start));
-}
 
 function hourLabel(h: number): string {
   return `${String(h).padStart(2, '0')}:00–${String(h).padStart(2, '0')}:59`;
@@ -134,7 +105,7 @@ export function ReportsPage() {
   const usdRate = useUsdRate();
   const plans = usePlans();
   const [params, setParams] = useSearchParams();
-  const tab = (['day', 'week', 'month'].includes(params.get('tab') ?? '') ? params.get('tab') : 'day') as Period;
+  const tab = parsePeriod(params.get('tab'));
   const date = /^\d{4}-\d{2}-\d{2}$/.test(params.get('date') ?? '') ? (params.get('date') as string) : jubaToday();
   const siteId = isAdmin ? (params.get('site') ?? '') : '';
   const planId = params.get('plan') ?? '';
@@ -174,12 +145,19 @@ export function ReportsPage() {
     },
   });
 
+  // Profit needs the whole period's sales, so it is shown only without a plan or seller filter.
+  const profit = useQuery({
+    queryKey: ['profit', tab, date, siteId],
+    enabled: !planId && !sellerId,
+    queryFn: () => fetchProfit(tab, date, siteId),
+  });
+
   const r = report.data;
   const scope = isAdmin ? (siteId ? (sites.data?.find((s) => s.id === siteId)?.name ?? '') : 'All sites') : (mySite ?? '');
   const planName = planId ? (plans.data?.find((p) => p.id === planId)?.name ?? '') : 'All plans';
   const sellerName = sellerId ? (staff.data?.find((s) => s.id === sellerId)?.full_name ?? '') : 'All cashiers and agents';
   const label = r ? periodLabel(tab, r.start, r.end) : '';
-  const noun = TABS.find((t) => t.key === tab)?.noun ?? '';
+  const noun = PERIODS.find((t) => t.key === tab)?.noun ?? '';
   const isCurrent = r ? jubaToday() >= r.start && jubaToday() <= r.end : true;
 
   // Monthly breakdown: insert a subtotal after each Sunday and at the end of the month.
@@ -253,7 +231,6 @@ export function ReportsPage() {
   const filterCount = (siteId ? 1 : 0) + (planId ? 1 : 0) + (sellerId ? 1 : 0);
   const shownBreakdown = breakdownRows.filter((b) => b.kind === 'subtotal' || b.sold > 0);
   const filtersText = [isAdmin || scope ? scope : '', planId ? planName : '', sellerId ? sellerName : ''].filter(Boolean).join(' · ');
-  const navBtn = 'min-h-11 min-w-11 rounded-xl text-lg font-semibold text-slate-700 ring-1 ring-slate-300 hover:bg-slate-50';
 
   const stats: { label: string; value: string; sub?: ReactNode }[] = r
     ? [
@@ -293,34 +270,7 @@ export function ReportsPage() {
         </div>
       </div>
 
-      <div className="no-print flex flex-wrap items-center gap-2">
-        <div className="inline-flex rounded-xl bg-slate-100 p-0.5" role="tablist">
-          {TABS.map((t) => (
-            <button
-              key={t.key}
-              type="button"
-              role="tab"
-              aria-selected={tab === t.key}
-              onClick={() => set('tab', t.key)}
-              className={`min-h-10 rounded-lg px-3 text-sm font-semibold ${tab === t.key ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600'}`}
-            >
-              {t.label}
-            </button>
-          ))}
-        </div>
-        <div className="flex items-center gap-1">
-          <button type="button" aria-label="Previous period" onClick={() => set('date', shift(date, tab, -1))} className={navBtn}>
-            ‹
-          </button>
-          {tab === 'month' ? (
-            <TextInput aria-label="Month" type="month" className="!w-auto text-sm" value={date.slice(0, 7)} onChange={(e) => e.target.value && set('date', `${e.target.value}-01`)} />
-          ) : (
-            <TextInput aria-label="Day" type="date" className="!w-auto text-sm" value={date} onChange={(e) => e.target.value && set('date', e.target.value)} />
-          )}
-          <button type="button" aria-label="Next period" onClick={() => set('date', shift(date, tab, 1))} className={navBtn}>
-            ›
-          </button>
-        </div>
+      <PeriodPicker period={tab} date={date} onPeriod={(p) => set('tab', p)} onDate={(d) => set('date', d)}>
         <button
           type="button"
           aria-expanded={showFilters}
@@ -330,7 +280,7 @@ export function ReportsPage() {
           Filters{filterCount ? ` (${filterCount})` : ''}
         </button>
         {report.isFetching && <Spinner className="h-4 w-4 text-brand-600" />}
-      </div>
+      </PeriodPicker>
 
       {showFilters && (
         <Card className="no-print !p-3">
@@ -383,7 +333,7 @@ export function ReportsPage() {
                 {filtersText && <span>{filtersText}</span>}
                 {!isCurrent && (
                   <button type="button" onClick={() => set('date', '')} className="no-print min-h-11 font-semibold text-brand-700 hover:underline">
-                    {tab === 'day' ? 'Today' : tab === 'week' ? 'This week' : 'This month'}
+                    {currentPeriodName(tab)}
                   </button>
                 )}
               </div>
@@ -403,6 +353,19 @@ export function ReportsPage() {
                 </div>
               ))}
             </dl>
+            {!planId && !sellerId && profit.data && (
+              <div className="mt-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-t border-slate-100 pt-3 text-sm">
+                <span className="text-slate-600">
+                  Commission <span className="font-semibold tabular-nums text-slate-900">{formatSSP(profit.data.summary.commission)}</span>
+                  {' · '}Expenses <span className="font-semibold tabular-nums text-slate-900">{formatSSP(profit.data.summary.expenses)}</span>
+                  {' · '}Profit{' '}
+                  <span className={`font-bold tabular-nums ${profit.data.summary.profit < 0 ? 'text-red-700' : 'text-green-700'}`}>{formatSSP(profit.data.summary.profit)}</span>
+                </span>
+                <Link to={`/expenses?${params.toString()}`} className="no-print inline-flex min-h-11 items-center font-semibold text-brand-700 hover:underline">
+                  Expenses &amp; profit ›
+                </Link>
+              </div>
+            )}
           </section>
 
           <div className="grid gap-3 lg:grid-cols-2">

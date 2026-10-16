@@ -104,3 +104,23 @@ export const paymentRefSchema = z
   .string()
   .transform((v) => v.trim().replace(/\s+/g, '').toUpperCase())
   .refine((v) => /^[A-Z0-9.-]{4,40}$/.test(v), 'Type the transaction ID of your payment (letters and digits).');
+
+export const EXPENSE_CATEGORIES = [
+  { key: 'internet', label: 'Internet / bandwidth' },
+  { key: 'power', label: 'Electricity / fuel' },
+  { key: 'rent', label: 'Rent' },
+  { key: 'salaries', label: 'Salaries / wages' },
+  { key: 'equipment', label: 'Equipment' },
+  { key: 'repairs', label: 'Repairs' },
+  { key: 'printing', label: 'Printing / cards' },
+  { key: 'transport', label: 'Transport' },
+  { key: 'other', label: 'Other' },
+] as const;
+
+export const expenseSchema = z.object({
+  spent_on: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Choose the day of the expense.'),
+  category: z.enum(EXPENSE_CATEGORIES.map((c) => c.key) as [string, ...string[]], { errorMap: () => ({ message: 'Choose a category.' }) }),
+  amount: wholeNumber('Type the amount in SSP.').pipe(z.number().min(1, 'Type the amount in SSP.').max(1_000_000_000, 'The amount is too large.')),
+  note: z.string().trim().max(200, 'The note is too long (max 200 characters).'),
+  site_id: z.string(),
+});

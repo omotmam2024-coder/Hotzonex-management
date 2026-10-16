@@ -20,6 +20,7 @@ const PrintReceiptPage = page(() => import('./features/vouchers/PrintReceiptPage
 const PrintSetupPage = page(() => import('./features/vouchers/PrintSetupPage'), 'PrintSetupPage');
 const PrintSheetPage = page(() => import('./features/vouchers/PrintSheetPage'), 'PrintSheetPage');
 const ReportsPage = page(() => import('./features/reports/ReportsPage'), 'ReportsPage');
+const ExpensesPage = page(() => import('./features/expenses/ExpensesPage'), 'ExpensesPage');
 const RouterFormPage = page(() => import('./features/routers/RouterFormPage'), 'RouterFormPage');
 const RoutersPage = page(() => import('./features/routers/RoutersPage'), 'RoutersPage');
 const SalesPage = page(() => import('./features/sales/SalesPage'), 'SalesPage');
@@ -89,6 +90,9 @@ export function App() {
             </Route>
             <Route element={<RequireRole roles={rolesFor('/reports')} />}>
               <Route path="/reports" element={<ReportsPage />} />
+            </Route>
+            <Route element={<RequireRole roles={rolesFor('/expenses')} />}>
+              <Route path="/expenses" element={<ExpensesPage />} />
             </Route>
             <Route element={<RequireRole roles={rolesFor('/active-users')} />}>
               <Route path="/active-users" element={<ActiveUsersPage />} />

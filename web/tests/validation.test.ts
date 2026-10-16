@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { buyRequestSchema, cashHandoverSchema, generateVouchersSchema, planSchema, signupSchema, staffSchema, validate } from '../src/lib/validation.ts';
+import { buyRequestSchema, cashHandoverSchema, expenseSchema, generateVouchersSchema, planSchema, signupSchema, staffSchema, validate } from '../src/lib/validation.ts';
 
 const ID = '3f2b2a4e-0000-4000-8000-000000000000';
 
@@ -39,4 +39,13 @@ test('buy, sign-up and cash: cleaned like the server does', () => {
   assert.throws(() => validate(signupSchema, { business_name: 'Juba WiFi', site_name: '', full_name: 'Deng', phone: '0921234567', email: 'x', password: 'long-pass' }), /valid email/);
   assert.equal(validate(cashHandoverSchema, { amount: '20000', note: '' }).amount, 20000);
   assert.throws(() => validate(cashHandoverSchema, { amount: '0', note: '' }), /amount received/);
+});
+
+test('expense: needs a day, a category and a whole amount above 0', () => {
+  const ok = { spent_on: '2026-10-16', category: 'internet', amount: '3000', note: '  Starlink ', site_id: '' };
+  assert.deepEqual(validate(expenseSchema, ok), { ...ok, amount: 3000, note: 'Starlink' });
+  assert.throws(() => validate(expenseSchema, { ...ok, category: '' }), /Choose a category/);
+  assert.throws(() => validate(expenseSchema, { ...ok, amount: '0' }), /amount in SSP/);
+  assert.throws(() => validate(expenseSchema, { ...ok, amount: '' }), /amount in SSP/);
+  assert.throws(() => validate(expenseSchema, { ...ok, spent_on: '' }), /day of the expense/);
 });
