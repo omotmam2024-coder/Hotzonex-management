@@ -80,11 +80,9 @@ limits, the Buy page stuck on "Loading…", poster QR border and join-WiFi QR, 2
 
 1. **Make the GitHub repository private** (Settings → General → Danger Zone → Change visibility).
    Then check that DigitalOcean still deploys (App → Settings → Source; reconnect GitHub if asked).
-2. **Apply the last two migrations** in Supabase → SQL Editor (paste each file, Run):
-   `20261016170000_audit_trail.sql` and `20261016171000_idempotent_sell.sql`. The others
-   (tighten_grants, business_settings, dashboard_expiring, subscription_plans, expenses) were applied
-   on 16 October 2026. The app works before and after; after applying, regenerate the types (see
-   README → Database migrations).
+2. **Apply the last migration** in Supabase → SQL Editor (paste the file, Run):
+   `20261016171000_idempotent_sell.sql`. All the others were applied on 16 October 2026. The app
+   works before and after; after applying, regenerate the types (see README → Database migrations).
 3. **Check the plan limits and prices** on Businesses → Subscription plans after applying, and
    move each customer to the right plan (existing ones start on Business).
 4. **Read the Terms page** (`/terms`) and change anything you do not agree with.
