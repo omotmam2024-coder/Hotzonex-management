@@ -8,7 +8,8 @@ from this release are written but not applied** — see "What you need to do" be
 
 ### Phase 1 — security and bugs
 - **Audit trail** (migration `20261016170000_audit_trail.sql`): every sale, void, voucher batch,
-  plan or price change, staff role/access change and cash handover is written to `audit_log`
+  plan or price change and staff role/access change is written to `audit_log` (cash handovers and
+  seller terms were already logged by their own functions)
   (who, what, when, which business), whatever screen or worker made it.
 - **Retry-safe selling** (migration `20261016171000_idempotent_sell.sql` + Sell page): each sale
   attempt carries a request id; a lost reply is retried automatically and returns the same card, so
@@ -79,14 +80,11 @@ limits, the Buy page stuck on "Loading…", poster QR border and join-WiFi QR, 2
 
 1. **Make the GitHub repository private** (Settings → General → Danger Zone → Change visibility).
    Then check that DigitalOcean still deploys (App → Settings → Source; reconnect GitHub if asked).
-2. **Review and apply the migrations**, oldest first:
-   `20261016170000_audit_trail.sql`, `20261016171000_idempotent_sell.sql`,
-   `20261016172000_tighten_grants.sql`, `20261016180000_business_settings.sql`,
-   `20261016181000_dashboard_expiring.sql`
-   (`20261016190000_subscription_plans.sql` is already applied.)
-   (`supabase db push`, or paste each into Supabase → SQL Editor). The app works before and after;
-   features that need a migration stay hidden or say so until it is applied.
-   After applying, regenerate the types (see README → Database migrations).
+2. **Apply the last two migrations** in Supabase → SQL Editor (paste each file, Run):
+   `20261016170000_audit_trail.sql` and `20261016171000_idempotent_sell.sql`. The others
+   (tighten_grants, business_settings, dashboard_expiring, subscription_plans, expenses) were applied
+   on 16 October 2026. The app works before and after; after applying, regenerate the types (see
+   README → Database migrations).
 3. **Check the plan limits and prices** on Businesses → Subscription plans after applying, and
    move each customer to the right plan (existing ones start on Business).
 4. **Read the Terms page** (`/terms`) and change anything you do not agree with.

@@ -1,9 +1,11 @@
 -- Audit trail for money and setup events (AUDIT.md §1, High).
 --
 -- audit_log already records router changes, staff creation, deletes and support visits (written by
--- the Edge Functions). It did not record sales, voids, voucher generation, plan or price changes,
--- staff role / access changes or cash handovers. One trigger function now writes those rows for
--- every path (app, router worker, mobile-money confirmation), so nothing depends on the screen used.
+-- the Edge Functions). It did not record sales, voids, voucher generation, plan or price changes or
+-- staff role / access changes. (Cash handovers and seller commission / credit limits are already
+-- logged by record_cash_handover and set_seller_terms, so they are not repeated here.)
+-- One trigger function now writes those rows for every path (app, router worker, mobile-money
+-- confirmation), so nothing depends on the screen used.
 --
 -- Who: auth.uid() (null when the router worker or a scheduled job made the change).
 -- What: action + a small JSON of the facts. When: created_at. Which business: tenant_id.
@@ -53,7 +55,7 @@ begin
     end if;
 
   elsif tg_table_name = 'profiles' and tg_op = 'UPDATE' then
-    foreach k in array array['role', 'is_active', 'site_id', 'commission_pct', 'credit_limit_ssp'] loop
+    foreach k in array array['role', 'is_active', 'site_id'] loop
       if (to_jsonb(old) -> k) is distinct from (to_jsonb(new) -> k) then
         v_changes := v_changes || jsonb_build_object(k, jsonb_build_object('from', to_jsonb(old) -> k, 'to', to_jsonb(new) -> k));
       end if;
@@ -62,11 +64,6 @@ begin
       v_action := 'staff.changed';
       v_details := jsonb_build_object('staff_id', new.id, 'name', new.full_name, 'changes', v_changes);
     end if;
-
-  elsif tg_table_name = 'cash_handovers' and tg_op = 'INSERT' then
-    v_action := 'cash.received';
-    v_details := jsonb_build_object('handover_id', new.id, 'seller_id', new.seller_id, 'amount_ssp', new.amount_ssp,
-      'site_id', new.site_id, 'note', new.note);
   end if;
 
   if v_action is not null then
@@ -94,10 +91,6 @@ create trigger zz_audit after insert or update on public.plans
 
 drop trigger if exists zz_audit on public.profiles;
 create trigger zz_audit after update on public.profiles
-  for each row execute function public.audit_row_change();
-
-drop trigger if exists zz_audit on public.cash_handovers;
-create trigger zz_audit after insert on public.cash_handovers
   for each row execute function public.audit_row_change();
 
 -- The audit page and exports filter by business, action and time.

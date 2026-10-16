@@ -4,8 +4,8 @@
  * their absence at runtime).
  *
  *   20261016171000_idempotent_sell.sql     sales.request_id, sell_voucher(p_request_id)
- *   20261016180000_business_settings.sql   tenants.usd_rate, save_business_settings()
- *   20261016181000_dashboard_expiring.sql  expiring_soon()
+ *   20261016180000_business_settings.sql   tenants.usd_rate, save_business_settings()  (APPLIED)
+ *   20261016181000_dashboard_expiring.sql  expiring_soon()  (APPLIED)
  *   20261016190000_subscription_plans.sql  subscription_plans, tenant_billing.plan_id, billing_usage(),
  *                                          public_pricing(), platform_plans(), platform_set_business_plan(),
  *                                          platform_save_plan()  (APPLIED)
