@@ -144,7 +144,19 @@ export function BuyPage() {
 
         <div className="rounded-2xl bg-white p-5 shadow-xl">
           {site.isLoading && <p className="text-slate-600">Loading…</p>}
-          {site.error && <p className="font-medium text-red-700">{friendlyError(site.error)}</p>}
+          {site.error && (
+            <div className="space-y-3">
+              <p className="font-medium text-red-700">{friendlyError(site.error)}</p>
+              <button
+                type="button"
+                onClick={() => void site.refetch()}
+                disabled={site.isFetching}
+                className="min-h-12 w-full rounded-xl bg-brand-600 px-4 font-semibold text-white disabled:opacity-50"
+              >
+                {site.isFetching ? 'Trying…' : 'Try again'}
+              </button>
+            </div>
+          )}
 
           {s && claim && (
             <div className="space-y-4 text-center">

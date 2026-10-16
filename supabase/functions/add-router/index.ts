@@ -65,8 +65,26 @@ function parseHost(raw: string): string {
   return host;
 }
 
+/**
+ * A router name must lead to the internet, never to Hotzonex Cloud's own network (the worker
+ * would otherwise send logins to internal servers). Names are looked up where possible.
+ */
+async function checkPublicName(host: string): Promise<void> {
+  if (/^\d{1,3}(\.\d{1,3}){3}$/.test(host)) return;
+  const blocked = 'is not a public address. For a router on a local network, use the Tunnel option.';
+  if (host === 'localhost' || /\.(localhost|local|internal|lan|home|corp)$/.test(host)) throw new HttpError(400, `"${host}" ${blocked}`);
+  let addresses: string[] = [];
+  try {
+    addresses = await Deno.resolveDns(host, 'A');
+  } catch {
+    return; // Not found here: the connection test reports it.
+  }
+  if (addresses.some(isPrivateIpv4)) throw new HttpError(400, `"${host}" ${blocked}`);
+}
+
 async function parseFields(admin: SupabaseClient, caller: Caller, body: Record<string, unknown>): Promise<RouterFields> {
   const host = parseHost(text(body, 'host', 'Address', 253));
+  await checkPublicName(host);
   const port = body.port === undefined || body.port === null || body.port === '' ? 80 : Number(body.port);
   if (!Number.isInteger(port) || port < 1 || port > 65535) throw new HttpError(400, 'Port must be a number from 1 to 65535.');
   const comment = typeof body.comment === 'string' ? body.comment.trim() : '';

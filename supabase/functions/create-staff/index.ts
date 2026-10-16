@@ -31,7 +31,7 @@ function parseProfile(body: Record<string, unknown>) {
 
 function parseEmail(body: Record<string, unknown>): string {
   const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : '';
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new HttpError(400, 'Enter a valid email address.');
+  if (email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new HttpError(400, 'Enter a valid email address.');
   return email;
 }
 
@@ -117,6 +117,11 @@ serveJson(async (req) => {
 
     const { data: existing } = await admin.from('profiles').select('id').eq('id', id).eq('tenant_id', caller.tenantId).maybeSingle();
     if (!existing) throw new HttpError(404, 'Staff member not found.');
+    // The Hotzonex Cloud owner's login is changed only by that person (on their own Security page).
+    if (id !== caller.id) {
+      const { data: owner } = await admin.from('platform_admins').select('user_id').eq('user_id', id).maybeSingle();
+      if (owner) throw new HttpError(403, 'This is the Hotzonex Cloud owner’s login: only they can change it.');
+    }
     await requireOwnSite(admin, caller, profile.site_id);
 
     const { error } = await admin.from('profiles').update({ ...profile, is_active: isActive }).eq('id', id).eq('tenant_id', caller.tenantId);

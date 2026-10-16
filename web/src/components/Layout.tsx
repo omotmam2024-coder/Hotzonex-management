@@ -3,6 +3,7 @@ import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '../auth/AuthProvider';
 import { NAV_ITEMS, navForRole, ROLE_LABELS, tabsForRole, type NavGroup, type NavItem } from '../lib/nav';
 import { FullScreenSpinner } from './FullScreen';
+import { ErrorBoundary } from './ErrorBoundary';
 import { BillingBanner } from './BillingBanner';
 import { SupportBar } from './SupportBar';
 import { Icon } from './Icon';
@@ -137,9 +138,11 @@ export function Layout() {
           <div className="mx-auto w-full max-w-6xl">
             <SupportBar />
             <BillingBanner />
-            <Suspense fallback={<FullScreenSpinner />}>
-              <Outlet />
-            </Suspense>
+            <ErrorBoundary resetKey={location.pathname}>
+              <Suspense fallback={<FullScreenSpinner />}>
+                <Outlet />
+              </Suspense>
+            </ErrorBoundary>
           </div>
         </main>
 

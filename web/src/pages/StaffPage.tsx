@@ -108,7 +108,7 @@ export function StaffPage() {
   const [editing, setEditing] = useState<StaffForm | null>(null);
   const staff = useQuery({
     queryKey: ['staff'],
-    queryFn: async () => (await invokeFunction<{ staff: StaffMember[] }>('create-staff', { action: 'list' })).staff,
+    queryFn: async () => (await invokeFunction<{ staff: StaffMember[] }>('create-staff', { action: 'list' })).staff ?? [],
   });
 
   const siteName = (id: string | null) => (id ? (sites.data?.find((s) => s.id === id)?.name ?? 'Unknown site') : 'All sites');

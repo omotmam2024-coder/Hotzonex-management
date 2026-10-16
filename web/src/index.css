@@ -38,3 +38,9 @@ body {
     display: none !important;
   }
 }
+
+/* Scrolling tables keep everything inside them (a hidden label positioned in a far-right column
+   otherwise made the whole page scroll sideways on phones). */
+.overflow-x-auto {
+  position: relative;
+}

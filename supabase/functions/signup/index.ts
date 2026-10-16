@@ -11,6 +11,7 @@ import { cleanPhone } from '../_shared/buy.ts';
 import { checkSignup, InputError, type SignupInput } from '../_shared/signup.ts';
 
 const PER_IP_DAY = 3;
+const SIGNUPS_PER_HOUR = 20;
 
 serveJson(async (req) => {
   const db = serviceClient();
@@ -25,13 +26,19 @@ serveJson(async (req) => {
   const phone = cleanPhone(body.phone);
   if (!phone) throw new HttpError(400, 'Type a phone number we can reach you on.');
 
-  const ip = (req.headers.get('x-forwarded-for') ?? '').split(',')[0]!.trim().slice(0, 64) || 'unknown';
-  const { count } = await db
-    .from('tenant_billing')
-    .select('tenant_id', { count: 'exact', head: true })
-    .eq('signup_ip', ip)
-    .gte('updated_at', new Date(Date.now() - 24 * 3600_000).toISOString());
+  // The visitor's address as Cloudflare saw it (a visitor cannot set this header themselves).
+  const ip =
+    (req.headers.get('cf-connecting-ip') ?? req.headers.get('x-real-ip') ?? (req.headers.get('x-forwarded-for') ?? '').split(',')[0] ?? '').trim().slice(0, 64) ||
+    'unknown';
+  const dayAgo = new Date(Date.now() - 24 * 3600_000).toISOString();
+  const hourAgo = new Date(Date.now() - 3600_000).toISOString();
+  const [{ count }, { count: lastHour }] = await Promise.all([
+    db.from('tenant_billing').select('tenant_id', { count: 'exact', head: true }).eq('signup_ip', ip).gte('updated_at', dayAgo),
+    db.from('tenant_billing').select('tenant_id', { count: 'exact', head: true }).eq('created_via', 'signup').gte('updated_at', hourAgo),
+  ]);
   if ((count ?? 0) >= PER_IP_DAY) throw new HttpError(429, 'Too many sign-ups from this device today. Contact Hotzonex Cloud.');
+  // However many devices are used, sign-ups stop for a while after a burst (and Hotzonex is told).
+  if ((lastHour ?? 0) >= SIGNUPS_PER_HOUR) throw new HttpError(429, 'Many businesses are signing up right now. Please try again in an hour, or contact Hotzonex Cloud.');
 
   const { data: cfg } = await db.from('app_config').select('value').eq('key', 'billing_trial_days').maybeSingle();
   const trialDays = Math.min(Math.max(Number(cfg?.value ?? 14) || 14, 0), 90);

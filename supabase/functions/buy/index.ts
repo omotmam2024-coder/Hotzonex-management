@@ -14,6 +14,8 @@ import { cleanPhone, cleanTxnRef, PROVIDERS, providerLabel } from '../_shared/bu
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const PER_IP_HOUR = 10;
 const PENDING_PER_PHONE = 3;
+// However many devices are used, a site never has more than this many payments waiting.
+const PENDING_PER_SITE = 30;
 
 interface SiteRow {
   id: string;
@@ -63,8 +65,10 @@ async function sha256(text: string): Promise<string> {
   return [...new Uint8Array(d)].map((b) => b.toString(16).padStart(2, '0')).join('');
 }
 
+/** The visitor's address as Cloudflare saw it (a visitor cannot set this header themselves). */
 function clientIp(req: Request): string {
-  return (req.headers.get('x-forwarded-for') ?? '').split(',')[0]!.trim().slice(0, 64) || 'unknown';
+  const ip = req.headers.get('cf-connecting-ip') ?? req.headers.get('x-real-ip') ?? (req.headers.get('x-forwarded-for') ?? '').split(',')[0];
+  return (ip ?? '').trim().slice(0, 64) || 'unknown';
 }
 
 async function request(db: SupabaseClient, req: Request, body: Record<string, unknown>) {
@@ -81,12 +85,15 @@ async function request(db: SupabaseClient, req: Request, body: Record<string, un
 
   const ip = clientIp(req);
   const hourAgo = new Date(Date.now() - 3600_000).toISOString();
-  const [byIp, byPhone, used] = await Promise.all([
+  const [byIp, byPhone, bySite, used] = await Promise.all([
     db.from('payment_requests').select('id', { count: 'exact', head: true }).eq('client_ip', ip).gte('created_at', hourAgo),
-    db.from('payment_requests').select('id', { count: 'exact', head: true }).eq('phone', phone).eq('status', 'pending'),
+    // This business only: a number used on another business's page is not blocked here.
+    db.from('payment_requests').select('id', { count: 'exact', head: true }).eq('tenant_id', site.tenant_id).eq('phone', phone).eq('status', 'pending'),
+    db.from('payment_requests').select('id', { count: 'exact', head: true }).eq('site_id', site.id).eq('status', 'pending'),
     db.from('payment_requests').select('id').eq('tenant_id', site.tenant_id).eq('txn_ref', txn).neq('status', 'rejected').limit(1),
   ]);
   if ((byIp.count ?? 0) >= PER_IP_HOUR) throw new HttpError(429, 'Too many requests from this device. Try again in an hour, or ask the cashier.');
+  if ((bySite.count ?? 0) >= PENDING_PER_SITE) throw new HttpError(429, 'Many payments are waiting for the cashier. Please try again in a few minutes, or ask the cashier.');
   if ((byPhone.count ?? 0) >= PENDING_PER_PHONE) throw new HttpError(429, 'This number already has payments waiting. Ask the cashier to confirm them first.');
   if (used.data?.length) throw new HttpError(409, 'This transaction ID was already used. Check it, or ask the cashier.');
 
