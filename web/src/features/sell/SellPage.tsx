@@ -36,7 +36,7 @@ function shareText(r: ReceiptData): string {
   return [
     `WiFi code: ${r.code}`,
     `${r.planName} · ${formatDuration(r.uptimeSeconds)} · ${formatSSP(r.priceSsp)}`,
-    'Username and password are the same code.',
+    'Type only this code on the WiFi login page.',
     login ? `Log in at ${login}${r.hotspotIp ? ` (or ${loginAddress(r.hotspotIp)})` : ''}` : '',
     r.siteName ? `— ${r.siteName}` : '',
   ]
@@ -75,7 +75,7 @@ function SaleResult({ sale, onPrint, onNext }: { sale: LastSale; onPrint: () => 
             <span key={i}>{g}</span>
           ))}
         </div>
-        <p className="mt-6 text-lg text-slate-700">Username and password are the same code.</p>
+        <p className="mt-6 text-lg text-slate-700">Type only this code on the WiFi login page.</p>
         <p className="text-xl font-bold text-slate-900">{loginAddress(r.dnsName)}</p>
         {r.hotspotIp && <p className="text-slate-600">or {loginAddress(r.hotspotIp)}</p>}
       </div>

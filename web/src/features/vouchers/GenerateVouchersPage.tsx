@@ -204,7 +204,7 @@ export function GenerateVouchersPage() {
     <div className="space-y-4">
       <PageHeader
         title="Generate vouchers"
-        subtitle="Codes are numbers only; the username and password are the same code."
+        subtitle="Codes are numbers only. Customers type just the code to log in."
         actions={
           <Link to="/vouchers" className="inline-flex min-h-11 items-center rounded-xl px-4 font-semibold text-slate-700 ring-1 ring-slate-300 hover:bg-white">
             All vouchers

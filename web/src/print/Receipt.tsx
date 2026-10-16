@@ -83,7 +83,7 @@ export function Receipt({ data, width, brand, onReady }: { data: ReceiptData; wi
           <p style={{ ...line, fontSize: '8.5pt', marginTop: '2.5mm' }}>Connect to the WiFi, then open</p>
           <p style={{ ...line, fontSize: width === 58 ? '10pt' : '12pt', fontWeight: 800, wordBreak: 'break-all' }}>{loginAddress(data.dnsName)}</p>
           {data.hotspotIp && <p style={{ ...line, fontSize: '8.5pt' }}>or {loginAddress(data.hotspotIp)}</p>}
-          <p style={{ ...line, fontSize: '8.5pt' }}>Username and password are the same code.</p>
+          <p style={{ ...line, fontSize: '8.5pt' }}>Type only the code above to log in.</p>
           <div style={{ borderTop: '0.3mm dashed #000', margin: '2.5mm 0 1.5mm' }} />
           <p style={{ ...line, fontSize: '8.5pt' }}>{data.soldAt ? `Sold ${dateTime.format(new Date(data.soldAt))}` : `Printed ${dateTime.format(new Date())}`}</p>
           <p style={{ ...line, fontSize: '8.5pt' }}>Seller: {data.sellerName ?? '—'}</p>

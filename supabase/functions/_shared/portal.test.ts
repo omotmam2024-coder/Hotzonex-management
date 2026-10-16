@@ -57,7 +57,8 @@ test('login page uses CHAP when the router offers it and PAP otherwise', () => {
 test('code mode logs in with the code as password unless a password is typed', () => {
   const code = renderLikeRouter(renderPortalFile('login.html', 'bold', { loginMode: 'code' }, plans), PREVIEW_VARS);
   assert.match(code, /if\(!p\)p=u;/);
-  assert.match(code, /I have a password/);
+  assert.match(code, /I have a username and password/);
+  assert.match(code, /textContent='Username'/, 'the code box becomes the username box');
   const userpass = renderLikeRouter(renderPortalFile('login.html', 'bold', { loginMode: 'userpass' }, plans), PREVIEW_VARS);
   assert.doesNotMatch(userpass, /if\(!p\)p=u;/);
 });

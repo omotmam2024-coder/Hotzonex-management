@@ -17,7 +17,7 @@ export interface PortalSettings {
   showPlans: boolean;
   contact: string;
   footer: string;
-  /** code: one box (password = code, "I have a password" reveals a second box); userpass: always two boxes. */
+  /** code: one box for the voucher code ("I have a username and password" reveals a second box for router users); userpass: always two boxes. */
   loginMode: LoginMode;
 }
 
@@ -164,7 +164,7 @@ $(if chap-id)<form name="sendin" action="$(link-login-only)" method="post" style
 <input id="u" name="username" value="$(username)" autocomplete="off" autocapitalize="off" spellcheck="false" required>
 <div id="pw"${codeMode ? ' style="display:none"' : ''}><label for="p">Password</label><input id="p" name="password" type="password" autocomplete="off"></div>
 <button type="submit">Connect</button>
-${codeMode ? '<a class="more" href="#" onclick="document.getElementById(\'pw\').style.display=\'block\';this.style.display=\'none\';return false;">I have a password</a>' : ''}
+${codeMode ? '<a class="more" href="#" onclick="document.getElementById(\'pw\').style.display=\'block\';document.querySelector(\'label[for=u]\').textContent=\'Username\';this.style.display=\'none\';return false;">I have a username and password</a>' : ''}
 </form>
 ${plansList(s, plans)}
 <script>
