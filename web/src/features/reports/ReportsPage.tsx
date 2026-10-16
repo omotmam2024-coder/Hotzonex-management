@@ -1,4 +1,4 @@
-import { useMemo, type ReactNode } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { useAuth } from '../../auth/AuthProvider';
@@ -70,17 +70,62 @@ function hourLabel(h: number): string {
   return `${String(h).padStart(2, '0')}:00–${String(h).padStart(2, '0')}:59`;
 }
 
-function Section({ title, children }: { title: string; children: ReactNode }) {
+function Section({ title, aside, children, className = '' }: { title: string; aside?: ReactNode; children: ReactNode; className?: string }) {
   return (
-    <Card className="report-section !p-0">
-      <h2 className="px-4 pt-4 text-lg font-bold">{title}</h2>
-      <div className="overflow-x-auto px-4 pb-4 pt-2">{children}</div>
-    </Card>
+    <section className={`report-section rounded-2xl bg-white shadow-card ring-1 ring-slate-200/70 ${className}`}>
+      <div className="flex items-baseline justify-between gap-2 border-b border-slate-100 px-4 py-2.5">
+        <h2 className="text-sm font-bold text-slate-900">{title}</h2>
+        {aside && <span className="text-xs text-slate-500">{aside}</span>}
+      </div>
+      <div className="overflow-x-auto px-4 pb-2">{children}</div>
+    </section>
   );
 }
 
-const th = 'py-2 pr-3 text-xs font-semibold uppercase tracking-wide text-slate-500';
-const td = 'py-1.5 pr-3';
+/** A plain name / sold / revenue table with a total line. */
+function SalesTable({ head, rows, total }: { head: string; rows: { key: string; name: ReactNode; sold: number; revenue: number; extra?: string }[]; total?: Row }) {
+  const hasExtra = rows.some((x) => x.extra !== undefined);
+  return (
+    <table className="w-full text-left text-sm">
+      <thead>
+        <tr>
+          <th className={th}>{head}</th>
+          <th className={`${th} text-right`}>Sold</th>
+          <th className={`${th} text-right`}>Revenue</th>
+          {hasExtra && <th className={`${th} text-right`}>Share</th>}
+        </tr>
+      </thead>
+      <tbody>
+        {rows.map((x) => (
+          <tr key={x.key} className="border-t border-slate-100">
+            <td className={td}>{x.name}</td>
+            <td className={`${td} text-right tabular-nums`}>{formatNumber(x.sold)}</td>
+            <td className={`${td} text-right font-semibold tabular-nums`}>{formatSSP(x.revenue)}</td>
+            {hasExtra && <td className={`${td} text-right tabular-nums text-slate-500`}>{x.extra}</td>}
+          </tr>
+        ))}
+        {rows.length === 0 && (
+          <tr>
+            <td colSpan={3} className="py-3 text-slate-500">
+              No sales.
+            </td>
+          </tr>
+        )}
+        {total && rows.length > 1 && (
+          <tr className="border-t border-slate-300 font-bold">
+            <td className={td}>Total</td>
+            <td className={`${td} text-right tabular-nums`}>{formatNumber(total.sold)}</td>
+            <td className={`${td} text-right tabular-nums`}>{formatSSP(total.revenue)}</td>
+            {hasExtra && <td className={td} />}
+          </tr>
+        )}
+      </tbody>
+    </table>
+  );
+}
+
+const th = 'py-2 pr-3 text-[11px] font-semibold uppercase tracking-wide text-slate-500 last:pr-0';
+const td = 'py-1.5 pr-3 last:pr-0';
 
 export function ReportsPage() {
   const { profile, siteName: mySite } = useAuth();
@@ -94,6 +139,8 @@ export function ReportsPage() {
   const siteId = isAdmin ? (params.get('site') ?? '') : '';
   const planId = params.get('plan') ?? '';
   const sellerId = params.get('seller') ?? '';
+  const [showFilters, setShowFilters] = useState(false);
+  const [showMore, setShowMore] = useState(false);
 
   function set(key: string, value: string) {
     const next = new URLSearchParams(params);
@@ -203,195 +250,218 @@ export function ReportsPage() {
   }
 
   const change = r?.summary.change_pct;
+  const filterCount = (siteId ? 1 : 0) + (planId ? 1 : 0) + (sellerId ? 1 : 0);
+  const shownBreakdown = breakdownRows.filter((b) => b.kind === 'subtotal' || b.sold > 0);
+  const filtersText = [isAdmin || scope ? scope : '', planId ? planName : '', sellerId ? sellerName : ''].filter(Boolean).join(' · ');
+  const navBtn = 'min-h-11 min-w-11 rounded-xl text-lg font-semibold text-slate-700 ring-1 ring-slate-300 hover:bg-slate-50';
+
+  const stats: { label: string; value: string; sub?: ReactNode }[] = r
+    ? [
+        { label: 'Revenue', value: formatSSP(r.summary.revenue), sub: usdRate ? formatUsd(r.summary.revenue, usdRate) : undefined },
+        { label: 'Vouchers sold', value: formatNumber(r.summary.sold) },
+        { label: 'Average sale', value: formatSSP(r.summary.average) },
+        {
+          label: `vs previous ${tab}`,
+          value: change === null || change === undefined ? '—' : `${change > 0 ? '+' : ''}${change}%`,
+          sub: <>was {formatSSP(r.summary.previous_revenue)}</>,
+        },
+      ]
+    : [];
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       <style>{`@page { size: A4 portrait; margin: 12mm; } @media print { .report-section { break-inside: avoid; box-shadow: none; border: 1px solid #e2e8f0; } }`}</style>
 
       {/* Print header */}
       <div className="hidden print:block">
-        <div className="text-xl font-extrabold">Hotzonex WiFi — {noun} sales report</div>
-        <div className="mt-1 text-sm">
+        <div className="text-lg font-extrabold">Hotzonex WiFi — {noun} sales report</div>
+        <div className="text-sm">
           {label} · {scope} · {planName} · {sellerName}
         </div>
         <div className="text-xs text-slate-600">Generated {generatedFmt.format(new Date())} (Juba time). Voided sales are excluded.</div>
       </div>
 
-      <div className="no-print flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900">Reports</h1>
-          <p className="text-slate-600">Africa/Juba time · voided sales are excluded</p>
-        </div>
+      <div className="no-print flex items-center justify-between gap-2">
+        <h1 className="text-xl font-bold text-slate-900">Reports</h1>
         <div className="flex gap-2">
-          <Button variant="secondary" onClick={() => window.print()} disabled={!r}>
-            🖨 Print
+          <Button variant="secondary" className="px-3 text-sm" onClick={() => window.print()} disabled={!r}>
+            Print
           </Button>
-          <Button variant="secondary" onClick={exportCsv} disabled={!r}>
-            ⬇ Export CSV
+          <Button variant="secondary" className="px-3 text-sm" onClick={exportCsv} disabled={!r}>
+            CSV
           </Button>
         </div>
       </div>
 
-      <div className="no-print grid grid-cols-3 gap-2" role="tablist">
-        {TABS.map((t) => (
-          <button
-            key={t.key}
-            type="button"
-            role="tab"
-            aria-selected={tab === t.key}
-            onClick={() => set('tab', t.key)}
-            className={`min-h-12 rounded-xl font-semibold ring-1 ${tab === t.key ? 'bg-brand-600 text-white ring-brand-600' : 'bg-white text-slate-700 ring-slate-300'}`}
-          >
-            {t.label}
+      <div className="no-print flex flex-wrap items-center gap-2">
+        <div className="inline-flex rounded-xl bg-slate-100 p-0.5" role="tablist">
+          {TABS.map((t) => (
+            <button
+              key={t.key}
+              type="button"
+              role="tab"
+              aria-selected={tab === t.key}
+              onClick={() => set('tab', t.key)}
+              className={`min-h-10 rounded-lg px-3 text-sm font-semibold ${tab === t.key ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600'}`}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+        <div className="flex items-center gap-1">
+          <button type="button" aria-label="Previous period" onClick={() => set('date', shift(date, tab, -1))} className={navBtn}>
+            ‹
           </button>
-        ))}
+          {tab === 'month' ? (
+            <TextInput aria-label="Month" type="month" className="!w-auto text-sm" value={date.slice(0, 7)} onChange={(e) => e.target.value && set('date', `${e.target.value}-01`)} />
+          ) : (
+            <TextInput aria-label="Day" type="date" className="!w-auto text-sm" value={date} onChange={(e) => e.target.value && set('date', e.target.value)} />
+          )}
+          <button type="button" aria-label="Next period" onClick={() => set('date', shift(date, tab, 1))} className={navBtn}>
+            ›
+          </button>
+        </div>
+        <button
+          type="button"
+          aria-expanded={showFilters}
+          onClick={() => setShowFilters((v) => !v)}
+          className={`min-h-11 rounded-xl px-3 text-sm font-semibold ring-1 ${filterCount ? 'bg-brand-50 text-brand-800 ring-brand-300' : 'text-slate-700 ring-slate-300'}`}
+        >
+          Filters{filterCount ? ` (${filterCount})` : ''}
+        </button>
+        {report.isFetching && <Spinner className="h-4 w-4 text-brand-600" />}
       </div>
 
-      <Card className="no-print">
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <Field label={tab === 'day' ? 'Day' : tab === 'week' ? 'Any day in the week' : 'Month'}>
-            <div className="flex gap-1">
-              <button type="button" aria-label="Previous period" onClick={() => set('date', shift(date, tab, -1))} className="min-h-11 rounded-xl px-3 ring-1 ring-slate-300">
-                ‹
-              </button>
-              {tab === 'month' ? (
-                <TextInput type="month" value={date.slice(0, 7)} onChange={(e) => e.target.value && set('date', `${e.target.value}-01`)} />
-              ) : (
-                <TextInput type="date" value={date} onChange={(e) => e.target.value && set('date', e.target.value)} />
-              )}
-              <button type="button" aria-label="Next period" onClick={() => set('date', shift(date, tab, 1))} className="min-h-11 rounded-xl px-3 ring-1 ring-slate-300">
-                ›
-              </button>
-            </div>
-          </Field>
-          {isAdmin && (
-            <Field label="Site">
-              <Select value={siteId} onChange={(e) => set('site', e.target.value)}>
-                <option value="">All sites</option>
-                {(sites.data ?? []).map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name}
+      {showFilters && (
+        <Card className="no-print !p-3">
+          <div className="grid gap-3 sm:grid-cols-3">
+            {isAdmin && (
+              <Field label="Site">
+                <Select value={siteId} onChange={(e) => set('site', e.target.value)}>
+                  <option value="">All sites</option>
+                  {(sites.data ?? []).map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+            )}
+            <Field label="Plan">
+              <Select value={planId} onChange={(e) => set('plan', e.target.value)}>
+                <option value="">All plans</option>
+                {(plans.data ?? []).map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
                   </option>
                 ))}
               </Select>
             </Field>
-          )}
-          <Field label="Plan">
-            <Select value={planId} onChange={(e) => set('plan', e.target.value)}>
-              <option value="">All plans</option>
-              {(plans.data ?? []).map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                </option>
-              ))}
-            </Select>
-          </Field>
-          <Field label="Seller">
-            <Select value={sellerId} onChange={(e) => set('seller', e.target.value)}>
-              <option value="">All cashiers and agents</option>
-              {(staff.data ?? []).map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.full_name}
-                </option>
-              ))}
-            </Select>
-          </Field>
-        </div>
-        {r && (
-          <div className="mt-3 flex flex-wrap items-center gap-3 text-sm">
-            <span className="font-semibold text-slate-900">{label}</span>
-            {!isCurrent && (
-              <button type="button" onClick={() => set('date', '')} className="font-semibold text-brand-700 hover:underline">
-                Back to {tab === 'day' ? 'today' : tab === 'week' ? 'this week' : 'this month'}
-              </button>
-            )}
-            {report.isFetching && <Spinner className="h-4 w-4 text-brand-600" />}
+            <Field label="Cashier / agent">
+              <Select value={sellerId} onChange={(e) => set('seller', e.target.value)}>
+                <option value="">Everyone</option>
+                {(staff.data ?? []).map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.full_name}
+                  </option>
+                ))}
+              </Select>
+            </Field>
           </div>
-        )}
-      </Card>
+        </Card>
+      )}
 
       {report.error && <Alert tone="error">{friendlyError(report.error)}</Alert>}
       {report.isLoading && <Spinner className="h-8 w-8 text-brand-600" />}
 
       {r && (
         <>
-          <div className="report-section grid grid-cols-2 gap-3 lg:grid-cols-4">
-            <Card>
-              <div className="text-sm text-slate-500">Vouchers sold</div>
-              <div className="text-2xl font-extrabold tabular-nums sm:text-3xl">{formatNumber(r.summary.sold)}</div>
-            </Card>
-            <Card>
-              <div className="text-sm text-slate-500">Revenue</div>
-              <div className="text-2xl font-extrabold tabular-nums sm:text-3xl">{formatSSP(r.summary.revenue)}</div>
-              {usdRate && <div className="text-sm font-semibold text-slate-600">{formatUsd(r.summary.revenue, usdRate)}</div>}
-            </Card>
-            <Card>
-              <div className="text-sm text-slate-500">Average sale</div>
-              <div className="text-2xl font-extrabold tabular-nums sm:text-3xl">{formatSSP(r.summary.average)}</div>
-            </Card>
-            <Card>
-              <div className="text-sm text-slate-500">Change vs previous {tab}</div>
-              <div className="text-2xl font-extrabold tabular-nums sm:text-3xl">
-                {change === null || change === undefined ? '—' : `${change > 0 ? '▲ +' : change < 0 ? '▼ ' : ''}${change}%`}
+          <section className="report-section rounded-2xl bg-white p-4 shadow-card ring-1 ring-slate-200/70">
+            <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+              <div className="text-sm font-semibold text-slate-900">{label}</div>
+              <div className="flex items-center gap-3 text-xs text-slate-500">
+                {filtersText && <span>{filtersText}</span>}
+                {!isCurrent && (
+                  <button type="button" onClick={() => set('date', '')} className="no-print min-h-11 font-semibold text-brand-700 hover:underline">
+                    {tab === 'day' ? 'Today' : tab === 'week' ? 'This week' : 'This month'}
+                  </button>
+                )}
               </div>
-              <div className="text-xs text-slate-500">Previous: {formatSSP(r.summary.previous_revenue)}</div>
-            </Card>
+            </div>
+            <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-4">
+              {stats.map((x, i) => (
+                <div key={x.label} className={i > 0 ? 'sm:border-l sm:border-slate-100 sm:pl-4' : ''}>
+                  <dt className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{x.label}</dt>
+                  <dd
+                    className={`text-xl font-bold tabular-nums ${
+                      i === 3 && typeof change === 'number' ? (change > 0 ? 'text-green-700' : change < 0 ? 'text-red-700' : 'text-slate-900') : 'text-slate-900'
+                    }`}
+                  >
+                    {x.value}
+                  </dd>
+                  {x.sub && <dd className="text-xs text-slate-500">{x.sub}</dd>}
+                </div>
+              ))}
+            </dl>
+          </section>
+
+          <div className="grid gap-3 lg:grid-cols-2">
+            <Section title="By plan">
+              <SalesTable
+                head="Plan"
+                total={r.summary}
+                rows={r.by_plan.map((p) => ({
+                  key: p.plan_id,
+                  sold: p.sold,
+                  revenue: p.revenue,
+                  extra: `${p.share_pct}%`,
+                  name: (
+                    <span className="flex items-center gap-2">
+                      <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: p.color, printColorAdjust: 'exact', WebkitPrintColorAdjust: 'exact' }} />
+                      {p.name}
+                    </span>
+                  ),
+                }))}
+              />
+            </Section>
+            <Section title="By cashier / agent">
+              <SalesTable head="Name" total={r.summary} rows={r.by_seller.map((p) => ({ key: p.seller_id ?? p.name, name: p.name, sold: p.sold, revenue: p.revenue }))} />
+            </Section>
+            {!r.site_id && r.by_site.length > 1 && (
+              <Section title="By site">
+                <SalesTable head="Site" total={r.summary} rows={r.by_site.map((p) => ({ key: p.site_id, name: p.name, sold: p.sold, revenue: p.revenue }))} />
+              </Section>
+            )}
           </div>
 
-          <div className="grid gap-4 lg:grid-cols-2">
-            <Section title="By plan">
-              <table className="w-full text-left text-sm">
-                <thead>
-                  <tr>
-                    <th className={th}>Plan</th>
-                    <th className={`${th} text-right`}>Sold</th>
-                    <th className={`${th} text-right`}>Revenue</th>
-                    <th className={`${th} w-28 text-right`}>Share</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {r.by_plan.map((p) => (
-                    <tr key={p.plan_id} className="border-t border-slate-100">
-                      <td className={td}>
-                        <span className="flex items-center gap-2">
-                          <span className="h-3 w-3 shrink-0 rounded-full" style={{ backgroundColor: p.color, printColorAdjust: 'exact', WebkitPrintColorAdjust: 'exact' }} />
-                          {p.name}
-                        </span>
-                      </td>
-                      <td className={`${td} text-right tabular-nums`}>{formatNumber(p.sold)}</td>
-                      <td className={`${td} text-right font-semibold tabular-nums`}>{formatSSP(p.revenue)}</td>
-                      <td className={`${td} text-right tabular-nums`}>{p.share_pct}%</td>
-                    </tr>
-                  ))}
-                  {r.by_plan.length === 0 && (
-                    <tr>
-                      <td colSpan={4} className="py-3 text-slate-500">
-                        No sales.
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </Section>
+          <button
+            type="button"
+            aria-expanded={showMore}
+            onClick={() => setShowMore((v) => !v)}
+            className="no-print min-h-11 w-full rounded-xl text-sm font-semibold text-brand-700 ring-1 ring-slate-200 hover:bg-slate-50"
+          >
+            {showMore ? 'Hide details' : `Show details (${r.period === 'day' ? 'hours' : 'days'}, voucher status, router cards)`}
+          </button>
 
-            <Section title="By seller">
+          <div className={`space-y-3 ${showMore ? '' : 'hidden print:block'}`}>
+            <Section title={r.period === 'day' ? 'Sales per hour' : 'Sales per day'} aside={r.period === 'day' ? 'hours with no sales hidden' : 'days with no sales hidden'}>
               <table className="w-full text-left text-sm">
                 <thead>
                   <tr>
-                    <th className={th}>Cashier / agent</th>
+                    <th className={th}>{r.period === 'day' ? 'Hour' : 'Day'}</th>
                     <th className={`${th} text-right`}>Sold</th>
                     <th className={`${th} text-right`}>Revenue</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {r.by_seller.map((p) => (
-                    <tr key={p.seller_id ?? p.name} className="border-t border-slate-100">
-                      <td className={td}>{p.name}</td>
-                      <td className={`${td} text-right tabular-nums`}>{formatNumber(p.sold)}</td>
-                      <td className={`${td} text-right font-semibold tabular-nums`}>{formatSSP(p.revenue)}</td>
+                  {shownBreakdown.map((b, i) => (
+                    <tr key={i} className={b.kind === 'subtotal' ? 'border-t border-slate-300 bg-slate-50 font-semibold' : 'border-t border-slate-100'}>
+                      <td className={`${td} tabular-nums`}>{b.label}</td>
+                      <td className={`${td} text-right tabular-nums`}>{formatNumber(b.sold)}</td>
+                      <td className={`${td} text-right tabular-nums`}>{formatSSP(b.revenue)}</td>
                     </tr>
                   ))}
-                  {r.by_seller.length === 0 && (
+                  {shownBreakdown.length === 0 && (
                     <tr>
                       <td colSpan={3} className="py-3 text-slate-500">
                         No sales.
@@ -402,39 +472,8 @@ export function ReportsPage() {
               </table>
             </Section>
 
-            {!r.site_id && (
-              <Section title="By site">
-                <table className="w-full text-left text-sm">
-                  <thead>
-                    <tr>
-                      <th className={th}>Site</th>
-                      <th className={`${th} text-right`}>Sold</th>
-                      <th className={`${th} text-right`}>Revenue</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {r.by_site.map((p) => (
-                      <tr key={p.site_id} className="border-t border-slate-100">
-                        <td className={td}>{p.name}</td>
-                        <td className={`${td} text-right tabular-nums`}>{formatNumber(p.sold)}</td>
-                        <td className={`${td} text-right font-semibold tabular-nums`}>{formatSSP(p.revenue)}</td>
-                      </tr>
-                    ))}
-                    {r.by_site.length === 0 && (
-                      <tr>
-                        <td colSpan={3} className="py-3 text-slate-500">
-                          No sales.
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </Section>
-            )}
-
-            <Section title="Voucher status">
-              <p className="mb-2 text-sm text-slate-600">Vouchers created in this period, by their status now.</p>
-              <div className="grid grid-cols-3 gap-2 text-center sm:grid-cols-6">
+            <Section title="Vouchers created in this period" aside="status now">
+              <div className="flex flex-wrap gap-x-5 gap-y-1 py-2 text-sm">
                 {(
                   [
                     ['Created', r.voucher_status.created],
@@ -445,88 +484,48 @@ export function ReportsPage() {
                     ['Disabled', r.voucher_status.disabled],
                   ] as const
                 ).map(([k, v]) => (
-                  <div key={k} className="rounded-xl bg-slate-50 p-2">
-                    <div className="text-xl font-extrabold tabular-nums">{formatNumber(v)}</div>
-                    <div className="text-xs text-slate-500">{k}</div>
-                  </div>
+                  <span key={k}>
+                    <span className="text-slate-500">{k}</span> <span className="font-bold tabular-nums">{formatNumber(v)}</span>
+                  </span>
                 ))}
               </div>
             </Section>
+
+            <Section title="Router cards used" aside={r.router_logins.length >= 500 ? 'latest 500' : `${formatNumber(r.router_logins.length)}`} className="print:hidden">
+              <p className="pt-2 text-xs text-slate-500">MikroTicket and other router cards. Each counts as a sale at its plan's price when first used.</p>
+              <table className="w-full text-left text-sm">
+                <thead>
+                  <tr>
+                    <th className={th}>Code</th>
+                    <th className={th}>Plan</th>
+                    <th className={th}>First used</th>
+                    <th className={`${th} text-right`}>Sale</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {r.router_logins.map((l) => (
+                    <tr key={`${l.router_id}:${l.username}`} className="border-t border-slate-100">
+                      <td className={`${td} font-mono`}>{l.username}</td>
+                      <td className={td}>{l.plan ? profileLabel(l.plan) : '—'}</td>
+                      <td className={`${td} tabular-nums`}>{l.first_login_at ? formatJubaTime(l.first_login_at) : 'earlier'}</td>
+                      <td className={`${td} text-right tabular-nums ${l.new && l.price_ssp ? 'font-semibold' : 'text-slate-500'}`}>
+                        {l.new && l.price_ssp ? formatSSP(l.price_ssp) : '—'}
+                      </td>
+                    </tr>
+                  ))}
+                  {r.router_logins.length === 0 && (
+                    <tr>
+                      <td colSpan={4} className="py-3 text-slate-500">
+                        None in this period.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </Section>
           </div>
 
-          <Section title={r.period === 'day' ? 'Sales per hour' : r.period === 'week' ? 'Sales per day' : 'Sales per day, with weekly subtotals'}>
-            <table className="w-full text-left text-sm">
-              <thead>
-                <tr>
-                  <th className={th}>{r.period === 'day' ? 'Hour' : 'Day'}</th>
-                  <th className={`${th} text-right`}>Sold</th>
-                  <th className={`${th} text-right`}>Revenue</th>
-                </tr>
-              </thead>
-              <tbody>
-                {breakdownRows.map((b, i) =>
-                  b.kind === 'subtotal' ? (
-                    <tr key={i} className="border-t-2 border-slate-300 bg-slate-50 font-semibold">
-                      <td className={td}>{b.label}</td>
-                      <td className={`${td} text-right tabular-nums`}>{formatNumber(b.sold)}</td>
-                      <td className={`${td} text-right tabular-nums`}>{formatSSP(b.revenue)}</td>
-                    </tr>
-                  ) : (
-                    <tr key={i} className={`border-t border-slate-100 ${b.sold === 0 ? 'text-slate-500' : ''}`}>
-                      <td className={`${td} tabular-nums`}>{b.label}</td>
-                      <td className={`${td} text-right tabular-nums`}>{formatNumber(b.sold)}</td>
-                      <td className={`${td} text-right tabular-nums`}>{formatSSP(b.revenue)}</td>
-                    </tr>
-                  ),
-                )}
-                <tr className="border-t-2 border-slate-900 font-bold">
-                  <td className={td}>Total</td>
-                  <td className={`${td} text-right tabular-nums`}>{formatNumber(r.summary.sold)}</td>
-                  <td className={`${td} text-right tabular-nums`}>{formatSSP(r.summary.revenue)}</td>
-                </tr>
-              </tbody>
-            </table>
-          </Section>
-
-          <Section title="Router vouchers activated or online">
-            <p className="mb-2 text-sm text-slate-600">
-              MikroTicket and other router vouchers activated or seen online in this period. A voucher counts as a sale, at its plan's price, when it is
-              <strong> activated</strong> (first used on the router), even if it logged in and out between two checks. Vouchers already used before
-              Hotzonex started watching the router are listed without a price.
-            </p>
-            <table className="w-full text-left text-sm">
-              <thead>
-                <tr>
-                  <th className={th}>User</th>
-                  <th className={th}>Plan</th>
-                  <th className={th}>Activated</th>
-                  <th className={`${th} text-right`}>Sale</th>
-                </tr>
-              </thead>
-              <tbody>
-                {r.router_logins.map((l) => (
-                  <tr key={`${l.router_id}:${l.username}`} className="border-t border-slate-100">
-                    <td className={`${td} font-mono`}>{l.username}</td>
-                    <td className={td}>{l.plan ? profileLabel(l.plan) : '—'}</td>
-                    <td className={`${td} tabular-nums`}>{l.first_login_at ? formatJubaTime(l.first_login_at) : 'before this period'}</td>
-                    <td className={`${td} text-right tabular-nums ${l.new && l.price_ssp ? 'font-semibold' : 'text-slate-500'}`}>
-                      {l.new && l.price_ssp ? formatSSP(l.price_ssp) : '—'}
-                    </td>
-                  </tr>
-                ))}
-                {r.router_logins.length === 0 && (
-                  <tr>
-                    <td colSpan={4} className="py-3 text-slate-500">
-                      No logins seen on the routers in this period.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-            {r.router_logins.length >= 500 && (
-              <p className="mt-2 text-xs text-slate-500">Showing the latest 500 users. The sales totals above count all of them.</p>
-            )}
-          </Section>
+          <p className="no-print text-xs text-slate-500">Juba time. Voided sales are not counted.</p>
         </>
       )}
     </div>
