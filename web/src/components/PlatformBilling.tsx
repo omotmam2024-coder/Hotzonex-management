@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { friendlyError } from '../lib/errors';
 import { formatJubaTime, formatNumber } from '../lib/format';
 import { supabase } from '../lib/supabase';
+import { BusinessPlanControl, PlansCard } from './PlanLimits';
 import { Alert, Badge, Button, Card, Checkbox, Field, Spinner, TextInput } from './ui';
 
 interface PlatformInvoice {
@@ -100,17 +101,31 @@ function BusinessBilling({ b, stdPrice }: { b: PlatformBusiness; stdPrice: numbe
   useEffect(() => setExempt(Boolean(b.exempt)), [b.exempt]);
 
   const save = useMutation({
-    mutationFn: async () => {
+    // trialOverride: a new trial end chosen with a shortcut (saved at once).
+    mutationFn: async (trialOverride?: string) => {
+      const day = trialOverride ?? trialEnd;
       const { error } = await supabase.rpc('platform_set_business_billing', {
         p_tenant_id: b.tenant_id,
         p_exempt: exempt,
         p_price: price.trim() === '' ? null : Number(price),
-        p_trial_ends_at: trialEnd ? new Date(`${trialEnd}T23:59:00+02:00`).toISOString() : null,
+        p_trial_ends_at: day ? new Date(`${day}T23:59:00+02:00`).toISOString() : null,
       });
       if (error) throw new Error(friendlyError(error));
     },
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: KEY }),
   });
+  // From the later of today and the current trial end.
+  function extendTrial(days: number) {
+    const today = new Date().toISOString().slice(0, 10);
+    const from = trialEnd && trialEnd > today ? trialEnd : today;
+    const end = new Date(`${from}T12:00:00Z`);
+    end.setUTCDate(end.getUTCDate() + days);
+    const next = end.toISOString().slice(0, 10);
+    if (!window.confirm(`Free trial for ${b.name} until ${next}?`)) return;
+    setTrialEnd(next);
+    save.mutate(next);
+  }
+
   const mark = useMutation({
     mutationFn: async ({ id, status }: { id: string; status: 'paid' | 'void' }) => {
       const { error } = await supabase.rpc('platform_mark_invoice', { p_invoice_id: id, p_status: status, p_ref: null });
@@ -146,10 +161,11 @@ function BusinessBilling({ b, stdPrice }: { b: PlatformBusiness; stdPrice: numbe
         <Field label="Trial until">
           <TextInput type="date" value={trialEnd} onChange={(e) => setTrialEnd(e.target.value)} />
         </Field>
-        <Button variant="secondary" onClick={() => save.mutate()} disabled={save.isPending}>
+        <Button variant="secondary" onClick={() => save.mutate(undefined)} disabled={save.isPending}>
           {save.isPending && <Spinner />} Save
         </Button>
       </div>
+      <BusinessPlanControl tenantId={b.tenant_id} onExtendTrial={extendTrial} />
       {save.error && <Alert tone="error">{friendlyError(save.error)}</Alert>}
       {b.invoices.length > 0 && (
         <ul className="space-y-1 rounded-xl bg-slate-50 p-3 text-sm">
@@ -200,6 +216,7 @@ export function PlatformBilling() {
   return (
     <div className="space-y-4">
       <ConfigCard config={d.config} />
+      <PlansCard stdPrice={d.config.price_per_router_ssp} />
       <Card>
         <h2 className="mb-1 text-lg font-bold">Businesses' billing</h2>
         <ul className="divide-y divide-slate-100">

@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { friendlyError } from '../lib/errors';
 import { formatJubaTime, formatNumber } from '../lib/format';
 import { supabase } from '../lib/supabase';
+import { OwnerPlanUsage } from './PlanLimits';
 import { Alert, Badge, Button, Card, Spinner, TextInput } from './ui';
 import { paymentRefSchema, validate } from '../lib/validation';
 
@@ -87,9 +88,10 @@ export function BillingPanel() {
 
   return (
     <div className="space-y-4">
+      <OwnerPlanUsage />
       <Card className="space-y-2">
         <div className="flex flex-wrap items-center gap-2">
-          <h2 className="text-lg font-bold">Your plan</h2>
+          <h2 className="text-lg font-bold">Payment</h2>
           {b.exempt ? (
             <Badge color="green">Included</Badge>
           ) : b.status === 'trial' ? (
