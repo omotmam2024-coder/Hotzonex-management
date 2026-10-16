@@ -3,8 +3,7 @@
 ## Sell-ready release — 16 October 2026
 
 Findings and plan: [AUDIT.md](AUDIT.md), [PLAN.md](PLAN.md). Every change below is on the branch
-`claude/clever-mccarthy-1780c7`; the web app deploys from it automatically. **Database migrations
-from this release are written but not applied** — see "What you need to do" below.
+`claude/clever-mccarthy-1780c7`; the web app deploys from it automatically. All database migrations from this release are applied.
 
 ### Phase 1 — security and bugs
 - **Audit trail** (migration `20261016170000_audit_trail.sql`): every sale, void, voucher batch,
@@ -80,9 +79,8 @@ limits, the Buy page stuck on "Loading…", poster QR border and join-WiFi QR, 2
 
 1. **Make the GitHub repository private** (Settings → General → Danger Zone → Change visibility).
    Then check that DigitalOcean still deploys (App → Settings → Source; reconnect GitHub if asked).
-2. **Apply the last migration** in Supabase → SQL Editor (paste the file, Run):
-   `20261016171000_idempotent_sell.sql`. All the others were applied on 16 October 2026. The app
-   works before and after; after applying, regenerate the types (see README → Database migrations).
+2. ~~Apply the migrations~~ — done: every migration is applied (16 October 2026) and the
+   database types were regenerated from the live project.
 3. **Check the plan limits and prices** on Businesses → Subscription plans after applying, and
    move each customer to the right plan (existing ones start on Business).
 4. **Read the Terms page** (`/terms`) and change anything you do not agree with.

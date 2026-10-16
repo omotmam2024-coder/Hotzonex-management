@@ -343,6 +343,67 @@ export type Database = {
           },
         ]
       }
+      expenses: {
+        Row: {
+          amount_ssp: number
+          category: string
+          created_at: string
+          created_by: string | null
+          id: string
+          note: string | null
+          site_id: string | null
+          spent_on: string
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          amount_ssp: number
+          category: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          note?: string | null
+          site_id?: string | null
+          spent_on: string
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          amount_ssp?: number
+          category?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          note?: string | null
+          site_id?: string | null
+          spent_on?: string
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "expenses_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "expenses_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: false
+            referencedRelation: "sites"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "expenses_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       invoices: {
         Row: {
           amount_ssp: number
@@ -1046,6 +1107,7 @@ export type Database = {
           id: string
           payment_method: string
           plan_id: string
+          request_id: string | null
           router_id: string
           seller_id: string | null
           site_id: string
@@ -1063,6 +1125,7 @@ export type Database = {
           id?: string
           payment_method?: string
           plan_id: string
+          request_id?: string | null
           router_id: string
           seller_id?: string | null
           site_id: string
@@ -1080,6 +1143,7 @@ export type Database = {
           id?: string
           payment_method?: string
           plan_id?: string
+          request_id?: string | null
           router_id?: string
           seller_id?: string | null
           site_id?: string
@@ -1189,11 +1253,54 @@ export type Database = {
           },
         ]
       }
+      subscription_plans: {
+        Row: {
+          description: string
+          id: string
+          is_public: boolean
+          max_routers: number | null
+          max_sites: number | null
+          max_staff: number | null
+          max_vouchers_month: number | null
+          name: string
+          price_per_router_ssp: number | null
+          sort: number
+          updated_at: string
+        }
+        Insert: {
+          description?: string
+          id: string
+          is_public?: boolean
+          max_routers?: number | null
+          max_sites?: number | null
+          max_staff?: number | null
+          max_vouchers_month?: number | null
+          name: string
+          price_per_router_ssp?: number | null
+          sort?: number
+          updated_at?: string
+        }
+        Update: {
+          description?: string
+          id?: string
+          is_public?: boolean
+          max_routers?: number | null
+          max_sites?: number | null
+          max_staff?: number | null
+          max_vouchers_month?: number | null
+          name?: string
+          price_per_router_ssp?: number | null
+          sort?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       tenant_billing: {
         Row: {
           contact_phone: string | null
           created_via: string
           exempt: boolean
+          plan_id: string
           price_per_router_ssp: number | null
           signup_ip: string | null
           status: string
@@ -1206,6 +1313,7 @@ export type Database = {
           contact_phone?: string | null
           created_via?: string
           exempt?: boolean
+          plan_id?: string
           price_per_router_ssp?: number | null
           signup_ip?: string | null
           status?: string
@@ -1218,6 +1326,7 @@ export type Database = {
           contact_phone?: string | null
           created_via?: string
           exempt?: boolean
+          plan_id?: string
           price_per_router_ssp?: number | null
           signup_ip?: string | null
           status?: string
@@ -1227,6 +1336,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "tenant_billing_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "subscription_plans"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "tenant_billing_tenant_id_fkey"
             columns: ["tenant_id"]
@@ -1245,6 +1361,7 @@ export type Database = {
           logo_url: string | null
           name: string
           timezone: string
+          usd_rate: number | null
         }
         Insert: {
           created_at?: string
@@ -1254,6 +1371,7 @@ export type Database = {
           logo_url?: string | null
           name: string
           timezone?: string
+          usd_rate?: number | null
         }
         Update: {
           created_at?: string
@@ -1263,6 +1381,7 @@ export type Database = {
           logo_url?: string | null
           name?: string
           timezone?: string
+          usd_rate?: number | null
         }
         Relationships: []
       }
@@ -1534,10 +1653,21 @@ export type Database = {
       billing_overview: { Args: never; Returns: Json }
       billing_run: { Args: never; Returns: Json }
       billing_tenant_of_caller: { Args: never; Returns: string }
+      billing_usage: { Args: never; Returns: Json }
       can_access_site: { Args: { target_site: string }; Returns: boolean }
       cash_up: { Args: { p_date: string; p_site_id?: string }; Returns: Json }
       confirm_payment_request: { Args: { p_id: string }; Returns: Json }
       dashboard_summary: { Args: { p_site_id?: string }; Returns: Json }
+      expense_site_check: { Args: { p_site_id: string }; Returns: undefined }
+      expiring_soon: {
+        Args: { p_hours?: number; p_site_id?: string }
+        Returns: {
+          cards: number
+          plan_color: string
+          plan_id: string
+          plan_name: string
+        }[]
+      }
       generate_vouchers: {
         Args: {
           p_code_length?: number
@@ -1617,6 +1747,21 @@ export type Database = {
         Args: { p_invoice_id: string; p_ref?: string; p_status: string }
         Returns: undefined
       }
+      platform_plans: { Args: never; Returns: Json }
+      platform_save_plan: {
+        Args: {
+          p_description: string
+          p_id: string
+          p_is_public: boolean
+          p_max_routers: number
+          p_max_sites: number
+          p_max_staff: number
+          p_max_vouchers_month: number
+          p_name: string
+          p_price_per_router_ssp: number
+        }
+        Returns: undefined
+      }
       platform_set_billing_config: {
         Args: {
           p_grace_days: number
@@ -1633,6 +1778,10 @@ export type Database = {
           p_tenant_id: string
           p_trial_ends_at: string
         }
+        Returns: undefined
+      }
+      platform_set_business_plan: {
+        Args: { p_plan_id: string; p_tenant_id: string }
         Returns: undefined
       }
       platform_set_tenant_active: {
@@ -1661,6 +1810,11 @@ export type Database = {
         }[]
       }
       profile_key: { Args: { p_name: string }; Returns: string }
+      profit_report: {
+        Args: { p_date: string; p_period: string; p_site_id?: string }
+        Returns: Json
+      }
+      public_pricing: { Args: never; Returns: Json }
       queue_batch_push: { Args: { p_batch_id: string }; Returns: string }
       raise_alert: {
         Args: {
@@ -1689,6 +1843,7 @@ export type Database = {
         Args: { p_id: string; p_reason: string }
         Returns: undefined
       }
+      remove_expense: { Args: { p_id: string }; Returns: undefined }
       report_period: {
         Args: {
           p_date: string
@@ -1728,6 +1883,10 @@ export type Database = {
         }
         Returns: Json
       }
+      save_business_settings: {
+        Args: { p_logo_url: string; p_name: string; p_usd_rate: number }
+        Returns: undefined
+      }
       save_buy_settings: {
         Args: {
           p_enabled: boolean
@@ -1738,8 +1897,19 @@ export type Database = {
         }
         Returns: undefined
       }
+      save_expense: {
+        Args: {
+          p_amount_ssp: number
+          p_category: string
+          p_id: string
+          p_note: string
+          p_site_id: string
+          p_spent_on: string
+        }
+        Returns: string
+      }
       sell_voucher: {
-        Args: { p_plan_id: string; p_router_id: string }
+        Args: { p_plan_id: string; p_request_id?: string; p_router_id: string }
         Returns: {
           amount_ssp: number
           code: string
