@@ -24,6 +24,18 @@ const settingsSchema = z.object({
 
 /** The owner's settings: the name and logo printed on cards and the Buy page, and the USD rate. */
 export function BusinessSettingsPage() {
+  return (
+    <div className="space-y-4">
+      <PageHeader title="Business settings" subtitle="Your name and logo on cards, receipts and the Buy page, and the dollar rate" />
+      <Card>
+        <BusinessSettingsForm />
+      </Card>
+    </div>
+  );
+}
+
+/** The settings form (also the first step of the welcome wizard). */
+export function BusinessSettingsForm({ onSaved, saveLabel = 'Save' }: { onSaved?: () => void; saveLabel?: string }) {
   const { business, reload } = useAuth();
   const settings = useBusinessSettings();
   const queryClient = useQueryClient();
@@ -65,6 +77,7 @@ export function BusinessSettingsPage() {
       setNotice('Saved. Printed cards, receipts and the Buy page now use these settings.');
       await queryClient.invalidateQueries({ queryKey: ['business-settings'] });
       await reload();
+      onSaved?.();
     },
   });
 
@@ -86,12 +99,10 @@ export function BusinessSettingsPage() {
 
   return (
     <div className="space-y-4">
-      <PageHeader title="Business settings" subtitle="Your name and logo on cards, receipts and the Buy page, and the dollar rate" />
       {settings.data?.needsUpdate && (
         <Alert tone="warning">These settings need the database update of 16 October (migration 20261016180000). Ask Hotzonex Cloud to apply it.</Alert>
       )}
-      <Card>
-        <form onSubmit={submit} className="space-y-5" noValidate>
+      <form onSubmit={submit} className="space-y-5" noValidate>
           <Field label="Business name" hint="Shown on printed cards and on your Buy page.">
             <TextInput value={name} onChange={(e) => setName(e.target.value)} maxLength={100} autoComplete="organization" />
           </Field>
@@ -125,10 +136,9 @@ export function BusinessSettingsPage() {
           {save.error && <Alert tone="error">{friendlyError(save.error)}</Alert>}
           {notice && <Alert tone="success">{notice}</Alert>}
           <Button type="submit" disabled={save.isPending} className="min-h-12 px-8 text-lg">
-            {save.isPending && <Spinner />} Save
+            {save.isPending && <Spinner />} {saveLabel}
           </Button>
-        </form>
-      </Card>
+      </form>
     </div>
   );
 }

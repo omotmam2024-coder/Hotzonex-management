@@ -9,7 +9,7 @@ import { Alert, Card, Select, Spinner } from '../components/ui';
 import { friendlyError } from '../lib/errors';
 import { useUsdRate } from '../lib/business';
 import { formatJubaTime, formatNumber, formatSSP, formatUsd } from '../lib/format';
-import { useRouters, useSites } from '../lib/queries';
+import { usePlans, useRouters, useSites } from '../lib/queries';
 import type { IconName } from '../lib/nav';
 import { readStored, writeStored } from '../lib/storage';
 import { supabase } from '../lib/supabase';
@@ -132,6 +132,7 @@ export function DashboardPage() {
     },
   });
   const routers = useRouters(60_000);
+  const plans = usePlans();
   const usdRate = useUsdRate();
   const withUsd = (ssp: number) => {
     const usd = formatUsd(ssp, usdRate);
@@ -171,6 +172,12 @@ export function DashboardPage() {
         }
       />
 
+      {isAdmin && !routers.isLoading && !plans.isLoading && (!(routers.data ?? []).length || !(plans.data ?? []).some((p) => p.is_active)) && (
+        <Link to="/welcome" className="flex min-h-14 items-center justify-between gap-3 rounded-2xl bg-brand-600 p-4 font-semibold text-white shadow-sm hover:bg-brand-700">
+          <span>Finish setting up: {!(routers.data ?? []).length ? 'connect your router' : 'make your first plan'}</span>
+          <span aria-hidden="true">→</span>
+        </Link>
+      )}
       {dashboard.error && <Alert tone="error">{friendlyError(dashboard.error)}</Alert>}
       {dashboard.isLoading && <Spinner className="h-8 w-8 text-brand-600" />}
 

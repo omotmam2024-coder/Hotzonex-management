@@ -28,7 +28,7 @@ export function SignupPage() {
       const v = validate(signupSchema, form);
       await invokeFunction('signup', { ...v, timezone: 'Africa/Juba' });
       await signIn(v.email, v.password);
-      navigate('/routers/new', { replace: true });
+      navigate('/welcome', { replace: true });
     } catch (err) {
       setError(friendlyError(err));
     } finally {

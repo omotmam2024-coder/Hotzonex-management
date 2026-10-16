@@ -1,3 +1,5 @@
+// OWNER: REVIEW AND EDIT. This is plain-language starter text, not legal advice. Have it checked by a
+// lawyer in South Sudan before relying on it; change the contact details in lib/contact.ts.
 import { Link } from 'react-router-dom';
 
 const UPDATED = '16 October 2026';
