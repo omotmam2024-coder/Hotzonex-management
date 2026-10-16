@@ -8,7 +8,7 @@
  *   20261016181000_dashboard_expiring.sql  expiring_soon()
  *   20261016190000_subscription_plans.sql  subscription_plans, tenant_billing.plan_id, billing_usage(),
  *                                          public_pricing(), platform_plans(), platform_set_business_plan(),
- *                                          platform_save_plan()
+ *                                          platform_save_plan()  (APPLIED)
  *   20261016210000_expenses.sql            expenses, save_expense(), remove_expense(), profit_report()
  *                                          (APPLIED; drop these entries at the next type regeneration)
  *

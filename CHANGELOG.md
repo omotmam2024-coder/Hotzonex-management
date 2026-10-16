@@ -35,7 +35,7 @@ from this release are written but not applied** — see "What you need to do" be
 - **Landing page** at `/` for visitors (features, real screenshots, prices, FAQ, WhatsApp / phone /
   office, sign-up and demo); staff who are logged in go straight to their first page.
 - **Subscription plans with limits** enforced by the database (migration
-  `20261016190000_subscription_plans.sql`): Starter (1 router, 1 site, 3 staff, 5,000 vouchers a
+  `20261016190000_subscription_plans.sql`, applied 16 October 2026): Starter (1 router, 1 site, 3 staff, 5,000 vouchers a
   month), Business (5 / 3 / 15 / 30,000), Pro (no limits); optional price per plan. Owners see
   their plan and usage on Billing; on Businesses you edit plans, move a business to another plan
   and extend trials (+14 / +30 days). Existing businesses start on Business, new ones on Starter.
@@ -82,7 +82,8 @@ limits, the Buy page stuck on "Loading…", poster QR border and join-WiFi QR, 2
 2. **Review and apply the migrations**, oldest first:
    `20261016170000_audit_trail.sql`, `20261016171000_idempotent_sell.sql`,
    `20261016172000_tighten_grants.sql`, `20261016180000_business_settings.sql`,
-   `20261016181000_dashboard_expiring.sql`, `20261016190000_subscription_plans.sql`
+   `20261016181000_dashboard_expiring.sql`
+   (`20261016190000_subscription_plans.sql` is already applied.)
    (`supabase db push`, or paste each into Supabase → SQL Editor). The app works before and after;
    features that need a migration stay hidden or say so until it is applied.
    After applying, regenerate the types (see README → Database migrations).
