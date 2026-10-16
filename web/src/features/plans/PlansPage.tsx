@@ -6,13 +6,12 @@ import { friendlyError } from '../../lib/errors';
 import { formatDuration, formatSSP } from '../../lib/format';
 import { invokeFunction } from '../../lib/functions';
 import { RouterTimeoutError, waitForJob } from '../../lib/jobs';
-import { buildMikroticketProfileName, parseMikroticketProfile, profileLabel } from '../../lib/mikroticket';
+import { profileLabel } from '../../lib/mikroticket';
 import { usePlans, useRouters } from '../../hooks/queries';
 import { supabase } from '../../lib/supabase';
 import type { Plan, RouterInfo } from '../../lib/types';
 import { planSchema, validate } from '../../lib/validation';
 
-const RATE_RE = /^\d+[kKmMgG]?\/\d+[kKmMgG]?$/;
 const SWATCHES = ['#16a34a', '#2563eb', '#dc2626', '#f59e0b', '#7c3aed', '#db2777', '#0891b2', '#475569'];
 
 type TimeUnit = 'minutes' | 'hours' | 'days';
@@ -26,13 +25,22 @@ function splitDuration(seconds: number): { amount: string; unit: TimeUnit } {
 }
 
 /** MikroTicket's label and price in a profile name: the same plan on routers whose profiles differ in the rest. */
-function profileKey(name: string): string | null {
-  const mt = parseMikroticketProfile(name);
-  return mt ? `${mt.label}|${mt.price}` : null;
+/**
+ * The router profile Hotzonex makes for a plan: "hzc-<name>-<price>". It never takes the name of a
+ * MikroTicket profile ("profile_…"), so Hotzonex and MikroTicket profiles stay apart on the router.
+ */
+/** The profile a newly ticked router gets: the plan's own hzc- profile, or a new one for older plans. */
+function linkProfileName(plan: Plan | null, generated: string): string {
+  return plan?.router_profile_name.startsWith('hzc-') ? plan.router_profile_name : generated;
 }
 
-/** Profiles the router owner made: not RouterOS's "default" and not one Hotzonex added earlier (hzc-…). */
-const isOwnProfile = (name: string) => Boolean(name) && name !== 'default' && !name.startsWith('hzc-');
+function hotzonexProfileName(name: string, priceSsp: number): string {
+  const label = name.replace(/[^A-Za-z0-9._]/g, '').slice(0, 40) || 'Plan';
+  return `hzc-${label}-${priceSsp}`;
+}
+
+/** A plan made from a MikroTicket profile before 16 October 2026 (now switched off, kept for reports). */
+const isMikroticketPlan = (p: Plan) => p.router_profile_name.startsWith('profile_') && !(p.plan_routers ?? []).some((l) => l.managed);
 
 interface PlanForm {
   id: string | null;
@@ -50,8 +58,6 @@ interface PlanForm {
   isActive: boolean;
   /** Routers ticked to carry the plan. */
   routerIds: string[];
-  /** "Make a plan" from a profile already on a router: that router uses it as it is. */
-  source: { routerId: string; profileName: string } | null;
 }
 
 function newPlan(routers: RouterInfo[]): PlanForm {
@@ -70,7 +76,6 @@ function newPlan(routers: RouterInfo[]): PlanForm {
     color: SWATCHES[0] ?? '#16a34a',
     isActive: true,
     routerIds: routers.map((r) => r.id),
-    source: null,
   };
 }
 
@@ -92,27 +97,6 @@ function toForm(p: Plan): PlanForm {
     color: p.color,
     isActive: p.is_active,
     routerIds: (p.plan_routers ?? []).map((l) => l.router_id),
-    source: null,
-  };
-}
-
-/** A new plan from a profile already on a router (one without a price in its name, e.g. Guest). */
-function fromProfile(routers: RouterInfo[], router: RouterInfo, profile: { name: string; rate_limit: string; shared_users: string }): PlanForm {
-  const mt = parseMikroticketProfile(profile.name);
-  const up = mt ? splitDuration(mt.uptimeSeconds) : null;
-  const val = mt?.validitySeconds ? splitDuration(mt.validitySeconds) : null;
-  const shared = Number(profile.shared_users);
-  return {
-    ...newPlan(routers),
-    name: (mt?.label ?? profile.name).slice(0, 40),
-    price: mt && mt.price > 0 ? String(mt.price) : '',
-    ...(up ? { uptimeAmount: up.amount, uptimeUnit: up.unit } : {}),
-    hasValidity: mt ? mt.validitySeconds !== null : true,
-    ...(val ? { validityAmount: val.amount, validityUnit: val.unit } : {}),
-    rateLimit: RATE_RE.test(profile.rate_limit) ? profile.rate_limit : '',
-    sharedUsers: shared >= 1 && shared <= 50 ? String(shared) : '1',
-    routerIds: [router.id],
-    source: { routerId: router.id, profileName: profile.name },
   };
 }
 
@@ -145,22 +129,11 @@ function PlanEditor({
   const toggleRouter = (id: string) =>
     setForm((f) => ({ ...f, routerIds: f.routerIds.includes(id) ? f.routerIds.filter((r) => r !== id) : [...f.routerIds, id] }));
 
-  /** What a router will use for this plan: its own matching profile, or one Hotzonex makes. */
-  function routerNote(r: RouterInfo, profileName: string): string {
+  /** What a router uses for this plan: the profile Hotzonex makes (older plans may use the router's own). */
+  function routerNote(r: RouterInfo): string {
     const link = linkOf(r.id);
     if (link) return link.managed ? 'profile made by Hotzonex' : `uses its own profile ${profileLabel(link.profile_name)}`;
-    if (form.source?.routerId === r.id) return `uses its own profile ${profileLabel(form.source.profileName)}`;
-    const own = matchingProfile(r, profileName);
-    if (own) return `uses its own profile ${profileLabel(own)}`;
     return r.status === 'pending' ? 'profile is made once the router is connected' : 'Hotzonex makes the profile';
-  }
-
-  /** The router's own profile for this plan: the same name, or MikroTicket's same label and price. */
-  function matchingProfile(r: RouterInfo, profileName: string): string | null {
-    const names = (r.hotspot_info?.user_profiles ?? []).map((p) => p.name);
-    if (names.includes(profileName)) return profileName;
-    const key = profileKey(profileName);
-    return key ? (names.find((n) => profileKey(n) === key) ?? null) : null;
   }
 
   const save = useMutation({
@@ -179,7 +152,7 @@ function PlanEditor({
       const rate = checked.rate_limit;
 
       const values = { name, price_ssp: price, uptime_seconds: uptime, validity_seconds: validity };
-      const generated = buildMikroticketProfileName(values);
+      const generated = hotzonexProfileName(name, price);
       const row = { ...values, rate_limit: rate || null, data_limit_mb: data, shared_users: shared, color: form.color, is_active: form.isActive };
 
       let planId = form.id;
@@ -187,22 +160,17 @@ function PlanEditor({
         const { error } = await supabase.from('plans').update(row).eq('id', planId);
         if (error) throw error;
       } else {
-        const profileName = form.source?.profileName ?? generated;
-        const { data: created, error } = await supabase.from('plans').insert({ ...row, router_profile_name: profileName }).select('id').single();
+        const { data: created, error } = await supabase.from('plans').insert({ ...row, router_profile_name: generated }).select('id').single();
         if (error) throw error;
         planId = created.id as string;
       }
 
-      // Routers ticked now get the plan: their own matching profile as it is, otherwise one Hotzonex makes.
+      // Routers ticked now get the plan with the profile Hotzonex makes (never a MikroTicket profile).
       // Routers unticked lose it (the profile goes from the router too, unless users are on it).
       const linked = new Set((plan?.plan_routers ?? []).map((l) => l.router_id));
       const added = routers
         .filter((r) => form.routerIds.includes(r.id) && !linked.has(r.id))
-        .map((r) => {
-          // A router's own profile with this plan's MikroTicket name, or its label and price, is used as it is.
-          const own = form.source?.routerId === r.id ? form.source.profileName : matchingProfile(r, generated);
-          return { plan_id: planId, router_id: r.id, profile_name: own ?? generated, managed: !own };
-        });
+        .map((r) => ({ plan_id: planId, router_id: r.id, profile_name: linkProfileName(plan, generated), managed: true }));
       const removed = [...linked].filter((id) => !form.routerIds.includes(id));
       if (added.length) {
         // A router profile removed from Hotzonex earlier is back in use.
@@ -226,7 +194,7 @@ function PlanEditor({
       const made = added.filter((a) => a.managed).length;
       const own = added.length - made;
       const parts = [`${name} saved.`];
-      if (made) parts.push(`Its profile is being added to ${made} router${made === 1 ? '' : 's'} (in MikroTicket's format, so MikroTicket shows it too).`);
+      if (made) parts.push(`Its profile is being added to ${made} router${made === 1 ? '' : 's'}.`);
       if (own) parts.push(`${own} router${own === 1 ? '' : 's'} use${own === 1 ? 's' : ''} its own matching profile as it is.`);
       const removedMade = (plan?.plan_routers ?? []).filter((l) => removed.includes(l.router_id) && l.managed).length;
       if (removedMade) parts.push(`Its profile is being removed from ${removedMade} router${removedMade === 1 ? '' : 's'} (kept there while users are on it).`);
@@ -247,20 +215,14 @@ function PlanEditor({
   }
 
   const ownOnRouters = (plan?.plan_routers ?? []).filter((l) => !l.managed && form.routerIds.includes(l.router_id));
-  const previewName = buildMikroticketProfileName({
-    name: form.name.trim() || 'Plan',
-    price_ssp: wholeNumber(form.price) || 0,
-    uptime_seconds: (wholeNumber(form.uptimeAmount) || 0) * UNIT_SECONDS[form.uptimeUnit] || 3600,
-    validity_seconds: form.hasValidity ? (wholeNumber(form.validityAmount) || 0) * UNIT_SECONDS[form.validityUnit] || null : null,
-  });
 
   return (
     <div ref={top} className="scroll-mt-20">
       <Card>
         <h2 className="mb-1 text-lg font-bold">{form.id ? `Edit ${initial.name}` : 'New plan'}</h2>
         <p className="mb-4 text-sm text-slate-600">
-          Set the plan and tick the routers that sell it. Hotzonex makes the user profile on those routers by itself, named the MikroTicket way so
-          MikroTicket shows it too. A router that already has its own profile for this plan keeps using it, unchanged.
+          Set the plan and tick the routers that sell it. Hotzonex makes its own user profile on those routers (named hzc-…), separate from
+          MikroTicket's profiles.
         </p>
         <form onSubmit={submit} className="space-y-4" noValidate>
           <div className="grid gap-4 sm:grid-cols-2">
@@ -319,7 +281,7 @@ function PlanEditor({
                   <input type="checkbox" className="mt-0.5 h-5 w-5" checked={form.routerIds.includes(r.id)} onChange={() => toggleRouter(r.id)} />
                   <span>
                     <span className="block font-medium text-slate-900">{r.name}</span>
-                    {form.routerIds.includes(r.id) && <span className="block text-xs text-slate-500">{routerNote(r, previewName)}</span>}
+                    {form.routerIds.includes(r.id) && <span className="block text-xs text-slate-500">{routerNote(r)}</span>}
                     {!form.routerIds.includes(r.id) && linkOf(r.id) && (
                       <span className="block text-xs text-amber-700">
                         {linkOf(r.id)?.managed
@@ -427,12 +389,9 @@ export function PlansPage() {
     onSettled: () => void queryClient.invalidateQueries({ queryKey: ['plans'] }),
   });
 
-  // Profiles on a router that no plan uses there (no price in their name, e.g. Guest): the admin can make them plans.
-  const unplanned = routers.flatMap((r) =>
-    (r.hotspot_info?.user_profiles ?? [])
-      .filter((up) => isOwnProfile(up.name) && !(plans.data ?? []).some((p) => p.plan_routers?.some((l) => l.router_id === r.id && l.profile_name === up.name)))
-      .map((up) => ({ router: r, profile: up })),
-  );
+  // The old plans made from MikroTicket profiles stay out of the way (switched off, kept for reports).
+  const oldMikroticket = (plans.data ?? []).filter((p) => isMikroticketPlan(p) && !p.is_active);
+  const currentPlans = (plans.data ?? []).filter((p) => !oldMikroticket.includes(p));
 
   function open(form: PlanForm, plan: Plan | null) {
     setNotice(null);
@@ -444,7 +403,7 @@ export function PlansPage() {
     <div className="space-y-4">
       <PageHeader
         title="Plans"
-        subtitle="A plan is what you sell: price, time and speed. Tick the routers that sell it and Hotzonex makes the profile on them. Profiles made on a router (e.g. in MikroTicket) become plans by themselves."
+        subtitle="A plan is what you sell: price, time and speed. Tick the routers that sell it and Hotzonex makes its own profile on them (MikroTicket's profiles are not used)."
         actions={!editing && <Button onClick={() => open(newPlan(routers), null)}>+ New plan</Button>}
       />
 
@@ -452,7 +411,7 @@ export function PlansPage() {
       {remove.error && <Alert tone="error">{remove.error.message}</Alert>}
       {editing && (
         <PlanEditor
-          key={editing.plan?.id ?? editing.form.source?.profileName ?? 'new'}
+          key={editing.plan?.id ?? 'new'}
           initial={editing.form}
           plan={editing.plan}
           routers={routers}
@@ -464,25 +423,11 @@ export function PlansPage() {
         />
       )}
 
-      {!editing && unplanned.length > 0 && (
-        <Card>
-          <h2 className="font-bold text-slate-900">Other profiles on your routers</h2>
-          <p className="text-sm text-slate-600">These have no price in their name (or are free), so they are not plans yet. Give one a price to sell it.</p>
-          <div className="mt-3 flex flex-wrap gap-2">
-            {unplanned.map(({ router, profile }) => (
-              <Button key={`${router.id}|${profile.name}`} variant="secondary" onClick={() => open(fromProfile(routers, router, profile), null)}>
-                {profileLabel(profile.name)} · {router.name} → make a plan
-              </Button>
-            ))}
-          </div>
-        </Card>
-      )}
-
       {plans.isLoading && <Spinner className="h-8 w-8 text-brand-600" />}
       {plans.error && <Alert tone="error">{friendlyError(plans.error)}</Alert>}
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-        {(plans.data ?? []).map((p) => (
+        {currentPlans.map((p) => (
           <Card key={p.id} className={`overflow-hidden !p-0 ${p.is_active ? '' : 'opacity-60'}`}>
             <div className="h-3" style={{ backgroundColor: p.color }} />
             <div className="p-4">
@@ -532,6 +477,25 @@ export function PlansPage() {
           </Card>
         ))}
       </div>
+
+      {oldMikroticket.length > 0 && (
+        <details className="rounded-2xl border border-slate-200 bg-white p-4">
+          <summary className="flex min-h-11 cursor-pointer items-center font-semibold text-slate-700">
+            Old MikroTicket plans ({oldMikroticket.length}) — switched off
+          </summary>
+          <p className="mt-2 text-sm text-slate-600">
+            These were made from MikroTicket profiles. They are no longer sold in Hotzonex, but kept so past sales and reports keep their names.
+            MikroTicket cards on your routers keep working and their sales are still counted.
+          </p>
+          <ul className="mt-2 flex flex-wrap gap-2 text-sm">
+            {oldMikroticket.map((p) => (
+              <li key={p.id} className="rounded-full bg-slate-100 px-3 py-1 text-slate-700">
+                {p.name} · {formatSSP(p.price_ssp)}
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
     </div>
   );
 }

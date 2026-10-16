@@ -58,6 +58,13 @@ the due day, voided invoices coming back, trial for added businesses, "Not bille
 sign-up and Buy spam limits, owner-login protection, internal-address router hosts, router field
 limits, the Buy page stuck on "Loading…", poster QR border and join-WiFi QR, 2-step code screen.
 
+### Plans separate from MikroTicket (applied)
+- Router profiles no longer become Hotzonex plans by themselves (migration
+  `20261016200000_no_mikroticket_plans.sql`, applied at your request; undo steps inside it).
+- The 9 plans made from MikroTicket profiles are switched off and shown under "Old MikroTicket
+  plans"; MikroTicket cards keep working and are still counted in reports.
+- New plans always get Hotzonex's own router profile `hzc-<plan>-<price>`.
+
 ## What you need to do
 
 1. **Make the GitHub repository private** (Settings → General → Danger Zone → Change visibility).

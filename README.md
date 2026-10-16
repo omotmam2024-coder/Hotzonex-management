@@ -264,12 +264,14 @@ at once.
 
 ### Plans and router profiles
 
-Each plan uses a hotspot **user profile on the router**. In the plan editor, **Router user profile**
-lists the profiles found on your routers (MikroTicket's show as e.g. `1Hr (MikroTicket)`); pick one
-and Hotzonex uses it exactly as it is, with its own speed and shared users. Choosing a MikroTicket
-profile fills in the plan's name, price, time and validity from the profile. **Import MikroTicket
-profiles** on the Plans page adds a plan for every MikroTicket profile not used yet. Only
-**+ New profile** makes Hotzonex add a profile (only to routers that do not have it).
+Plans are made in Hotzonex only. When you tick a router for a plan, Hotzonex adds its **own** user
+profile there, named `hzc-<plan>-<price>` (e.g. `hzc-DayPass-5000`), with the plan's speed and
+devices per code; each card gets the plan's time and data limit, and Hotzonex removes cards whose
+validity is over. MikroTicket's profiles (`profile_…`) are never used, changed or turned into plans.
+
+The plans that were made from MikroTicket profiles before 16 October 2026 are switched off and
+listed under **Old MikroTicket plans** at the bottom of the Plans page (kept so past reports keep
+their names). MikroTicket cards on the routers keep working and their sales are still counted.
 
 ### Router users and sales from activated vouchers
 
