@@ -85,10 +85,9 @@ limits, the Buy page stuck on "Loading…", poster QR border and join-WiFi QR, 2
    upgrade Supabase to Pro for daily backups and leaked-password protection.
 7. No new environment variables and no DNS changes are needed.
 
-## Open decisions (AUDIT.md §0)
-- **Mobile-money Buy page**: the brief says cash and agent codes only. It is kept (you asked for
-  it and it is live); say if it should be switched off or removed.
-- **Role values** in the database stay `admin / manager / seller`; only the labels changed.
+## Decisions (AUDIT.md §0)
+- Hosting stays on **DigitalOcean**; the mobile-money **Buy page stays** (owner, 16 October 2026).
+- Role values in the database stay `admin / manager / seller`; only the labels changed.
 
 ## Recommended next steps
 - Agent codes printed on cards for agents who sell offline, settled at cash-up.
