@@ -110,6 +110,7 @@ export const EXPENSE_CATEGORIES = [
   { key: 'power', label: 'Electricity / fuel' },
   { key: 'rent', label: 'Rent' },
   { key: 'salaries', label: 'Salaries / wages' },
+  { key: 'feeding', label: 'Feeding' },
   { key: 'equipment', label: 'Equipment' },
   { key: 'repairs', label: 'Repairs' },
   { key: 'printing', label: 'Printing / cards' },

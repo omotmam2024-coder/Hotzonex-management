@@ -67,12 +67,13 @@ limits, the Buy page stuck on "Loading…", poster QR border and join-WiFi QR, 2
 
 ### Expenses and profit (applied)
 - New **Expenses & profit** page (owners and managers): record expenses (internet, power, rent,
-  salaries, equipment, repairs, printing, transport, other) for a site or the whole business; see
+  salaries, feeding, equipment, repairs, printing, transport, other) for a site or the whole business; see
   sales − agent commission − expenses = **profit** per day, week or month, day by day and per
   category, with Print and CSV. Managers record and see only their own site's expenses.
 - Reports shows commission, expenses and profit under the summary, with a link to the page.
 - Migration `20261016210000_expenses.sql` (new table and functions only; every change is written
   to the audit log), applied on 16 October 2026 and recorded in the migration history.
+- Category **Feeding** added (migration `20261016220000_expense_feeding.sql`, applied).
 
 ## What you need to do
 
