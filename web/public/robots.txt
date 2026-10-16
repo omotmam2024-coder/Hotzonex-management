@@ -1,0 +1,9 @@
+# Public pages may be indexed; the staff app and customers' Buy pages are private.
+User-agent: *
+Allow: /$
+Allow: /signup
+Allow: /terms
+Allow: /login
+Disallow: /
+
+Sitemap: https://app.hotzonex.net/sitemap.xml

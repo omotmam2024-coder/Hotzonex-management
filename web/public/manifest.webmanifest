@@ -1,0 +1,21 @@
+{
+  "name": "Hotzonex Cloud",
+  "short_name": "Hotzonex",
+  "description": "Sell WiFi vouchers, follow cashiers and agents, and manage MikroTik hotspot routers from your phone.",
+  "id": "/",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#ffffff",
+  "theme_color": "#15479c",
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Sell a card", "url": "/sell", "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }] },
+    { "name": "Dashboard", "url": "/dashboard", "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }] }
+  ]
+}

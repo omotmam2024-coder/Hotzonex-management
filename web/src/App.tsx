@@ -33,6 +33,7 @@ const CashPage = page(() => import('./pages/CashPage'), 'CashPage');
 const SignupPage = page(() => import('./pages/SignupPage'), 'SignupPage');
 const TermsPage = page(() => import('./pages/TermsPage'), 'TermsPage');
 const NotFoundPage = page(() => import('./pages/NotFoundPage'), 'NotFoundPage');
+const LandingPage = page(() => import('./pages/LandingPage'), 'LandingPage');
 const BusinessSettingsPage = page(() => import('./pages/BusinessSettingsPage'), 'BusinessSettingsPage');
 const BillingPage = page(() => import('./pages/BillingPage'), 'BillingPage');
 const SecurityPage = page(() => import('./pages/SecurityPage'), 'SecurityPage');
@@ -44,6 +45,17 @@ function PlatformOnly({ children }: { children: JSX.Element }) {
   return isPlatformAdmin ? children : <HomeRedirect />;
 }
 
+/** "/": the public landing page for visitors; staff who are logged in go straight to their first page. */
+function Home() {
+  const { status, profile } = useAuth();
+  if (status === 'ready' && profile) return <Navigate to={homePathFor(profile.role)} replace />;
+  if (status === 'loading') return <FullScreenSpinner />;
+  if (status === 'mfa') return <Navigate to="/login" replace />;
+  // Logged in but the account cannot open (switched off, no profile, error): the app explains why.
+  if (status !== 'signed_out') return <Navigate to="/sell" replace />;
+  return <LandingPage />;
+}
+
 function HomeRedirect() {
   const { profile } = useAuth();
   return <Navigate to={profile ? homePathFor(profile.role) : '/login'} replace />;
@@ -53,6 +65,7 @@ export function App() {
   return (
     <Suspense fallback={<FullScreenSpinner />}>
       <Routes>
+        <Route path="/" element={<Home />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/reset-password" element={<ResetPasswordPage />} />
         {/* Public: customers buy a card with mobile money (no login). */}
@@ -67,7 +80,6 @@ export function App() {
           <Route path="/print/receipt" element={<PrintReceiptPage />} />
           <Route path="/print/receipt/:voucherId" element={<PrintReceiptPage />} />
           <Route element={<Layout />}>
-            <Route index element={<HomeRedirect />} />
             <Route element={<RequireRole roles={rolesFor('/dashboard')} />}>
               <Route path="/dashboard" element={<DashboardPage />} />
             </Route>
