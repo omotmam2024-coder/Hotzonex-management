@@ -32,6 +32,7 @@ const PaymentsPage = page(() => import('./pages/PaymentsPage'), 'PaymentsPage');
 const CashPage = page(() => import('./pages/CashPage'), 'CashPage');
 const SignupPage = page(() => import('./pages/SignupPage'), 'SignupPage');
 const TermsPage = page(() => import('./pages/TermsPage'), 'TermsPage');
+const NotFoundPage = page(() => import('./pages/NotFoundPage'), 'NotFoundPage');
 const BillingPage = page(() => import('./pages/BillingPage'), 'BillingPage');
 const SecurityPage = page(() => import('./pages/SecurityPage'), 'SecurityPage');
 const AlertsPage = page(() => import('./pages/AlertsPage'), 'AlertsPage');
@@ -124,9 +125,9 @@ export function App() {
                 }
               />
             </Route>
-            <Route path="*" element={<HomeRedirect />} />
           </Route>
         </Route>
+        <Route path="*" element={<NotFoundPage />} />
       </Routes>
     </Suspense>
   );
