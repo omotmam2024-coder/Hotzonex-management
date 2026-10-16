@@ -10,6 +10,7 @@ import { RouterTimeoutError, waitForJob } from '../lib/jobs';
 import { useSites } from '../lib/queries';
 import { supabase } from '../lib/supabase';
 import { ROUTER_COLUMNS, type RouterConnection, type RouterInfo, type TestConnectionResult } from '../lib/types';
+import { routerSchema } from '../lib/validation';
 
 interface FormState {
   host: string;
@@ -95,13 +96,8 @@ export function RouterFormPage() {
   const switchToTunnel = isEdit && existing.data?.connection === 'cloud' && tunnelReady && searchParams.get('tunnel') === '1';
 
   function validate(): string | null {
-    if (!form.host.trim()) return 'Enter the router address, for example 192.168.88.1.';
-    const port = Number(form.port || '80');
-    if (!Number.isInteger(port) || port < 1 || port > 65535) return 'Port must be a number from 1 to 65535.';
-    if (!form.username.trim()) return 'Enter the router username.';
-    if (!form.site_id) return 'Choose a site.';
-    if (switchToTunnel && !form.password) return 'Enter the router password. Hotzonex logs in to the router through the tunnel.';
-    return null;
+    const result = routerSchema(switchToTunnel).safeParse({ ...form, port: form.port || '80' });
+    return result.success ? null : (result.error.issues[0]?.message ?? 'Please check the form.');
   }
 
   async function handleSubmit(e: FormEvent) {

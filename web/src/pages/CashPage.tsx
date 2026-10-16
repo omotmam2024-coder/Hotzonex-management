@@ -7,6 +7,7 @@ import { friendlyError } from '../lib/errors';
 import { formatNumber } from '../lib/format';
 import { useSites } from '../lib/queries';
 import { supabase } from '../lib/supabase';
+import { cashHandoverSchema, validate } from '../lib/validation';
 
 interface CashRow {
   seller_id: string;
@@ -37,9 +38,8 @@ function ReceiveCash({ row, onDone }: { row: CashRow; onDone: () => void }) {
   const [note, setNote] = useState('');
   const receive = useMutation({
     mutationFn: async () => {
-      const value = Number(amount);
-      if (!Number.isInteger(value) || value === 0) throw new Error('Type the amount received.');
-      const { error } = await supabase.rpc('record_cash_handover', { p_seller_id: row.seller_id, p_amount_ssp: value, p_note: note || null });
+      const v = validate(cashHandoverSchema, { amount, note });
+      const { error } = await supabase.rpc('record_cash_handover', { p_seller_id: row.seller_id, p_amount_ssp: v.amount, p_note: v.note || null });
       if (error) throw new Error(friendlyError(error));
     },
     onSuccess: onDone,

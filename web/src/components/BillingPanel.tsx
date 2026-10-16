@@ -4,6 +4,7 @@ import { friendlyError } from '../lib/errors';
 import { formatJubaTime, formatNumber } from '../lib/format';
 import { supabase } from '../lib/supabase';
 import { Alert, Badge, Button, Card, Spinner, TextInput } from './ui';
+import { paymentRefSchema, validate } from '../lib/validation';
 
 export interface Invoice {
   id: string;
@@ -57,7 +58,7 @@ function PayForm({ invoice }: { invoice: Invoice }) {
   const [ref, setRef] = useState('');
   const send = useMutation({
     mutationFn: async () => {
-      const { error } = await supabase.rpc('submit_invoice_payment', { p_invoice_id: invoice.id, p_ref: ref });
+      const { error } = await supabase.rpc('submit_invoice_payment', { p_invoice_id: invoice.id, p_ref: validate(paymentRefSchema, ref) });
       if (error) throw new Error(friendlyError(error));
     },
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['billing'] }),

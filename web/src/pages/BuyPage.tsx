@@ -4,6 +4,7 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 import { friendlyError } from '../lib/errors';
 import { formatDuration, formatNumber } from '../lib/format';
 import { callPublicFunction } from '../lib/functions';
+import { buyRequestSchema, validate } from '../lib/validation';
 
 interface BuyPlan {
   id: string;
@@ -111,7 +112,10 @@ export function BuyPage() {
   }, [status.error, slug]);
 
   const send = useMutation({
-    mutationFn: () => callPublicFunction<Claim>('buy', { action: 'request', slug, plan_id: planId, phone, provider, txn_ref: txn }),
+    mutationFn: () => {
+      const v = validate(buyRequestSchema, { plan_id: planId, phone, txn_ref: txn });
+      return callPublicFunction<Claim>('buy', { action: 'request', slug, provider, ...v });
+    },
     networkMode: 'always',
     onSuccess: (c) => {
       saveClaim(slug, c);

@@ -10,6 +10,7 @@ import { buildMikroticketProfileName, parseMikroticketProfile, profileLabel } fr
 import { usePlans, useRouters } from '../lib/queries';
 import { supabase } from '../lib/supabase';
 import type { Plan, RouterInfo } from '../lib/types';
+import { planSchema, validate } from '../lib/validation';
 
 const RATE_RE = /^\d+[kKmMgG]?\/\d+[kKmMgG]?$/;
 const SWATCHES = ['#16a34a', '#2563eb', '#dc2626', '#f59e0b', '#7c3aed', '#db2777', '#0891b2', '#475569'];
@@ -164,21 +165,18 @@ function PlanEditor({
 
   const save = useMutation({
     mutationFn: async () => {
-      const name = form.name.trim();
-      if (!name) throw new Error('Plan name is required.');
-      const price = wholeNumber(form.price);
-      if (!(price > 0)) throw new Error('Price must be a whole number of SSP above 0.');
-      const uptime = wholeNumber(form.uptimeAmount) * UNIT_SECONDS[form.uptimeUnit];
-      if (!(uptime > 0)) throw new Error('Time allowed must be above 0.');
-      const validity = form.hasValidity ? wholeNumber(form.validityAmount) * UNIT_SECONDS[form.validityUnit] : null;
-      if (validity !== null && !(validity > 0)) throw new Error('Validity must be above 0, or tick "No validity limit".');
-      const rate = form.rateLimit.trim();
-      if (rate && !RATE_RE.test(rate)) throw new Error('Speed limit must look like 2M/2M (upload/download), or be empty for no limit.');
-      const data = form.dataLimitMb.trim() ? wholeNumber(form.dataLimitMb.trim()) : null;
-      if (data !== null && !(data > 0)) throw new Error('Data limit must be a whole number of MB, or empty for no limit.');
-      const shared = wholeNumber(form.sharedUsers);
-      if (!(shared >= 1 && shared <= 50)) throw new Error('Devices per code must be from 1 to 50.');
-      if (!form.routerIds.length) throw new Error('Tick at least one router for this plan.');
+      const checked = validate(planSchema, {
+        name: form.name,
+        price_ssp: wholeNumber(form.price),
+        uptime_seconds: wholeNumber(form.uptimeAmount) * UNIT_SECONDS[form.uptimeUnit],
+        validity_seconds: form.hasValidity ? wholeNumber(form.validityAmount) * UNIT_SECONDS[form.validityUnit] : null,
+        rate_limit: form.rateLimit,
+        data_limit_mb: form.dataLimitMb.trim() ? wholeNumber(form.dataLimitMb.trim()) : null,
+        shared_users: wholeNumber(form.sharedUsers),
+        router_ids: form.routerIds,
+      });
+      const { name, price_ssp: price, uptime_seconds: uptime, validity_seconds: validity, data_limit_mb: data, shared_users: shared } = checked;
+      const rate = checked.rate_limit;
 
       const values = { name, price_ssp: price, uptime_seconds: uptime, validity_seconds: validity };
       const generated = buildMikroticketProfileName(values);

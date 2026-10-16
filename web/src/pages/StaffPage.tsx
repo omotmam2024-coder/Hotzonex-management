@@ -8,6 +8,7 @@ import { invokeFunction } from '../lib/functions';
 import { ROLE_LABELS } from '../lib/nav';
 import { useSites } from '../lib/queries';
 import type { Role, StaffMember } from '../lib/types';
+import { staffSchema, validate } from '../lib/validation';
 
 interface StaffForm {
   id: string | null;
@@ -29,17 +30,14 @@ function StaffEditor({ initial, onClose }: { initial: StaffForm; onClose: () => 
 
   const save = useMutation({
     mutationFn: async () => {
-      if (!form.full_name.trim()) throw new Error('Full name is required.');
-      if (isNew && !form.email.trim()) throw new Error('Email is required.');
-      if ((isNew || form.password) && form.password.length < 8) throw new Error('Password must be at least 8 characters.');
-      if (form.role !== 'admin' && !form.site_id) throw new Error('Managers and sellers must belong to a site.');
+      const v = validate(staffSchema(isNew), form);
       const common = {
-        full_name: form.full_name.trim(),
-        role: form.role,
-        site_id: form.site_id || null,
-        password: form.password,
+        full_name: v.full_name,
+        role: v.role,
+        site_id: v.site_id || null,
+        password: v.password,
       };
-      if (isNew) await invokeFunction('create-staff', { action: 'create', email: form.email.trim(), ...common });
+      if (isNew) await invokeFunction('create-staff', { action: 'create', email: v.email, ...common });
       else await invokeFunction('create-staff', { action: 'update', id: form.id, is_active: form.is_active, ...common });
     },
     onSuccess: () => {

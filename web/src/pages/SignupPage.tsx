@@ -3,6 +3,7 @@ import { Link, Navigate, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthProvider';
 import { friendlyError } from '../lib/errors';
 import { invokeFunction } from '../lib/functions';
+import { signupSchema, validate } from '../lib/validation';
 
 const input =
   'min-h-12 w-full rounded-xl border border-slate-300 px-3 text-base focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100';
@@ -24,8 +25,9 @@ export function SignupPage() {
     setError(null);
     setBusy(true);
     try {
-      await invokeFunction('signup', { ...form, email: form.email.trim(), timezone: 'Africa/Juba' });
-      await signIn(form.email.trim(), form.password);
+      const v = validate(signupSchema, form);
+      await invokeFunction('signup', { ...v, timezone: 'Africa/Juba' });
+      await signIn(v.email, v.password);
       navigate('/routers/new', { replace: true });
     } catch (err) {
       setError(friendlyError(err));

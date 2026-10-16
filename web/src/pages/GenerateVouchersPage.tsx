@@ -9,6 +9,7 @@ import { formatDuration, formatJubaTime, formatNumber, formatSSP } from '../lib/
 import { invalidateSalesData, usePlans, useRouters, useSites } from '../lib/queries';
 import { supabase } from '../lib/supabase';
 import { planOnRouter, type BatchStatus } from '../lib/types';
+import { generateVouchersSchema, validate } from '../lib/validation';
 
 const BATCH_COLUMNS =
   'id, created_at, site_id, router_id, plan_id, quantity, code_length, site_name, router_name, plan_name, plan_color, price_ssp, uptime_seconds, voucher_count, pushed_count, push_status, push_error, push_finished_at, push_warnings';
@@ -172,24 +173,15 @@ export function GenerateVouchersPage() {
 
   const generate = useMutation({
     mutationFn: async () => {
-      const qty = Number(quantity);
-      const len = Number(codeLength);
-      if (!routerId) throw new Error('Choose a router.');
-      if (!planId) throw new Error('Choose a plan.');
-      if (!Number.isInteger(qty) || qty < 1 || qty > 1000) throw new Error('Quantity must be from 1 to 1000.');
+      const input = validate(generateVouchersSchema, { p_router_id: routerId, p_plan_id: planId, p_quantity: quantity, p_code_length: codeLength });
       if (router?.status === 'offline') {
         throw new Error(
           `Router ${router.name} is offline${router.last_seen_at ? ` since ${formatJubaTime(router.last_seen_at)}` : ''}. Generate vouchers when it is back online.`,
         );
       }
-      const { error } = await supabase.rpc('generate_vouchers', {
-        p_router_id: routerId,
-        p_plan_id: planId,
-        p_quantity: qty,
-        p_code_length: len,
-      });
+      const { error } = await supabase.rpc('generate_vouchers', input);
       if (error) throw new Error(friendlyError(error));
-      return qty;
+      return input.p_quantity;
     },
     onSuccess: (qty) => {
       const plan = activePlans.find((p) => p.id === planId);
