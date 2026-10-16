@@ -10,6 +10,7 @@
  *                                          public_pricing(), platform_plans(), platform_set_business_plan(),
  *                                          platform_save_plan()
  *   20261016210000_expenses.sql            expenses, save_expense(), remove_expense(), profit_report()
+ *                                          (APPLIED; drop these entries at the next type regeneration)
  *
  * These entries go away once the migrations are applied and the types are regenerated: delete the
  * matching entry from `PendingTables` / `PendingFunctions`.

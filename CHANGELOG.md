@@ -65,14 +65,14 @@ limits, the Buy page stuck on "Loading…", poster QR border and join-WiFi QR, 2
   plans"; MikroTicket cards keep working and are still counted in reports.
 - New plans always get Hotzonex's own router profile `hzc-<plan>-<price>`.
 
-### Expenses and profit (migration written, not applied)
+### Expenses and profit (applied)
 - New **Expenses & profit** page (owners and managers): record expenses (internet, power, rent,
   salaries, equipment, repairs, printing, transport, other) for a site or the whole business; see
   sales − agent commission − expenses = **profit** per day, week or month, day by day and per
   category, with Print and CSV. Managers record and see only their own site's expenses.
 - Reports shows commission, expenses and profit under the summary, with a link to the page.
 - Migration `20261016210000_expenses.sql` (new table and functions only; every change is written
-  to the audit log). Until it is applied the page says it needs the update.
+  to the audit log), applied on 16 October 2026 and recorded in the migration history.
 
 ## What you need to do
 
@@ -81,8 +81,7 @@ limits, the Buy page stuck on "Loading…", poster QR border and join-WiFi QR, 2
 2. **Review and apply the migrations**, oldest first:
    `20261016170000_audit_trail.sql`, `20261016171000_idempotent_sell.sql`,
    `20261016172000_tighten_grants.sql`, `20261016180000_business_settings.sql`,
-   `20261016181000_dashboard_expiring.sql`, `20261016190000_subscription_plans.sql`,
-   `20261016210000_expenses.sql`
+   `20261016181000_dashboard_expiring.sql`, `20261016190000_subscription_plans.sql`
    (`supabase db push`, or paste each into Supabase → SQL Editor). The app works before and after;
    features that need a migration stay hidden or say so until it is applied.
    After applying, regenerate the types (see README → Database migrations).
