@@ -71,7 +71,7 @@ export const planSchema = z.object({
 });
 
 /** A phone number: digits with an optional +, 7 to 15 digits (spaces, dots and dashes allowed). */
-export const phoneSchema = (message: string) =>
+const phoneSchema = (message: string) =>
   z
     .string()
     .transform((v) => v.trim().replace(/[\s().-]/g, ''))

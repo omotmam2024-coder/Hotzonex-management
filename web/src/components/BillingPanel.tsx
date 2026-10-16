@@ -1,51 +1,12 @@
 import { useState } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useBillingOverview, type Invoice } from '../hooks/useBillingOverview';
 import { friendlyError } from '../lib/errors';
 import { formatJubaTime, formatNumber } from '../lib/format';
 import { supabase } from '../lib/supabase';
 import { OwnerPlanUsage } from './PlanLimits';
 import { Alert, Badge, Button, Card, Spinner, TextInput } from './ui';
 import { paymentRefSchema, validate } from '../lib/validation';
-
-export interface Invoice {
-  id: string;
-  number: string;
-  period_start: string;
-  period_end: string;
-  routers: number;
-  price_per_router_ssp: number;
-  amount_ssp: number;
-  status: 'open' | 'paid' | 'void';
-  due_at: string;
-  customer_ref: string | null;
-  customer_ref_at: string | null;
-  paid_at: string | null;
-}
-
-export interface BillingOverview {
-  status: 'trial' | 'active' | 'suspended';
-  exempt: boolean;
-  trial_ends_at: string | null;
-  price_per_router_ssp: number;
-  routers: number;
-  business_active: boolean;
-  instructions: string;
-  invoices: Invoice[];
-}
-
-export function useBillingOverview(enabled = true) {
-  return useQuery({
-    queryKey: ['billing'],
-    enabled,
-    staleTime: 5 * 60_000,
-    queryFn: async (): Promise<BillingOverview> => {
-      const { data, error } = await supabase.rpc('billing_overview');
-      if (error) throw new Error(friendlyError(error));
-      const b = (data ?? {}) as Partial<BillingOverview>;
-      return { ...b, exempt: b.exempt ?? true, invoices: Array.isArray(b.invoices) ? b.invoices : [] } as BillingOverview;
-    },
-  });
-}
 
 export function daysLeft(iso: string | null): number | null {
   if (!iso) return null;

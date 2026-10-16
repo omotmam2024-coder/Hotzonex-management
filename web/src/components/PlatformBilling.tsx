@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { friendlyError } from '../lib/errors';
 import { formatJubaTime, formatNumber } from '../lib/format';
-import { supabase } from '../lib/supabase';
+import { fromJson, supabase } from '../lib/supabase';
 import { BusinessPlanControl, PlansCard } from './PlanLimits';
 import { Alert, Badge, Button, Card, Checkbox, Field, Spinner, TextInput } from './ui';
 
@@ -207,7 +207,7 @@ export function PlatformBilling() {
     queryFn: async (): Promise<PlatformBillingData> => {
       const { data, error } = await supabase.rpc('platform_billing');
       if (error) throw new Error(friendlyError(error));
-      return data as PlatformBillingData;
+      return fromJson<PlatformBillingData>(data);
     },
   });
   if (data.isLoading) return <Spinner />;

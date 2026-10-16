@@ -4,7 +4,7 @@ export interface PrintBrand {
   logoUrl: string | null;
 }
 
-export const DEFAULT_BRAND: PrintBrand = { name: 'Hotzonex WiFi', logoUrl: null };
+const DEFAULT_BRAND: PrintBrand = { name: 'Hotzonex WiFi', logoUrl: null };
 
 /** The printing brand of the signed-in business. */
 export function brandOf(business: { name: string; logo_url: string | null } | null): PrintBrand {

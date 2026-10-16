@@ -7,7 +7,7 @@ import { readStored, writeStored } from '../lib/storage';
 import type { Profile } from '../lib/types';
 
 /** The business the signed-in staff member works for. */
-export interface Business {
+interface Business {
   id: string;
   name: string;
   timezone: string;
@@ -20,7 +20,7 @@ export interface Business {
 type AuthStatus = 'loading' | 'signed_out' | 'mfa' | 'ready' | 'no_profile' | 'inactive' | 'error';
 
 /** A platform admin managing a customer's business (support mode). */
-export interface SupportSession {
+interface SupportSession {
   tenant_id: string;
   name: string;
   until: string;

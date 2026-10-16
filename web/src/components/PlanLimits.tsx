@@ -3,12 +3,12 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { z } from 'zod';
 import { friendlyError } from '../lib/errors';
 import { formatNumber } from '../lib/format';
-import { supabase } from '../lib/supabase';
+import { fromJson, supabase } from '../lib/supabase';
 import { validate } from '../lib/validation';
 import { Alert, Badge, Button, Card, Checkbox, Field, Select, Spinner, TextInput } from './ui';
 
 /** What a subscription plan allows; null = no limit. */
-export interface SubscriptionPlan {
+interface SubscriptionPlan {
   id: string;
   name: string;
   description: string;
@@ -29,14 +29,14 @@ const NEEDS_UPDATE = 'Plans need the database update of 16 October (migration 20
 const PLANS_KEY = ['platform-plans'];
 
 /** Platform owner: every plan and each business's plan (null while the migration is not applied). */
-export function usePlatformPlans() {
+function usePlatformPlans() {
   return useQuery({
     queryKey: PLANS_KEY,
     queryFn: async (): Promise<PlatformPlans | null> => {
       const { data, error } = await supabase.rpc('platform_plans');
       if (error?.code === 'PGRST202') return null;
       if (error) throw new Error(friendlyError(error));
-      return data as PlatformPlans;
+      return fromJson<PlatformPlans>(data);
     },
   });
 }
@@ -44,7 +44,7 @@ export function usePlatformPlans() {
 const limitText = (n: number | null, unit: string) => (n === null ? `Unlimited ${unit}` : `${formatNumber(n)} ${unit}`);
 
 /** "1 router · 1 site · 3 staff · 5,000 vouchers a month" */
-export function planSummary(p: Pick<SubscriptionPlan, 'max_routers' | 'max_sites' | 'max_staff' | 'max_vouchers_month'>): string {
+function planSummary(p: Pick<SubscriptionPlan, 'max_routers' | 'max_sites' | 'max_staff' | 'max_vouchers_month'>): string {
   return [
     limitText(p.max_routers, p.max_routers === 1 ? 'router' : 'routers'),
     limitText(p.max_sites, p.max_sites === 1 ? 'site' : 'sites'),

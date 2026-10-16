@@ -1,4 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
+import type { AppDatabase } from './database.pending';
+import type { Json } from './database.types';
 
 // Hotzonex Cloud's own Supabase project. The anon key is public by design (every browser gets it;
 // the database rules decide what each login may see), so it is built in: the app works even when
@@ -41,10 +43,18 @@ export const supabaseUrl = url ?? 'http://localhost:54321';
 /** The public (anon) key, for pages that call the server without a login (the Buy page). */
 export const supabaseAnonKey = anonKey ?? 'missing-anon-key';
 
-export const supabase = createClient(supabaseUrl, anonKey ?? 'missing-anon-key', {
+export const supabase = createClient<AppDatabase>(supabaseUrl, anonKey ?? 'missing-anon-key', {
   auth: {
     persistSession: true,
     autoRefreshToken: true,
     detectSessionInUrl: false,
   },
 });
+
+/**
+ * A jsonb RPC result read as the shape its SQL function documents. The generated types can only say
+ * `Json` for these, and the database does not check the shape, so the caller names it.
+ */
+export function fromJson<T>(value: Json): T {
+  return value as T;
+}

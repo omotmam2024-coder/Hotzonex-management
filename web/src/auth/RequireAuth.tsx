@@ -1,6 +1,7 @@
 import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from './AuthProvider';
-import { BillingPanel, useBillingOverview } from '../components/BillingPanel';
+import { BillingPanel } from '../components/BillingPanel';
+import { useBillingOverview } from '../hooks/useBillingOverview';
 import { FullScreenMessage, FullScreenSpinner } from '../components/FullScreen';
 
 /** Lets only signed-in, active staff with a profile through. */

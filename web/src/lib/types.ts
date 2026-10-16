@@ -1,27 +1,15 @@
+import type { Tables } from './database.types';
+
 export type Role = 'admin' | 'manager' | 'seller';
 
-export interface Profile {
-  id: string;
-  full_name: string;
-  role: Role;
-  site_id: string | null;
-  is_active: boolean;
-}
+/** A login's profile (the role column is free text in the database; these are the values it holds). */
+export type Profile = Pick<Tables<'profiles'>, 'id' | 'full_name' | 'site_id' | 'is_active'> & { role: Role };
 
-export interface Site {
-  id: string;
-  name: string;
-}
-
-export interface SiteRow extends Site {
-  timezone: string;
-  auto_sale_on_login: boolean;
-  is_active: boolean;
-  /** The public Buy page (customers pay by mobile money; a cashier confirms). */
-  buy_enabled: boolean;
-  buy_slug: string | null;
-  buy_instructions: string | null;
-}
+/** Site columns the app reads (buy_*: the public Buy page, customers pay by mobile money; a cashier confirms). */
+export type SiteRow = Pick<
+  Tables<'sites'>,
+  'id' | 'name' | 'timezone' | 'auto_sale_on_login' | 'is_active' | 'buy_enabled' | 'buy_slug' | 'buy_instructions'
+>;
 
 export type RouterStatus = 'pending' | 'online' | 'offline';
 
@@ -95,27 +83,25 @@ export interface StaffMember {
   email: string;
 }
 
-export interface Plan {
-  id: string;
-  name: string;
-  price_ssp: number;
-  uptime_seconds: number;
-  validity_seconds: number | null;
-  rate_limit: string | null;
-  data_limit_mb: number | null;
-  shared_users: number;
-  color: string;
-  router_profile_name: string;
-  is_active: boolean;
+export type Plan = Pick<
+  Tables<'plans'>,
+  | 'id'
+  | 'name'
+  | 'price_ssp'
+  | 'uptime_seconds'
+  | 'validity_seconds'
+  | 'rate_limit'
+  | 'data_limit_mb'
+  | 'shared_users'
+  | 'color'
+  | 'router_profile_name'
+  | 'is_active'
+> & {
   /** The routers that carry the plan, with its profile name on each (managed = Hotzonex made that profile). */
   plan_routers: PlanRouter[];
-}
+};
 
-export interface PlanRouter {
-  router_id: string;
-  profile_name: string;
-  managed: boolean;
-}
+export type PlanRouter = Pick<Tables<'plan_routers'>, 'router_id' | 'profile_name' | 'managed'>;
 
 export const PLAN_COLUMNS =
   'id, name, price_ssp, uptime_seconds, validity_seconds, rate_limit, data_limit_mb, shared_users, color, router_profile_name, is_active, plan_routers(router_id, profile_name, managed)';
@@ -125,21 +111,21 @@ export const planOnRouter = (plan: Pick<Plan, 'plan_routers'>, routerId: string)
 
 export type VoucherStatus = 'unused' | 'sold' | 'active' | 'expired' | 'disabled';
 
-export interface Voucher {
-  id: string;
-  created_at: string;
-  batch_id: string;
-  router_id: string;
-  site_id: string;
-  plan_id: string;
-  code: string;
-  status: VoucherStatus;
-  on_router: boolean;
-  printed_at: string | null;
-  sold_at: string | null;
-  first_used_at: string | null;
-  expires_at: string | null;
-}
+export type Voucher = Pick<
+  Tables<'vouchers'>,
+  | 'id'
+  | 'created_at'
+  | 'batch_id'
+  | 'router_id'
+  | 'site_id'
+  | 'plan_id'
+  | 'code'
+  | 'on_router'
+  | 'printed_at'
+  | 'sold_at'
+  | 'first_used_at'
+  | 'expires_at'
+> & { status: VoucherStatus };
 
 export interface BatchStatus {
   id: string;

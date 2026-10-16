@@ -1,7 +1,8 @@
 import { Link } from 'react-router-dom';
 import { useAuth } from '../auth/AuthProvider';
 import { formatJubaTime, formatNumber } from '../lib/format';
-import { daysLeft, useBillingOverview } from './BillingPanel';
+import { useBillingOverview } from '../hooks/useBillingOverview';
+import { daysLeft } from './BillingPanel';
 
 /** For admins: the free trial's last days, or an invoice to pay. */
 export function BillingBanner() {

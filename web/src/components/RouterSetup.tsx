@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { formatNumber, timeAgo } from '../lib/format';
-import { usePlans } from '../lib/queries';
+import { usePlans } from '../hooks/queries';
 import { routerStatus } from '../lib/routers';
 import { supabase } from '../lib/supabase';
 import { ROUTER_COLUMNS, type HotspotInfo, type RouterInfo } from '../lib/types';

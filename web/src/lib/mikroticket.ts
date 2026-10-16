@@ -2,7 +2,7 @@
 // "profile_1Hr-se:-co:1000-pr:-lu:7-lp:7-ut:0d 01:00:00-bt:-kt:true-nu:true-np:true-tp:2-vl:1d 12:00:00"
 //   label 1Hr, co = price, ut = time allowed, vl = validity after first login (optional).
 
-export interface MikroticketProfile {
+interface MikroticketProfile {
   label: string;
   price: number;
   uptimeSeconds: number;
