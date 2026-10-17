@@ -9,14 +9,16 @@ import { reports } from './locales/reports';
 import { routers } from './locales/routers';
 import { sales } from './locales/sales';
 import { sell } from './locales/sell';
+import { server } from './locales/server';
 import { vouchers } from './locales/vouchers';
 
-const parts = [common, messages, publicPages, sell, sales, vouchers, reports, expenses, plans, routers, business] as const;
+const parts = [common, messages, server, publicPages, sell, sales, vouchers, reports, expenses, plans, routers, business] as const;
 
 /** Every text key (from the English dictionaries), so a typo in t('…') fails the type check. */
 export type TKey =
   | keyof typeof common.en
   | keyof typeof messages.en
+  | keyof typeof server.en
   | keyof typeof publicPages.en
   | keyof typeof sell.en
   | keyof typeof sales.en
