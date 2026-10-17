@@ -3,6 +3,8 @@ import { Link } from 'react-router-dom';
 import { CONTACT, whatsappLink } from '../../lib/contact';
 import { formatNumber, formatSSP } from '../../lib/format';
 import { supabaseAnonKey, supabaseUrl } from '../../lib/supabase';
+import { LanguageSwitch } from '../../components/LanguageSwitch';
+import { translate, useT, type TKey } from '../../i18n';
 
 interface PublicPlan {
   id: string;
@@ -58,30 +60,30 @@ function usePricing(): Pricing {
   return pricing;
 }
 
-const FEATURES: { title: string; text: string; icon: string }[] = [
-  { icon: '⚡', title: 'Sell a card in one tap', text: 'The cashier taps the plan; the code shows in big numbers, ready to print or send by WhatsApp.' },
-  { icon: '🖨️', title: 'Print cards and receipts', text: 'A4 sheets of cards with your logo, and 58 mm or 80 mm receipts for small thermal printers.' },
-  { icon: '📡', title: 'Works with your MikroTik', text: 'Connects to MikroTik routers (RouterOS 7) through a secure tunnel. Works with MikroTicket cards too.' },
-  { icon: '👥', title: 'Cashiers and agents', text: 'Each seller has a login, a commission and a credit limit. The daily cash-up shows who holds what.' },
-  { icon: '📊', title: 'Reports you can trust', text: 'Sales by day, week and month, by site, plan and seller. Download as a spreadsheet (CSV).' },
-  { icon: '🟢', title: 'See everything live', text: 'Who is online, which router is down, cards running low. Alerts on your phone through Telegram.' },
-  { icon: '📶', title: 'Made for slow internet', text: 'Light pages that work on cheap Android phones and weak connections. A lost connection never sells a card twice.' },
-  { icon: '🔒', title: 'Safe and private', text: 'Every business sees only its own data. 2-step login, encrypted router passwords, a log of every sale and change.' },
+const FEATURES: { title: TKey; text: TKey; icon: string }[] = [
+  { icon: '⚡', title: 'public.landing.f1.title', text: 'public.landing.f1.text' },
+  { icon: '🖨️', title: 'public.landing.f2.title', text: 'public.landing.f2.text' },
+  { icon: '📡', title: 'public.landing.f3.title', text: 'public.landing.f3.text' },
+  { icon: '👥', title: 'public.landing.f4.title', text: 'public.landing.f4.text' },
+  { icon: '📊', title: 'public.landing.f5.title', text: 'public.landing.f5.text' },
+  { icon: '🟢', title: 'public.landing.f6.title', text: 'public.landing.f6.text' },
+  { icon: '📶', title: 'public.landing.f7.title', text: 'public.landing.f7.text' },
+  { icon: '🔒', title: 'public.landing.f8.title', text: 'public.landing.f8.text' },
 ];
 
-const FAQ: { q: string; a: string }[] = [
-  { q: 'Which routers work?', a: 'MikroTik routers with RouterOS 7 and the hotspot set up. You paste one script on the router; Hotzonex does the rest.' },
-  { q: 'I already use MikroTicket. Can I keep my cards?', a: 'Yes. Hotzonex reads the cards and profiles already on the router, counts their sales, and removes expired cards for you.' },
-  { q: 'What happens when the internet goes down?', a: 'Your WiFi keeps working: the cards are on the router. Hotzonex catches up when the connection is back.' },
-  { q: 'How do I pay for Hotzonex Cloud?', a: 'Each month you get an invoice. Pay in cash at our office, or by mobile money if you are far away.' },
-  { q: 'Can I try it first?', a: 'Yes. Every new business starts with a free trial. No payment is needed to start.' },
-  { q: 'Do customers need an app?', a: 'No. Customers type their code on the WiFi login page. Cashiers use Hotzonex in the phone browser.' },
+const FAQ: { q: TKey; a: TKey }[] = [
+  { q: 'public.landing.q1', a: 'public.landing.a1' },
+  { q: 'public.landing.q2', a: 'public.landing.a2' },
+  { q: 'public.landing.q3', a: 'public.landing.a3' },
+  { q: 'public.landing.q4', a: 'public.landing.a4' },
+  { q: 'public.landing.q5', a: 'public.landing.a5' },
+  { q: 'public.landing.q6', a: 'public.landing.a6' },
 ];
 
-const SCREENS: { src: string; alt: string; caption: string }[] = [
-  { src: '/screens/dashboard.png', alt: 'Hotzonex dashboard with today’s sales, online users and router status', caption: 'Today’s sales, online users and routers at a glance' },
-  { src: '/screens/sell.png', alt: 'A sold WiFi code shown in large numbers with Print and Share buttons', caption: 'Sell in one tap: big code, Print or Share' },
-  { src: '/screens/reports.png', alt: 'Sales report with totals by plan and seller', caption: 'Reports by day, week and month' },
+const SCREENS: { src: string; alt: TKey; caption: TKey }[] = [
+  { src: '/screens/dashboard.png', alt: 'public.landing.screen1.alt', caption: 'public.landing.screen1.caption' },
+  { src: '/screens/sell.png', alt: 'public.landing.screen2.alt', caption: 'public.landing.screen2.caption' },
+  { src: '/screens/reports.png', alt: 'public.landing.screen3.alt', caption: 'public.landing.screen3.caption' },
 ];
 
 function Section({ id, title, subtitle, children }: { id?: string; title: string; subtitle?: string; children: ReactNode }) {
@@ -96,14 +98,23 @@ function Section({ id, title, subtitle, children }: { id?: string; title: string
 
 const cta = 'inline-flex min-h-12 items-center justify-center rounded-xl px-6 text-lg font-semibold';
 
-function limit(n: number | null, one: string, many: string) {
-  return n === null ? `Unlimited ${many}` : `${formatNumber(n)} ${n === 1 ? one : many}`;
+function limit(n: number | null, one: TKey, many: TKey, unlimited: TKey) {
+  return n === null ? translate(unlimited) : translate(n === 1 ? one : many, { n: formatNumber(n) });
+}
+
+/** The default plans' descriptions in the chosen language; a description changed in the database is shown as written. */
+const PLAN_TEXT: Record<string, TKey> = { starter: 'public.landing.plan.starter', business: 'public.landing.plan.business', pro: 'public.landing.plan.pro' };
+function planDescription(p: PublicPlan): string {
+  const key = PLAN_TEXT[p.id];
+  const fallback = DEFAULT_PRICING.plans.find((d) => d.id === p.id)?.description;
+  return key && p.description === fallback ? translate(key) : p.description;
 }
 
 /** The public page at "/": what Hotzonex Cloud is, prices, questions and how to reach us. */
 export function LandingPage() {
   const pricing = usePricing();
-  const demo = whatsappLink('Hello Hotzonex Cloud, I run a WiFi hotspot and would like a demo.');
+  const { t } = useT();
+  const demo = whatsappLink(t('public.landing.demoMessage'));
 
   return (
     <div className="min-h-full bg-white text-slate-900">
@@ -113,14 +124,22 @@ export function LandingPage() {
             <img src="/icon-72.png" alt="" className="h-9 w-9" />
             <span className="text-lg font-bold tracking-tight">Hotzonex Cloud</span>
           </Link>
-          <nav className="flex items-center gap-2" aria-label="Account">
+          <nav className="flex items-center gap-2" aria-label={t('public.landing.navAccount')}>
+            <div className="hidden w-56 md:block">
+              <LanguageSwitch tone="light" />
+            </div>
             <Link to="/login" className="inline-flex min-h-11 items-center rounded-xl px-3 font-semibold text-brand-700 hover:bg-brand-50">
-              Log in
+              {t('public.login.logIn')}
             </Link>
             <Link to="/signup" className="hidden min-h-11 items-center rounded-xl bg-brand-600 px-4 font-semibold text-white hover:bg-brand-700 sm:inline-flex">
-              Start free trial
+              {t('public.startTrial')}
             </Link>
           </nav>
+        </div>
+        <div className="mx-auto max-w-6xl px-4 pb-2 md:hidden">
+          <div className="ms-auto max-w-xs">
+            <LanguageSwitch tone="light" />
+          </div>
         </div>
       </header>
 
@@ -128,117 +147,118 @@ export function LandingPage() {
         <section className="bg-gradient-to-br from-brand-700 via-brand-900 to-brand-950 text-white">
           <div className="mx-auto grid max-w-6xl items-center gap-10 px-4 py-14 sm:py-20 lg:grid-cols-2">
             <div>
-              <p className="mb-3 inline-block rounded-full bg-white/10 px-3 py-1 text-sm font-semibold text-brand-100">For WiFi hotspot businesses in South Sudan and East Africa</p>
-              <h1 className="text-3xl font-extrabold leading-tight sm:text-5xl">Run your WiFi hotspot business from your phone</h1>
-              <p className="mt-4 text-lg text-white/85">
-                Make and sell MikroTik voucher cards, follow every SSP your cashiers and agents take, and see who is online — on any phone, even on slow
-                internet.
-              </p>
+              <p className="mb-3 inline-block rounded-full bg-white/10 px-3 py-1 text-sm font-semibold text-brand-100">{t('public.landing.badge')}</p>
+              <h1 className="text-3xl font-extrabold leading-tight sm:text-5xl">{t('public.landing.hero')}</h1>
+              <p className="mt-4 text-lg text-white/85">{t('public.landing.heroText')}</p>
               <div className="mt-8 flex flex-col gap-3 sm:flex-row">
                 <Link to="/signup" className={`${cta} bg-white text-brand-800 hover:bg-brand-50`}>
-                  Start {pricing.trial_days}-day free trial
+                  {t('public.landing.trialCta', { days: pricing.trial_days })}
                 </Link>
                 <a href={demo} target="_blank" rel="noopener" className={`${cta} border-2 border-white/60 text-white hover:bg-white/10`}>
-                  Request a demo on WhatsApp
+                  {t('public.landing.demoWhatsapp')}
                 </a>
               </div>
-              <p className="mt-3 text-sm text-white/70">No payment needed to start.</p>
+              <p className="mt-3 text-sm text-white/70">{t('public.landing.noPayment')}</p>
             </div>
             <div className="mx-auto w-full max-w-xs overflow-hidden rounded-[2rem] border-8 border-slate-900 bg-slate-900 shadow-2xl">
-              <img src={SCREENS[1]!.src} alt={SCREENS[1]!.alt} className="w-full" width={390} height={844} />
+              <img src={SCREENS[1]!.src} alt={t(SCREENS[1]!.alt)} className="w-full" width={390} height={844} />
             </div>
           </div>
         </section>
 
-        <Section id="features" title="Everything a hotspot business needs" subtitle="One app for the owner, the cashiers and the agents.">
+        <Section id="features" title={t('public.landing.featuresTitle')} subtitle={t('public.landing.featuresSubtitle')}>
           <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {FEATURES.map((f) => (
               <li key={f.title} className="rounded-2xl border border-slate-200 p-5 shadow-sm">
                 <div className="text-3xl" aria-hidden="true">
                   {f.icon}
                 </div>
-                <h3 className="mt-3 text-lg font-bold">{f.title}</h3>
-                <p className="mt-1 text-slate-600">{f.text}</p>
+                <h3 className="mt-3 text-lg font-bold">{t(f.title)}</h3>
+                <p className="mt-1 text-slate-600">{t(f.text)}</p>
               </li>
             ))}
           </ul>
         </Section>
 
         <div className="bg-slate-50">
-          <Section id="screens" title="See it on a phone" subtitle="This is what you and your cashiers use every day.">
+          <Section id="screens" title={t('public.landing.screensTitle')} subtitle={t('public.landing.screensSubtitle')}>
             <ul className="grid gap-6 sm:grid-cols-3">
               {SCREENS.map((s) => (
                 <li key={s.src} className="text-center">
                   <div className="mx-auto max-w-[260px] overflow-hidden rounded-[1.6rem] border-[6px] border-slate-900 bg-slate-900 shadow-lg">
-                    <img src={s.src} alt={s.alt} loading="lazy" className="w-full" width={390} height={844} />
+                    <img src={s.src} alt={t(s.alt)} loading="lazy" className="w-full" width={390} height={844} />
                   </div>
-                  <p className="mt-3 font-medium text-slate-700">{s.caption}</p>
+                  <p className="mt-3 font-medium text-slate-700">{t(s.caption)}</p>
                 </li>
               ))}
             </ul>
           </Section>
         </div>
 
-        <Section id="pricing" title="Simple prices" subtitle={`Pay per connected router per month. Start with a ${pricing.trial_days}-day free trial.`}>
+        <Section id="pricing" title={t('public.landing.pricingTitle')} subtitle={t('public.landing.pricingSubtitle', { days: pricing.trial_days })}>
           <ul className="grid gap-4 lg:grid-cols-3">
             {pricing.plans.map((p, i) => {
               const price = p.price_per_router_ssp ?? pricing.standard_price_per_router_ssp;
               return (
                 <li key={p.id} className={`flex flex-col rounded-2xl border p-6 shadow-sm ${i === 1 ? 'border-brand-600 ring-2 ring-brand-600' : 'border-slate-200'}`}>
                   <h3 className="text-xl font-bold">{p.name}</h3>
-                  <p className="mt-1 text-slate-600">{p.description}</p>
+                  <p className="mt-1 text-slate-600">{planDescription(p)}</p>
                   <p className="mt-4">
                     <span className="text-3xl font-extrabold">{formatSSP(price)}</span>
-                    <span className="text-slate-600"> per router / month</span>
+                    <span className="text-slate-600"> {t('public.landing.perRouter')}</span>
                   </p>
                   <ul className="mt-4 flex-1 space-y-1 text-slate-700">
-                    <li>✓ {limit(p.max_routers, 'router', 'routers')}</li>
-                    <li>✓ {limit(p.max_sites, 'site', 'sites')}</li>
-                    <li>✓ {limit(p.max_staff, 'staff login', 'staff logins')}</li>
-                    <li>✓ {p.max_vouchers_month === null ? 'Unlimited vouchers' : `${formatNumber(p.max_vouchers_month)} vouchers a month`}</li>
-                    <li>✓ Reports, printing, alerts, support</li>
+                    <li>✓ {limit(p.max_routers, 'public.landing.routerOne', 'public.landing.routerMany', 'public.landing.routerUnlimited')}</li>
+                    <li>✓ {limit(p.max_sites, 'public.landing.siteOne', 'public.landing.siteMany', 'public.landing.siteUnlimited')}</li>
+                    <li>✓ {limit(p.max_staff, 'public.landing.staffOne', 'public.landing.staffMany', 'public.landing.staffUnlimited')}</li>
+                    <li>✓ {p.max_vouchers_month === null ? t('public.landing.vouchersUnlimited') : t('public.landing.vouchersMonth', { n: formatNumber(p.max_vouchers_month) })}</li>
+                    <li>✓ {t('public.landing.extras')}</li>
                   </ul>
                   <Link to="/signup" className={`${cta} mt-6 ${i === 1 ? 'bg-brand-600 text-white hover:bg-brand-700' : 'bg-brand-50 text-brand-800 hover:bg-brand-100'}`}>
-                    Start free trial
+                    {t('public.startTrial')}
                   </Link>
                 </li>
               );
             })}
           </ul>
-          <p className="mt-4 text-center text-sm text-slate-600">Pay in cash at our office, or by mobile money if you are far away.</p>
+          <p className="mt-4 text-center text-sm text-slate-600">{t('public.landing.payNote')}</p>
         </Section>
 
         <div className="bg-slate-50">
-          <Section id="faq" title="Questions">
+          <Section id="faq" title={t('public.landing.faqTitle')}>
             <div className="mx-auto max-w-3xl space-y-3">
               {FAQ.map((f) => (
                 <details key={f.q} className="group rounded-2xl border border-slate-200 bg-white p-4">
                   <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 text-lg font-semibold">
-                    {f.q}
+                    {t(f.q)}
                     <span className="text-brand-600 transition group-open:rotate-45" aria-hidden="true">
                       +
                     </span>
                   </summary>
-                  <p className="mt-2 text-slate-700">{f.a}</p>
+                  <p className="mt-2 text-slate-700">{t(f.a)}</p>
                 </details>
               ))}
             </div>
           </Section>
         </div>
 
-        <Section id="contact" title="Talk to us" subtitle="We set up your first router with you.">
+        <Section id="contact" title={t('public.landing.contactTitle')} subtitle={t('public.landing.contactSubtitle')}>
           <div className="mx-auto grid max-w-3xl gap-3 sm:grid-cols-2">
             <a href={demo} target="_blank" rel="noopener" className="flex min-h-14 items-center gap-3 rounded-2xl border border-slate-200 p-4 font-semibold hover:bg-slate-50">
               <span className="text-2xl" aria-hidden="true">
                 💬
               </span>
-              WhatsApp {CONTACT.phone}
+              <span>
+                WhatsApp <span dir="ltr">{CONTACT.phone}</span>
+              </span>
             </a>
             <a href={`tel:${CONTACT.phone.replace(/\s/g, '')}`} className="flex min-h-14 items-center gap-3 rounded-2xl border border-slate-200 p-4 font-semibold hover:bg-slate-50">
               <span className="text-2xl" aria-hidden="true">
                 📞
               </span>
-              Call {CONTACT.phone}
+              <span>
+                {t('public.landing.call')} <span dir="ltr">{CONTACT.phone}</span>
+              </span>
             </a>
             {CONTACT.email && (
               <a href={`mailto:${CONTACT.email}`} className="flex min-h-14 items-center gap-3 rounded-2xl border border-slate-200 p-4 font-semibold hover:bg-slate-50">
@@ -257,10 +277,10 @@ export function LandingPage() {
           </div>
           <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
             <Link to="/signup" className={`${cta} bg-brand-600 text-white hover:bg-brand-700`}>
-              Start free trial
+              {t('public.startTrial')}
             </Link>
             <a href={demo} target="_blank" rel="noopener" className={`${cta} bg-brand-50 text-brand-800 hover:bg-brand-100`}>
-              Request a demo
+              {t('public.landing.requestDemo')}
             </a>
           </div>
         </Section>
@@ -268,13 +288,13 @@ export function LandingPage() {
 
       <footer className="border-t border-slate-200 bg-slate-50">
         <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-2 px-4 py-6 text-sm text-slate-600 sm:flex-row">
-          <span>© {new Date().getFullYear()} Hotzonex WiFi, Juba</span>
+          <span>{t('public.landing.copyright', { year: new Date().getFullYear() })}</span>
           <span className="flex gap-4">
             <Link to="/terms" className="inline-flex min-h-11 items-center hover:underline">
-              Terms and privacy
+              {t('public.termsLink')}
             </Link>
             <Link to="/login" className="inline-flex min-h-11 items-center hover:underline">
-              Staff login
+              {t('public.login.subtitle')}
             </Link>
           </span>
         </div>

@@ -3,10 +3,12 @@ import { useAuth } from './AuthProvider';
 import { BillingPanel } from '../components/BillingPanel';
 import { useBillingOverview } from '../hooks/useBillingOverview';
 import { FullScreenMessage, FullScreenSpinner } from '../components/FullScreen';
+import { useT } from '../i18n';
 
 /** Lets only signed-in, active staff with a profile through. */
 export function RequireAuth() {
   const { status, profile, error, signOut } = useAuth();
+  const { t } = useT();
   const location = useLocation();
 
   if (status === 'loading') return <FullScreenSpinner />;
@@ -14,8 +16,8 @@ export function RequireAuth() {
   if (status === 'no_profile')
     return (
       <FullScreenMessage
-        title="Account not set up"
-        message="Your login works, but no staff profile is linked to it. Ask an admin to add you on the Staff page."
+        title={t('public.auth.notSetUpTitle')}
+        message={t('public.auth.notSetUpText')}
         onSignOut={signOut}
       />
     );
@@ -24,20 +26,16 @@ export function RequireAuth() {
   if (status === 'inactive')
     return (
       <FullScreenMessage
-        title="Account disabled"
-        message={
-          profile && !profile.is_active
-            ? 'Your staff account has been switched off. Ask an admin if you need access.'
-            : 'This business is switched off on Hotzonex Cloud. Contact Hotzonex Cloud to switch it back on.'
-        }
+        title={t('public.auth.disabled')}
+        message={profile && !profile.is_active ? t('public.auth.staffOff') : t('public.auth.businessOff')}
         onSignOut={signOut}
       />
     );
   if (status === 'error')
     return (
       <FullScreenMessage
-        title="Could not load your account"
-        message={error ?? 'Please try again.'}
+        title={t('public.auth.loadFailed')}
+        message={error ?? t('public.auth.tryAgain')}
         onSignOut={signOut}
       />
     );
@@ -46,12 +44,13 @@ export function RequireAuth() {
 
 function PausedBusiness({ onSignOut }: { onSignOut: () => void }) {
   const billing = useBillingOverview();
+  const { t } = useT();
   if (billing.isLoading) return <FullScreenSpinner />;
   if (billing.data?.status !== 'suspended')
     return (
       <FullScreenMessage
-        title="Account disabled"
-        message="This business is switched off on Hotzonex Cloud. Contact Hotzonex Cloud to switch it back on."
+        title={t('public.auth.disabled')}
+        message={t('public.auth.businessOff')}
         onSignOut={onSignOut}
       />
     );
@@ -59,15 +58,12 @@ function PausedBusiness({ onSignOut }: { onSignOut: () => void }) {
     <div className="min-h-full bg-slate-100 p-4">
       <div className="mx-auto max-w-2xl space-y-4">
         <div className="rounded-2xl bg-white p-5 shadow-sm">
-          <h1 className="text-xl font-bold text-slate-900">Hotzonex Cloud is paused</h1>
-          <p className="mt-2 text-slate-700">
-            An invoice is unpaid. Your WiFi and cards keep working, but the app is closed until it is paid. Pay it, then type the transaction ID
-            below: the app opens again as soon as Hotzonex Cloud confirms it.
-          </p>
+          <h1 className="text-xl font-bold text-slate-900">{t('public.auth.pausedTitle')}</h1>
+          <p className="mt-2 text-slate-700">{t('public.auth.pausedText')}</p>
         </div>
         <BillingPanel />
         <button type="button" onClick={onSignOut} className="w-full text-center text-sm font-semibold text-slate-600 underline">
-          Log out
+          {t('common.logout')}
         </button>
       </div>
     </div>

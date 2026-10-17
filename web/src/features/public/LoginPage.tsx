@@ -6,9 +6,12 @@ import { friendlyError } from '../../lib/errors';
 import { homePathFor } from '../../lib/nav';
 import { FullScreenSpinner } from '../../components/FullScreen';
 import { Alert } from '../../components/ui';
+import { LanguageSwitch } from '../../components/LanguageSwitch';
+import { useT } from '../../i18n';
 
 export function LoginPage() {
   const { status, profile, signIn } = useAuth();
+  const { t } = useT();
   const location = useLocation();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -32,7 +35,7 @@ export function LoginPage() {
     try {
       await signIn(email.trim(), password);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Login failed. Please try again.');
+      setError(err instanceof Error ? err.message : t('public.login.failed'));
     } finally {
       setBusy(false);
     }
@@ -66,29 +69,31 @@ export function LoginPage() {
   return (
     <div className="flex min-h-full items-center justify-center bg-gradient-to-br from-brand-700 via-brand-900 to-brand-950 p-4">
       <div className="w-full max-w-sm rounded-3xl bg-white p-6 shadow-2xl ring-1 ring-white/10 sm:p-8">
+        <div className="mb-4 ms-auto max-w-xs">
+          <LanguageSwitch tone="light" />
+        </div>
         <div className="mb-6 flex flex-col items-center text-center">
           <img src="/logo.png" alt="Hotzonex WiFi" className="h-28 w-auto" />
           <h1 className="mt-3 text-2xl font-bold text-slate-900">Hotzonex Cloud</h1>
-          <p className="text-slate-600">Staff login</p>
+          <p className="text-slate-600">{t('public.login.subtitle')}</p>
         </div>
 
         {!supabaseConfigured && (
           <div className="mb-4">
-            <Alert tone="warning">The app is not connected to Supabase. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in web/.env.</Alert>
+            <Alert tone="warning">{t('public.login.notConfigured')}</Alert>
           </div>
         )}
 
         <form onSubmit={forgot ? handleReset : handleSubmit} className="space-y-4" noValidate>
-          {forgot && !sentTo && <p className="text-sm text-slate-600">Type your login email. We will send you a link to choose a new password.</p>}
+          {forgot && !sentTo && <p className="text-sm text-slate-600">{t('public.login.forgotHelp')}</p>}
           {sentTo && (
-            <Alert tone="success">
-              If {sentTo} has a Hotzonex login, a reset link is on its way. Check the inbox (and spam) and open the link on this device.
-            </Alert>
+            <Alert tone="success">{t('public.login.resetSent', { email: sentTo })}</Alert>
           )}
           <label className="block">
-            <span className="mb-1 block text-sm font-medium text-slate-700">Email</span>
+            <span className="mb-1 block text-sm font-medium text-slate-700">{t('public.login.email')}</span>
             <input
               type="email"
+              dir="ltr"
               autoComplete="username"
               inputMode="email"
               required
@@ -99,9 +104,10 @@ export function LoginPage() {
           </label>
           {!forgot && (
             <label className="block">
-              <span className="mb-1 block text-sm font-medium text-slate-700">Password</span>
+              <span className="mb-1 block text-sm font-medium text-slate-700">{t('public.login.password')}</span>
               <input
                 type="password"
+                dir="ltr"
                 autoComplete="current-password"
                 required
                 value={password}
@@ -122,21 +128,21 @@ export function LoginPage() {
             disabled={busy || !email || (!forgot && !password) || Boolean(forgot && sentTo)}
             className="min-h-12 w-full rounded-xl bg-brand-600 px-4 text-lg font-semibold text-white hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {forgot ? (busy ? 'Sending…' : 'Send reset link') : busy ? 'Logging in…' : 'Log in'}
+            {forgot ? (busy ? t('public.login.sending') : t('public.login.sendReset')) : busy ? t('public.login.loggingIn') : t('public.login.logIn')}
           </button>
           <button type="button" onClick={() => switchMode(!forgot)} className="w-full text-center text-sm font-semibold text-brand-700 hover:underline">
-            {forgot ? 'Back to login' : 'Forgot password?'}
+            {forgot ? t('public.login.backToLogin') : t('public.login.forgot')}
           </button>
         </form>
         <p className="mt-5 border-t border-slate-100 pt-4 text-center text-sm text-slate-600">
-          New WiFi business?{' '}
+          {t('public.login.newBusiness')}{' '}
           <Link to="/signup" className="font-semibold text-brand-700 hover:underline">
-            Start a free trial
+            {t('public.login.startTrial')}
           </Link>
         </p>
         <p className="mt-2 text-center text-xs">
           <Link to="/terms" className="text-slate-500 hover:underline">
-            Terms and privacy
+            {t('public.termsLink')}
           </Link>
         </p>
       </div>
@@ -147,6 +153,7 @@ export function LoginPage() {
 /** The second step of the login: the 6-digit code from the authenticator app. */
 function TwoStepCode() {
   const { reload, signOut } = useAuth();
+  const { t } = useT();
   const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -159,9 +166,9 @@ function TwoStepCode() {
       const { data, error: listError } = await supabase.auth.mfa.listFactors();
       if (listError) throw listError;
       const factor = data.totp.find((f) => f.status === 'verified');
-      if (!factor) throw new Error('No authenticator app is set up for this login.');
+      if (!factor) throw new Error(t('public.mfa.noFactor'));
       const { error: verifyError } = await supabase.auth.mfa.challengeAndVerify({ factorId: factor.id, code: code.trim() });
-      if (verifyError) throw new Error(/invalid|expired/i.test(verifyError.message) ? 'Wrong or expired code. Type the newest code from your app.' : verifyError.message);
+      if (verifyError) throw new Error(/invalid|expired/i.test(verifyError.message) ? t('public.mfa.wrongCode') : verifyError.message);
       await reload();
     } catch (err) {
       setError(friendlyError(err));
@@ -174,12 +181,13 @@ function TwoStepCode() {
     <div className="flex min-h-full items-center justify-center bg-gradient-to-br from-brand-700 via-brand-900 to-brand-950 p-4">
       <form onSubmit={verify} className="w-full max-w-sm space-y-4 rounded-3xl bg-white p-6 shadow-2xl ring-1 ring-white/10 sm:p-8" noValidate>
         <div className="text-center">
-          <h1 className="text-2xl font-bold text-slate-900">2-step login</h1>
-          <p className="text-slate-600">Type the 6-digit code from your authenticator app.</p>
+          <h1 className="text-2xl font-bold text-slate-900">{t('public.mfa.title')}</h1>
+          <p className="text-slate-600">{t('public.mfa.help')}</p>
         </div>
         <input
           value={code}
           onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+          dir="ltr"
           inputMode="numeric"
           autoComplete="one-time-code"
           autoFocus
@@ -191,10 +199,10 @@ function TwoStepCode() {
           </Alert>
         )}
         <button type="submit" disabled={busy || code.length !== 6} className="min-h-12 w-full rounded-xl bg-brand-600 text-lg font-semibold text-white disabled:opacity-50">
-          {busy ? 'Checking…' : 'Continue'}
+          {busy ? t('public.mfa.checking') : t('public.mfa.continue')}
         </button>
         <button type="button" onClick={() => void signOut()} className="w-full text-center text-sm font-semibold text-slate-600 hover:underline">
-          Use another account
+          {t('public.mfa.otherAccount')}
         </button>
       </form>
     </div>
