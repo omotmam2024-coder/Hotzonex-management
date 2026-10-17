@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { buyRequestSchema, cashHandoverSchema, expenseSchema, generateVouchersSchema, planSchema, signupSchema, staffSchema, validate } from '../src/lib/validation.ts';
+import { buyRequestSchema, cashHandoverSchema, expenseSchema, EXPENSE_CATEGORIES, generateVouchersSchema, planSchema, signupSchema, staffSchema, validate } from '../src/lib/validation.ts';
 
 const ID = '3f2b2a4e-0000-4000-8000-000000000000';
 
@@ -48,4 +48,20 @@ test('expense: needs a day, a category and a whole amount above 0', () => {
   assert.throws(() => validate(expenseSchema, { ...ok, amount: '0' }), /amount in SSP/);
   assert.throws(() => validate(expenseSchema, { ...ok, amount: '' }), /amount in SSP/);
   assert.throws(() => validate(expenseSchema, { ...ok, spent_on: '' }), /day of the expense/);
+});
+
+test('expense categories match the database', async () => {
+  // The latest migration that sets the expenses category check is the source of truth.
+  const { readdirSync, readFileSync } = await import('node:fs');
+  const dir = new URL('../../supabase/migrations/', import.meta.url);
+  const sql = readdirSync(dir)
+    .filter((f) => f.endsWith('.sql'))
+    .sort()
+    .map((f) => readFileSync(new URL(f, dir), 'utf8'))
+    .filter((s) => /expenses_category_check|create table public\.expenses/.test(s))
+    .pop();
+  const list = sql?.match(/check \(category in \(([^)]*)\)\)/)?.[1];
+  assert.ok(list, 'category check not found in the migrations');
+  const inDb = [...list.matchAll(/'([a-z]+)'/g)].map((m) => m[1]);
+  assert.deepEqual(EXPENSE_CATEGORIES.map((c) => c.key), inDb);
 });

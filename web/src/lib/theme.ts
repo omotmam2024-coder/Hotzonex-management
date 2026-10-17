@@ -1,4 +1,5 @@
-/** Light / Dark / Auto (follows the phone or computer). Saved on this device only. */
+/** Light / Dark / Auto (follows the phone or computer). Saved on this device only.
+ *  public/theme.js applies the same choice before the app loads — change both together. */
 export type ThemePref = 'light' | 'dark' | 'system';
 
 const KEY = 'hzc-theme';

@@ -1,0 +1,22 @@
+# Runs the same checks a developer runs before pushing: types, lint, tests and the web build.
+name: Checks
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm --prefix web ci
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm test
+      - run: npm --prefix web run build
