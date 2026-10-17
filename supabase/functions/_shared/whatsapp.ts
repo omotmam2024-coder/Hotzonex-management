@@ -25,22 +25,28 @@ export function formatWhatsAppNumber(n: string): string {
 }
 
 export const WA_PORT = 3410;
+/** Session id of Hotzonex Cloud's own sender (alerts to business owners); businesses use their id. */
+export const WA_PLATFORM_SID = 'hzc';
 export const BAILEYS_VERSION = '6.7.24';
 export const QRCODE_VERSION = '1.5.4';
 
 /**
- * The program that runs on the VPS (Node 20, ES module). It keeps the linked WhatsApp session in
- * /var/lib/hzc-wa, listens on 127.0.0.1 only (Caddy forwards https://<relay>/wa/* to it) and
- * answers only requests that carry the secret in the x-hzc-wa header.
+ * The program that runs on the VPS (Node 20, ES module). It holds several linked WhatsApp numbers
+ * ("sessions"): "hzc" is Hotzonex Cloud's own sender (alerts to business owners), and each
+ * business that sends reminders to its customers links its own number under its business id.
+ * Sessions live in /var/lib/hzc-wa/auth/<id>. It listens on 127.0.0.1 only (Caddy forwards
+ * https://<relay>/wa/* to it, only with the secret) and checks the secret in x-hzc-wa again.
  *
- *   GET  /wa/status  → { state: starting|qr|connected|reconnecting|logged_out, me, since, qr (PNG data URL while linking) }
- *   POST /wa/send    { to: "211…", text } → { sent: true }   (one message every 1.5 s at most)
- *   POST /wa/logout  → unlinks the phone and shows a new QR code
+ *   GET  /wa/<id>/status  → { state: none|starting|qr|connected|reconnecting|logged_out, me, since, qr (PNG data URL while linking) }
+ *   POST /wa/<id>/link    → starts the session (shows a QR code if no phone is linked yet), then as status
+ *   POST /wa/<id>/send    { to: "211…", text } → { sent: true }   (per number: one message every 1.5 s at most)
+ *   POST /wa/<id>/logout  → unlinks the phone and forgets the session
  */
 export const WA_BRIDGE_JS = String.raw`// Hotzonex Cloud WhatsApp sender. Installed by Hotzonex (Businesses > WhatsApp sender); do not edit.
 import http from 'node:http';
 import { timingSafeEqual } from 'node:crypto';
-import { mkdir, rm } from 'node:fs/promises';
+import { mkdir, readdir, rename, rm, stat } from 'node:fs/promises';
+import { join } from 'node:path';
 import QRCode from 'qrcode';
 import { makeWASocket, useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion } from '@whiskeysockets/baileys';
 
@@ -48,6 +54,8 @@ const SECRET = process.env.HZC_WA_SECRET || '';
 const PORT = Number(process.env.HZC_WA_PORT || ${WA_PORT});
 const AUTH_DIR = process.env.HZC_WA_AUTH || '/var/lib/hzc-wa/auth';
 const GAP_MS = Number(process.env.HZC_WA_GAP_MS || 1500);
+const MAX_SESSIONS = Number(process.env.HZC_WA_MAX_SESSIONS || 300);
+const SID_RE = /^[a-z0-9-]{3,40}$/;
 if (!/^[0-9a-f]{32,128}$/.test(SECRET)) {
   console.error('HZC_WA_SECRET is missing or wrong.');
   process.exit(1);
@@ -59,82 +67,109 @@ const quiet = {
   trace() {}, debug() {}, info() {}, warn() {},
   error() {},
 };
+const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+let waVersion;
+let waVersionAt = 0;
 
-let sock = null;
-let state = 'starting';
-let qr = null;
-let me = null;
-let since = new Date().toISOString();
-let retry = 0;
-let timer = null;
-
-function setState(s) {
-  state = s;
-  since = new Date().toISOString();
-  console.log('state ' + s + (me ? ' as ' + me : ''));
+/** The newest WhatsApp Web version, looked up at most every 6 hours (the library's own after 10 s). */
+async function version() {
+  if (Date.now() - waVersionAt < 6 * 3600 * 1000) return waVersion;
+  waVersionAt = Date.now();
+  try {
+    const got = await Promise.race([fetchLatestBaileysVersion(), wait(10000).then(() => ({}))]);
+    if (got.version) waVersion = got.version;
+  } catch {
+    /* keep the last one */
+  }
+  return waVersion;
 }
 
-async function start() {
-  clearTimeout(timer);
-  await mkdir(AUTH_DIR, { recursive: true, mode: 0o700 });
-  const { state: auth, saveCreds } = await useMultiFileAuthState(AUTH_DIR);
-  let version;
-  try {
-    // The newest WhatsApp Web version (falls back to the library's own after 10 s).
-    ({ version } = await Promise.race([fetchLatestBaileysVersion(), wait(10000).then(() => ({}))]));
-  } catch {
-    version = undefined;
+/** id → { sock, state, qr, me, since, retry, timer, chain } */
+const sessions = new Map();
+
+function setState(sid, s, state) {
+  s.state = state;
+  s.since = new Date().toISOString();
+  console.log(sid + ': ' + state + (s.me ? ' as ' + s.me : ''));
+}
+
+function session(sid) {
+  let s = sessions.get(sid);
+  if (!s) {
+    s = { sock: null, state: 'starting', qr: null, me: null, since: new Date().toISOString(), retry: 0, timer: null, chain: Promise.resolve(), stopped: false };
+    sessions.set(sid, s);
   }
-  const s = makeWASocket({
+  return s;
+}
+
+async function start(sid) {
+  const s = session(sid);
+  if (s.stopped) return;
+  clearTimeout(s.timer);
+  const dir = join(AUTH_DIR, sid);
+  await mkdir(dir, { recursive: true, mode: 0o700 });
+  const { state: auth, saveCreds } = await useMultiFileAuthState(dir);
+  const sock = makeWASocket({
     auth,
-    version,
+    version: await version(),
     logger: quiet,
     browser: ['Hotzonex Cloud', 'Chrome', '1.0.0'],
     markOnlineOnConnect: false,
     syncFullHistory: false,
     printQRInTerminal: false,
   });
-  sock = s;
-  s.ev.on('creds.update', saveCreds);
-  s.ev.on('connection.update', (u) => {
-    if (s !== sock) return;
+  s.sock = sock;
+  sock.ev.on('creds.update', saveCreds);
+  sock.ev.on('connection.update', (u) => {
+    if (s.sock !== sock) return;
     if (u.qr) {
-      qr = u.qr;
-      setState('qr');
+      s.qr = u.qr;
+      setState(sid, s, 'qr');
     }
     if (u.connection === 'open') {
-      qr = null;
-      retry = 0;
-      me = String((s.user && s.user.id) || '').split(':')[0].split('@')[0] || null;
-      setState('connected');
+      s.qr = null;
+      s.retry = 0;
+      s.me = String((sock.user && sock.user.id) || '').split(':')[0].split('@')[0] || null;
+      setState(sid, s, 'connected');
     }
     if (u.connection === 'close') {
       const code = u.lastDisconnect && u.lastDisconnect.error && u.lastDisconnect.error.output ? u.lastDisconnect.error.output.statusCode : undefined;
-      sock = null;
+      s.sock = null;
       if (code === DisconnectReason.loggedOut) {
-        me = null;
-        qr = null;
-        setState('logged_out');
-        timer = setTimeout(() => reset().catch(failed), 2000);
+        // Unlinked from the phone: forget it; it starts again (with a new QR code) only when asked.
+        s.me = null;
+        s.qr = null;
+        setState(sid, s, 'logged_out');
+        forget(sid).catch(() => {});
         return;
       }
-      setState('reconnecting');
-      retry = Math.min(retry + 1, 8);
-      timer = setTimeout(() => start().catch(failed), code === DisconnectReason.restartRequired ? 500 : 1000 * 2 ** retry);
+      setState(sid, s, 'reconnecting');
+      s.retry = Math.min(s.retry + 1, 8);
+      s.timer = setTimeout(() => start(sid).catch((e) => failed(sid, e)), code === DisconnectReason.restartRequired ? 500 : 1000 * 2 ** s.retry);
     }
   });
 }
 
-async function reset() {
-  await rm(AUTH_DIR, { recursive: true, force: true });
-  await start();
+function failed(sid, err) {
+  const s = session(sid);
+  console.error(sid + ': start failed: ' + (err && err.message ? err.message : err));
+  setState(sid, s, 'reconnecting');
+  clearTimeout(s.timer);
+  s.timer = setTimeout(() => start(sid).catch((e) => failed(sid, e)), 30000);
 }
 
-function failed(err) {
-  console.error('WhatsApp start failed: ' + (err && err.message ? err.message : err));
-  setState('reconnecting');
-  clearTimeout(timer);
-  timer = setTimeout(() => start().catch(failed), 30000);
+/** Stops a session and deletes its saved login. */
+async function forget(sid) {
+  const s = sessions.get(sid);
+  if (s) {
+    s.stopped = true;
+    clearTimeout(s.timer);
+    const sock = s.sock;
+    s.sock = null;
+    if (sock) await sock.logout().catch(() => {});
+    sessions.delete(sid);
+  }
+  await rm(join(AUTH_DIR, sid), { recursive: true, force: true });
 }
 
 function httpError(status, message) {
@@ -143,21 +178,26 @@ function httpError(status, message) {
   return e;
 }
 
-const wait = (ms) => new Promise((r) => setTimeout(r, ms));
-let chain = Promise.resolve();
-function queued(fn) {
-  const p = chain.then(fn);
-  chain = p.then(() => wait(GAP_MS), () => wait(GAP_MS));
+function queued(s, fn) {
+  const p = s.chain.then(fn);
+  s.chain = p.then(() => wait(GAP_MS), () => wait(GAP_MS));
   return p;
 }
 
-async function send(to, text) {
-  const s = sock;
-  if (state !== 'connected' || !s) throw httpError(503, 'The WhatsApp sender is not connected.');
-  const found = await s.onWhatsApp(to + '@s.whatsapp.net');
+async function send(s, to, text) {
+  const sock = s.sock;
+  if (s.state !== 'connected' || !sock) throw httpError(503, 'This WhatsApp sender is not connected.');
+  const found = await sock.onWhatsApp(to + '@s.whatsapp.net');
   const hit = found && found[0];
   if (!hit || !hit.exists) throw httpError(404, 'This number is not on WhatsApp.');
-  await s.sendMessage(hit.jid, { text });
+  await sock.sendMessage(hit.jid, { text });
+}
+
+async function status(sid) {
+  const s = sessions.get(sid);
+  if (!s) return { state: 'none', me: null, since: null, qr: null };
+  const image = s.state === 'qr' && s.qr ? await QRCode.toDataURL(s.qr, { margin: 1, width: 300 }) : null;
+  return { state: s.state, me: s.me, since: s.since, qr: image };
 }
 
 function authorized(req) {
@@ -189,34 +229,40 @@ function readJson(req) {
 }
 
 const server = http.createServer(async (req, res) => {
-  const reply = (status, body) => {
-    res.writeHead(status, { 'content-type': 'application/json', 'cache-control': 'no-store' });
+  const reply = (code, body) => {
+    res.writeHead(code, { 'content-type': 'application/json', 'cache-control': 'no-store' });
     res.end(JSON.stringify(body));
   };
   try {
     if (!authorized(req)) return reply(403, { error: 'Forbidden' });
-    const path = String(req.url || '').split('?')[0];
-    if (req.method === 'GET' && path === '/wa/status') {
-      const image = state === 'qr' && qr ? await QRCode.toDataURL(qr, { margin: 1, width: 300 }) : null;
-      return reply(200, { state, me, since, qr: image });
+    const m = /^\/wa\/([^/]+)\/(status|link|send|logout)$/.exec(String(req.url || '').split('?')[0]);
+    if (!m) return reply(404, { error: 'Not found.' });
+    const [, sid, action] = m;
+    if (!SID_RE.test(sid)) return reply(400, { error: 'Wrong sender id.' });
+    if (req.method === 'GET' && action === 'status') return reply(200, await status(sid));
+    if (req.method !== 'POST') return reply(405, { error: 'Use POST.' });
+    if (action === 'link') {
+      if (!sessions.has(sid)) {
+        if (sessions.size >= MAX_SESSIONS) return reply(429, { error: 'Too many linked WhatsApp numbers on this server.' });
+        session(sid);
+        start(sid).catch((e) => failed(sid, e));
+        await wait(1500);
+      }
+      return reply(200, await status(sid));
     }
-    if (req.method === 'POST' && path === '/wa/send') {
+    if (action === 'send') {
+      const s = sessions.get(sid);
+      if (!s) return reply(503, { error: 'This WhatsApp sender is not linked.' });
       const body = await readJson(req);
       const to = String(body.to || '');
       const text = String(body.text || '');
       if (!/^[1-9][0-9]{7,14}$/.test(to)) return reply(400, { error: 'Wrong phone number.' });
       if (!text.trim() || text.length > 4000) return reply(400, { error: 'Empty or too long message.' });
-      await queued(() => send(to, text));
+      await queued(s, () => send(s, to, text));
       return reply(200, { sent: true });
     }
-    if (req.method === 'POST' && path === '/wa/logout') {
-      const s = sock;
-      sock = null;
-      if (s) await s.logout().catch(() => {});
-      me = null;
-      qr = null;
-      setState('logged_out');
-      await reset();
+    if (action === 'logout') {
+      await forget(sid);
       return reply(200, { ok: true });
     }
     return reply(404, { error: 'Not found.' });
@@ -226,8 +272,29 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
+/** Starts every linked number found on disk (after a restart of this program or the server). */
+async function boot() {
+  await mkdir(AUTH_DIR, { recursive: true, mode: 0o700 });
+  // The first version kept Hotzonex's own sender directly in AUTH_DIR: move it to AUTH_DIR/hzc.
+  const flat = await stat(join(AUTH_DIR, 'creds.json')).catch(() => null);
+  if (flat) {
+    await mkdir(join(AUTH_DIR, 'hzc'), { recursive: true, mode: 0o700 });
+    for (const f of await readdir(AUTH_DIR)) {
+      const from = join(AUTH_DIR, f);
+      if ((await stat(from)).isFile()) await rename(from, join(AUTH_DIR, 'hzc', f));
+    }
+  }
+  for (const sid of await readdir(AUTH_DIR)) {
+    if (!SID_RE.test(sid) || sessions.size >= MAX_SESSIONS) continue;
+    if (!(await stat(join(AUTH_DIR, sid, 'creds.json')).catch(() => null))) continue;
+    session(sid);
+    start(sid).catch((e) => failed(sid, e));
+    await wait(500);
+  }
+}
+
 server.listen(PORT, '127.0.0.1', () => console.log('Hotzonex WhatsApp sender on 127.0.0.1:' + PORT));
-start().catch(failed);
+boot().catch((e) => console.error('Boot failed: ' + (e && e.message ? e.message : e)));
 `;
 
 /** The one-command installer for the tunnel server. Holds no secret: it is passed as HZC_WA_SECRET. */
@@ -336,7 +403,7 @@ systemctl reload caddy
 
 echo "== Checking"
 for i in $(seq 1 30); do
-  if out="$(curl -fsS --max-time 5 -H "x-hzc-wa: $HZC_WA_SECRET" http://127.0.0.1:${WA_PORT}/wa/status 2>/dev/null)"; then
+  if out="$(curl -fsS --max-time 10 -X POST -H "x-hzc-wa: $HZC_WA_SECRET" http://127.0.0.1:${WA_PORT}/wa/${WA_PLATFORM_SID}/link 2>/dev/null)"; then
     echo "$out" | grep -o '"state":"[a-z_]*"' || true
     echo "== Done. Go back to Hotzonex (Businesses > WhatsApp sender) and scan the QR code with the"
     echo "   sender phone: WhatsApp > Settings > Linked devices > Link a device."

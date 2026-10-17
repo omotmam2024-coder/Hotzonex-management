@@ -20,7 +20,7 @@ import type { SupabaseClient } from 'npm:@supabase/supabase-js@2.117.3';
 import { audit, requireAdmin, requirePlatformAdmin, serviceClient } from '../_shared/auth.ts';
 import { corsFor, HttpError, json } from '../_shared/cors.ts';
 import { alertMessage, LINK_CODE_RE, wantsAlert, type AlertRow, type AlertSettings } from '../_shared/alerts.ts';
-import { formatWhatsAppNumber, WA_NUMBER_RE, waInstallScript } from '../_shared/whatsapp.ts';
+import { formatWhatsAppNumber, WA_NUMBER_RE, WA_PLATFORM_SID, waInstallScript } from '../_shared/whatsapp.ts';
 
 const TELEGRAM = 'https://api.telegram.org';
 const LINK_MINUTES = 30;
@@ -72,7 +72,7 @@ interface WaConfig {
 }
 
 interface WaStatus {
-  state: 'starting' | 'qr' | 'connected' | 'reconnecting' | 'logged_out';
+  state: 'none' | 'starting' | 'qr' | 'connected' | 'reconnecting' | 'logged_out';
   me: string | null;
   since: string;
   qr: string | null;
@@ -197,7 +197,7 @@ async function sendPending(db: SupabaseClient): Promise<Record<string, number>> 
         let delivered = 0;
         for (const n of numbers) {
           try {
-            await wa(waCfg!, '/send', { to: n, text });
+            await wa(waCfg!, `/${WA_PLATFORM_SID}/send`, { to: n, text });
             delivered++;
           } catch (err) {
             errors.push(`WhatsApp ${formatWhatsAppNumber(n)}: ${errorText(err)}`);
@@ -238,7 +238,9 @@ async function whatsappStatus(db: SupabaseClient, req: Request) {
   const c = await waConfig(db);
   if (!c) return { installed: false, connected: false };
   try {
-    const st = await wa<WaStatus>(c, '/status');
+    let st = await wa<WaStatus>(c, `/${WA_PLATFORM_SID}/status`);
+    // Installed but never linked (or unlinked): start it so the platform admin sees a QR code.
+    if (st.state === 'none' && caller.isPlatformAdmin) st = await wa<WaStatus>(c, `/${WA_PLATFORM_SID}/link`, {});
     const base = { installed: true, reachable: true, connected: st.state === 'connected', sender: st.me ? formatWhatsAppNumber(st.me) : null };
     return caller.isPlatformAdmin ? { ...base, state: st.state, since: st.since, qr: st.qr } : base;
   } catch (err) {
@@ -267,7 +269,7 @@ async function whatsappTest(db: SupabaseClient, req: Request) {
   const failed: string[] = [];
   for (const n of numbers) {
     try {
-      await wa(c, '/send', { to: n, text });
+      await wa(c, `/${WA_PLATFORM_SID}/send`, { to: n, text });
       sent.push(formatWhatsAppNumber(n));
     } catch (err) {
       if (err instanceof WaError && err.status === 503) throw new HttpError(503, 'The WhatsApp sender is not connected right now. Try again later.');
@@ -302,7 +304,7 @@ async function whatsappLogout(db: SupabaseClient, req: Request) {
   const caller = await requirePlatformAdmin(req, db);
   const c = await waConfig(db);
   if (!c) throw new HttpError(400, 'The WhatsApp sender is not installed.');
-  await wa(c, '/logout', {});
+  await wa(c, `/${WA_PLATFORM_SID}/logout`, {});
   await audit(db, caller, 'alerts.whatsapp_logout', {});
   return { ok: true };
 }
