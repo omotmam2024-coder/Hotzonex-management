@@ -8,6 +8,7 @@ import { formatSSP, jubaToday } from '../../lib/format';
 import { useSites } from '../../hooks/queries';
 import { fromJson, supabase } from '../../lib/supabase';
 import { cashHandoverSchema, sellerTermsSchema, validate } from '../../lib/validation';
+import { useT } from '../../i18n';
 
 interface CashRow {
   seller_id: string;
@@ -29,6 +30,7 @@ interface CashRow {
 
 /** Checks the commission and credit limit typed in (validation.ts has no schema for seller terms). */
 function ReceiveCash({ row, onDone }: { row: CashRow; onDone: () => void }) {
+  const { t } = useT();
   const [amount, setAmount] = useState(row.held_now > 0 ? String(row.held_now) : '');
   const [note, setNote] = useState('');
   const receive = useMutation({
@@ -48,14 +50,14 @@ function ReceiveCash({ row, onDone }: { row: CashRow; onDone: () => void }) {
   };
   return (
     <div className="mt-2 grid gap-2 rounded-xl bg-slate-50 p-3 sm:grid-cols-[10rem_1fr_auto] sm:items-end">
-      <Field label="Cash received (SSP)">
+      <Field label={t('sales.cash.received')}>
         <TextInput inputMode="numeric" value={amount} onChange={(e) => setAmount(e.target.value.replace(/[^0-9-]/g, '').slice(0, 10))} />
       </Field>
-      <Field label="Note (optional)">
-        <TextInput value={note} onChange={(e) => setNote(e.target.value.slice(0, 200))} placeholder="e.g. evening cash" />
+      <Field label={t('common.noteOptional')}>
+        <TextInput value={note} onChange={(e) => setNote(e.target.value.slice(0, 200))} placeholder={t('sales.cash.notePlaceholder')} />
       </Field>
       <Button onClick={save} disabled={receive.isPending}>
-        {receive.isPending && <Spinner />} Save
+        {receive.isPending && <Spinner />} {t('common.save')}
       </Button>
       {receive.error && (
         <div className="sm:col-span-3">
@@ -67,6 +69,7 @@ function ReceiveCash({ row, onDone }: { row: CashRow; onDone: () => void }) {
 }
 
 function Terms({ row, onDone }: { row: CashRow; onDone: () => void }) {
+  const { t } = useT();
   const queryClient = useQueryClient();
   const [pct, setPct] = useState(String(row.commission_pct));
   const [limit, setLimit] = useState(row.credit_limit_ssp === null ? '' : String(row.credit_limit_ssp));
@@ -96,14 +99,14 @@ function Terms({ row, onDone }: { row: CashRow; onDone: () => void }) {
   };
   return (
     <div className="mt-2 grid gap-2 rounded-xl bg-slate-50 p-3 sm:grid-cols-[10rem_12rem_auto] sm:items-end">
-      <Field label="Commission %" hint="Of each cash sale">
+      <Field label={t('sales.cash.commissionPct')} hint={t('sales.cash.commissionHint')}>
         <TextInput inputMode="decimal" value={pct} onChange={(e) => setPct(e.target.value.replace(/[^0-9.]/g, '').slice(0, 5))} />
       </Field>
-      <Field label="Credit limit (SSP)" hint="Most cash they may hold. Empty: no limit">
+      <Field label={t('sales.cash.creditLimit')} hint={t('sales.cash.creditLimitHint')}>
         <TextInput inputMode="numeric" value={limit} onChange={(e) => setLimit(e.target.value.replace(/\D/g, '').slice(0, 10))} />
       </Field>
       <Button onClick={submit} disabled={save.isPending}>
-        {save.isPending && <Spinner />} Save
+        {save.isPending && <Spinner />} {t('common.save')}
       </Button>
       {save.error && (
         <div className="sm:col-span-3">
@@ -115,6 +118,7 @@ function Terms({ row, onDone }: { row: CashRow; onDone: () => void }) {
 }
 
 export function CashPage() {
+  const { t } = useT();
   const { profile } = useAuth();
   const role = profile?.role;
   const sites = useSites();
@@ -145,17 +149,17 @@ export function CashPage() {
   return (
     <div className="space-y-4">
       <PageHeader
-        title={role === 'seller' ? 'My cash' : 'Cash-up'}
-        subtitle={role === 'seller' ? 'Cash you sold, your commission, and what you still hold' : 'Each cashier’s and agent’s cash for the day: sold, commission, handed in, difference'}
+        title={role === 'seller' ? t('sales.cash.titleMine') : t('nav.cash')}
+        subtitle={role === 'seller' ? t('sales.cash.subtitleMine') : t('sales.cash.subtitle')}
       />
       <Card className="grid gap-3 sm:grid-cols-3">
-        <Field label="Day">
+        <Field label={t('common.day')}>
           <TextInput type="date" value={date} max={jubaToday()} onChange={(e) => setDate(e.target.value || jubaToday())} />
         </Field>
         {role === 'admin' && (
-          <Field label="Site">
+          <Field label={t('common.site')}>
             <Select value={siteId} onChange={(e) => setSiteId(e.target.value)}>
-              <option value="">All sites</option>
+              <option value="">{t('common.allSites')}</option>
               {(sites.data ?? []).map((s) => (
                 <option key={s.id} value={s.id}>
                   {s.name}
@@ -169,19 +173,19 @@ export function CashPage() {
       {role !== 'seller' && list.length > 0 && (
         <div className="grid gap-3 sm:grid-cols-4">
           <Card>
-            <p className="text-sm text-slate-500">Cash sales</p>
+            <p className="text-sm text-slate-500">{t('sales.cash.cashSales')}</p>
             <p className="text-xl font-bold tabular-nums sm:text-3xl">{formatSSP(total.cash)}</p>
           </Card>
           <Card>
-            <p className="text-sm text-slate-500">To hand in (after commission)</p>
+            <p className="text-sm text-slate-500">{t('sales.cash.toHandAfter')}</p>
             <p className="text-xl font-bold tabular-nums sm:text-3xl">{formatSSP(total.toHand)}</p>
           </Card>
           <Card>
-            <p className="text-sm text-slate-500">Handed in</p>
+            <p className="text-sm text-slate-500">{t('sales.cash.handedIn')}</p>
             <p className="text-xl font-bold tabular-nums sm:text-3xl">{formatSSP(total.handed)}</p>
           </Card>
           <Card>
-            <p className="text-sm text-slate-500">Mobile money (to your number)</p>
+            <p className="text-sm text-slate-500">{t('sales.cash.momoTotal')}</p>
             <p className="text-xl font-bold tabular-nums sm:text-3xl">{formatSSP(total.momo)}</p>
           </Card>
         </div>
@@ -190,7 +194,7 @@ export function CashPage() {
       <Card>
         {rows.isLoading && <Spinner />}
         {rows.error && <Alert tone="error">{friendlyError(rows.error)}</Alert>}
-        {!rows.isLoading && !list.length && <p className="text-slate-600">No cashiers, agents or cash on this day.</p>}
+        {!rows.isLoading && !list.length && <p className="text-slate-600">{t('sales.cash.empty')}</p>}
         <ul className="divide-y divide-slate-100">
           {list.map((r) => {
             const over = r.credit_limit_ssp !== null && r.held_now >= r.credit_limit_ssp;
@@ -199,34 +203,38 @@ export function CashPage() {
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
                     <p className="font-semibold text-slate-900">
-                      {r.name} <span className="text-sm font-normal text-slate-500">{r.site_name ?? 'All sites'}</span>
+                      {r.name} <span className="text-sm font-normal text-slate-500">{r.site_name ?? t('common.allSites')}</span>
                     </p>
                     <p className="text-sm text-slate-700">
-                      {r.cash_count} cash voucher{r.cash_count === 1 ? '' : 's'} · {formatSSP(r.cash_amount)}
-                      {r.commission > 0 && ` · commission ${formatSSP(r.commission)} (${r.commission_pct}%)`}
-                      {r.momo_count > 0 && ` · ${r.momo_count} mobile money (${formatSSP(r.momo_amount)})`}
+                      {t(r.cash_count === 1 ? 'sales.cash.vouchersOne' : 'sales.cash.vouchersMany', { n: r.cash_count, amount: formatSSP(r.cash_amount) })}
+                      {r.commission > 0 && t('sales.cash.commissionLine', { amount: formatSSP(r.commission), pct: r.commission_pct })}
+                      {r.momo_count > 0 && t('sales.cash.momoLine', { n: r.momo_count, amount: formatSSP(r.momo_amount) })}
                     </p>
                     <p className="text-sm text-slate-700">
-                      To hand in {formatSSP(r.to_hand_in)} · handed in {formatSSP(r.handed_in)} ·{' '}
+                      {t('sales.cash.handLine', { toHand: formatSSP(r.to_hand_in), handed: formatSSP(r.handed_in) })}{' '}
                       <b className={r.difference < 0 ? 'text-red-700' : r.difference > 0 ? 'text-green-700' : 'text-slate-800'}>
-                        {r.difference === 0 ? 'balanced' : r.difference < 0 ? `short ${formatSSP(-r.difference)}` : `over ${formatSSP(r.difference)}`}
+                        {r.difference === 0
+                          ? t('sales.cash.balanced')
+                          : r.difference < 0
+                            ? t('sales.cash.short', { amount: formatSSP(-r.difference) })
+                            : t('sales.cash.over', { amount: formatSSP(r.difference) })}
                       </b>
                     </p>
                   </div>
-                  <div className="text-right">
-                    <p className="text-xs text-slate-500">Holds now</p>
+                  <div className="text-end">
+                    <p className="text-xs text-slate-500">{t('sales.cash.holdsNow')}</p>
                     <p className={`text-lg font-bold ${over ? 'text-red-700' : 'text-slate-900'}`}>{formatSSP(r.held_now)}</p>
-                    {r.credit_limit_ssp !== null && <Badge color={over ? 'red' : 'gray'}>limit {formatSSP(r.credit_limit_ssp)}</Badge>}
+                    {r.credit_limit_ssp !== null && <Badge color={over ? 'red' : 'gray'}>{t('sales.cash.limit', { amount: formatSSP(r.credit_limit_ssp) })}</Badge>}
                   </div>
                 </div>
                 {role !== 'seller' && (
                   <div className="mt-2 flex flex-wrap gap-2">
                     <Button variant="secondary" onClick={() => setOpen(open?.id === r.seller_id && open.kind === 'receive' ? null : { id: r.seller_id, kind: 'receive' })}>
-                      Receive cash
+                      {t('sales.cash.receive')}
                     </Button>
                     {role === 'admin' && (
                       <Button variant="ghost" onClick={() => setOpen(open?.id === r.seller_id && open.kind === 'terms' ? null : { id: r.seller_id, kind: 'terms' })}>
-                        Commission & limit
+                        {t('sales.cash.terms')}
                       </Button>
                     )}
                   </div>

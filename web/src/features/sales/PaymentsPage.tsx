@@ -11,6 +11,8 @@ import { invalidateSalesData, usePlans, useSites } from '../../hooks/queries';
 import { fromJson, supabase, supabaseUrl } from '../../lib/supabase';
 import type { SiteRow } from '../../lib/types';
 import { readStored, writeStored } from '../../lib/storage';
+import { useT } from '../../i18n';
+import { translate } from '../../i18n/translate';
 
 interface PaymentRow {
   id: string;
@@ -31,7 +33,14 @@ interface ConfirmResult {
   on_router: boolean;
 }
 
-const PROVIDER: Record<string, string> = { mtn_momo: 'MTN MoMo', mgurush: 'm-Gurush', digicash: 'Digicash', other: 'Other' };
+const PROVIDER: Record<string, string> = {
+  mtn_momo: 'MTN MoMo',
+  mgurush: 'm-Gurush',
+  digicash: 'Digicash',
+  get other() {
+    return translate('sales.pay.other');
+  },
+};
 
 function buyUrl(slug: string) {
   return `${window.location.origin}/buy/${slug}`;
@@ -63,23 +72,24 @@ function wifiQrText(ssid: string): string {
  * A printable A4 poster: the QR code and link to the Buy page and, when the WiFi name is given, a
  * second code that joins the phone to the WiFi (the only kind the scanner in WiFi settings reads).
  */
-function printPoster(site: SiteRow, business: string, wifiName: string) {
+function printPoster(site: SiteRow, business: string, wifiName: string, dir: 'ltr' | 'rtl') {
   const url = buyUrl(site.buy_slug ?? '');
   const esc = (t: string) => t.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
   const w = window.open('', '_blank');
   if (!w) return;
   const ssid = wifiName.trim();
+  const tr = (key: Parameters<typeof translate>[0], vars?: Parameters<typeof translate>[1]) => esc(translate(key, vars));
   const codes = ssid
-    ? `<div class="row"><div class="box"><h2>1. Join the WiFi</h2><div class="qr">${qrSvg(wifiQrText(ssid), 10)}</div>
-<p>Scan in WiFi settings or with the camera</p><p class="url">${esc(ssid)}</p></div>
-<div class="box"><h2>2. Buy a card</h2><div class="qr">${qrSvg(url, 10)}</div><p>Scan with the camera app</p></div></div>`
-    : `<div class="qr big">${qrSvg(url, 10)}</div><p>Scan with the camera app (or open the link)</p>`;
-  w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Buy WiFi – ${esc(site.name)}</title>
+    ? `<div class="row"><div class="box"><h2>${tr('sales.poster.join')}</h2><div class="qr">${qrSvg(wifiQrText(ssid), 10)}</div>
+<p>${tr('sales.poster.scanSettings')}</p><p class="url">${esc(ssid)}</p></div>
+<div class="box"><h2>${tr('sales.poster.buyCard')}</h2><div class="qr">${qrSvg(url, 10)}</div><p>${tr('sales.poster.scanCamera')}</p></div></div>`
+    : `<div class="qr big">${qrSvg(url, 10)}</div><p>${tr('sales.poster.scanCameraOrLink')}</p>`;
+  w.document.write(`<!doctype html><html dir="${dir}"><head><meta charset="utf-8"><title>${tr('sales.poster.docTitle', { site: site.name })}</title>
 <style>body{font-family:system-ui,sans-serif;text-align:center;margin:32px}h1{font-size:44px;margin:0 0 8px}h2{font-size:28px;margin:0}p{font-size:20px;margin:6px 0}
 .row{display:flex;gap:24px;justify-content:center;margin:24px 0}.box{flex:1;max-width:340px}.qr{width:300px;margin:12px auto}.qr.big{width:420px;margin:24px auto}
 .qr svg{width:100%;height:auto}.url{font-size:20px;font-weight:700;word-break:break-all}.steps{font-size:22px}</style></head>
-<body><h1>Buy WiFi here</h1><p>${esc(business)} · ${esc(site.name)}</p>${codes}
-<p class="steps">Pay by mobile money, then get your card code on your phone.</p><p class="url">${esc(url)}</p>
+<body><h1>${tr('sales.poster.heading')}</h1><p>${esc(business)} · ${esc(site.name)}</p>${codes}
+<p class="steps">${tr('sales.poster.steps')}</p><p class="url" dir="ltr">${esc(url)}</p>
 </body></html>`);
   w.document.close();
   // Printed from here: the poster window may not run scripts of its own (Content-Security-Policy).
@@ -87,6 +97,7 @@ function printPoster(site: SiteRow, business: string, wifiName: string) {
 }
 
 function BuySettings({ site }: { site: SiteRow }) {
+  const { t, dir } = useT();
   const { business } = useAuth();
   const queryClient = useQueryClient();
   const [enabled, setEnabled] = useState(site.buy_enabled);
@@ -126,25 +137,25 @@ function BuySettings({ site }: { site: SiteRow }) {
     <div className="space-y-3 rounded-xl border border-slate-200 p-4">
       <div className="flex flex-wrap items-center gap-2">
         <h3 className="font-bold">{site.name}</h3>
-        {live ? <Badge color="green">Open</Badge> : <Badge color="gray">Closed</Badge>}
+        {live ? <Badge color="green">{t('sales.buy.open')}</Badge> : <Badge color="gray">{t('sales.buy.closed')}</Badge>}
       </div>
-      <Checkbox label="Customers can buy cards here with mobile money" checked={enabled} onChange={setEnabled} />
+      <Checkbox label={t('sales.buy.enable')} checked={enabled} onChange={setEnabled} />
       {enabled && (
         <>
-          <Field label="Page address" hint={`${window.location.origin}/buy/${slug || '…'}`}>
-            <TextInput value={slug} onChange={(e) => setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '').slice(0, 40))} />
+          <Field label={t('sales.buy.address')} hint={`${window.location.origin}/buy/${slug || '…'}`}>
+            <TextInput dir="ltr" value={slug} onChange={(e) => setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '').slice(0, 40))} />
           </Field>
-          <Field label="Where to send the money" hint="Shown to customers. For example: MTN MoMo 092 123 4567 (Hotzonex WiFi)">
+          <Field label={t('sales.buy.sendMoney')} hint={t('sales.buy.sendMoneyHint')}>
             <TextArea value={instructions} onChange={(e) => setInstructions(e.target.value.slice(0, 500))} rows={3} />
           </Field>
         </>
       )}
       <Button onClick={() => save.mutate()} disabled={save.isPending}>
-        {save.isPending && <Spinner />} Save
+        {save.isPending && <Spinner />} {t('common.save')}
       </Button>
       {save.isSuccess && (
         <Alert tone="success">
-          Saved. {enabled ? 'The routers of this site now let customers open the page before they log in.' : 'The page is closed.'}
+          {t('sales.buy.saved')} {enabled ? t('sales.buy.savedOpen') : t('sales.buy.savedClosed')}
         </Alert>
       )}
       {save.error && <Alert tone="error">{friendlyError(save.error)}</Alert>}
@@ -155,11 +166,11 @@ function BuySettings({ site }: { site: SiteRow }) {
             <a href={buyUrl(site.buy_slug!)} target="_blank" rel="noopener" className="block break-all font-semibold text-brand-700 underline">
               {buyUrl(site.buy_slug!)}
             </a>
-            <Field label="WiFi name on the poster (optional)" hint="Adds a second QR code that joins the phone to this WiFi.">
-              <TextInput value={wifiName} onChange={(e) => setWifiName(e.target.value.slice(0, 32))} placeholder="e.g. Hotzonex WiFi" />
+            <Field label={t('sales.buy.wifiName')} hint={t('sales.buy.wifiNameHint')}>
+              <TextInput value={wifiName} onChange={(e) => setWifiName(e.target.value.slice(0, 32))} placeholder={t('sales.buy.wifiNamePlaceholder')} />
             </Field>
-            <Button variant="secondary" onClick={() => printPoster(site, business?.name ?? '', wifiName)}>
-              Print poster
+            <Button variant="secondary" onClick={() => printPoster(site, business?.name ?? '', wifiName, dir)}>
+              {t('sales.buy.printPoster')}
             </Button>
           </div>
         </div>
@@ -181,6 +192,7 @@ function PaymentItem({
   onAction: () => void;
   onConfirmed: (result: ConfirmResult) => void;
 }) {
+  const { t } = useT();
   const queryClient = useQueryClient();
   // A double tap must not confirm twice: the second tap comes before isPending re-renders.
   const inFlight = useRef(false);
@@ -199,7 +211,7 @@ function PaymentItem({
   });
   function confirmPayment() {
     if (inFlight.current) return;
-    if (!window.confirm(`Did ${formatSSP(p.amount_ssp)} arrive from ${p.phone} with ref ${p.txn_ref}?`)) return;
+    if (!window.confirm(t('sales.pay.confirmQuestion', { amount: formatSSP(p.amount_ssp), phone: p.phone, ref: p.txn_ref }))) return;
     inFlight.current = true;
     onAction();
     confirm.mutate(undefined, { onSettled: () => (inFlight.current = false) });
@@ -220,12 +232,12 @@ function PaymentItem({
             {planName} · {formatSSP(p.amount_ssp)}
           </p>
           <p className="text-sm text-slate-700">
-            {PROVIDER[p.provider] ?? p.provider} · {p.phone} · ref <b className="font-mono">{p.txn_ref}</b>
+            {PROVIDER[p.provider] ?? p.provider} · <span dir="ltr">{p.phone}</span> · {t('sales.pay.ref')} <b className="font-mono">{p.txn_ref}</b>
           </p>
           <p className="text-xs text-slate-500">
             {siteName} · {formatJubaTime(p.created_at)}
           </p>
-          {p.status === 'rejected' && p.reject_reason && <p className="text-sm text-red-700">Rejected: {p.reject_reason}</p>}
+          {p.status === 'rejected' && p.reject_reason && <p className="text-sm text-red-700">{t('sales.pay.rejected', { reason: p.reject_reason })}</p>}
         </div>
         {p.status === 'pending' ? (
           <div className="flex gap-2">
@@ -233,19 +245,19 @@ function PaymentItem({
               onClick={confirmPayment}
               disabled={confirm.isPending || reject.isPending}
             >
-              {confirm.isPending && <Spinner />} Confirm
+              {confirm.isPending && <Spinner />} {t('sales.pay.confirm')}
             </Button>
             <Button
               variant="danger"
               onClick={() => {
-                const reason = window.prompt('Why? The customer sees this.', 'Payment not received');
+                const reason = window.prompt(t('sales.pay.rejectWhy'), t('sales.pay.rejectDefault'));
                 if (!reason) return;
                 onAction();
                 reject.mutate(reason);
               }}
               disabled={confirm.isPending || reject.isPending}
             >
-              Reject
+              {t('sales.pay.reject')}
             </Button>
           </div>
         ) : (
@@ -258,6 +270,7 @@ function PaymentItem({
 }
 
 export function PaymentsPage() {
+  const { t } = useT();
   const { profile } = useAuth();
   const sites = useSites();
   const plans = usePlans();
@@ -279,28 +292,27 @@ export function PaymentsPage() {
   });
 
   const siteName = (id: string) => sites.data?.find((s) => s.id === id)?.name ?? '';
-  const planName = (id: string) => plans.data?.find((p) => p.id === id)?.name ?? 'Card';
+  const planName = (id: string) => plans.data?.find((p) => p.id === id)?.name ?? t('sales.pay.card');
   const pending = (payments.data ?? []).filter((p) => p.status === 'pending');
   const done = (payments.data ?? []).filter((p) => p.status !== 'pending').slice(0, 30);
 
   return (
     <div className="space-y-4">
-      <PageHeader title="Payments" subtitle="Customers who bought a card by mobile money. Check the money arrived, then Confirm." />
+      <PageHeader title={t('nav.payments')} subtitle={t('sales.pay.subtitle')} />
       {confirmed && (
         <Alert tone="success">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <span>
-              Card <b className="font-mono">{confirmed.code}</b> given — the customer sees it on their page
-              {confirmed.on_router ? '.' : ' (it is being added to the router, about a minute).'}
+              {t('sales.pay.givenCard')} <b className="font-mono">{confirmed.code}</b> {confirmed.on_router ? t('sales.pay.givenDone') : t('sales.pay.givenAdding')}
             </span>
             <button type="button" className={`${textButtonClass} text-green-800`} onClick={clearConfirmed}>
-              Dismiss
+              {t('sales.pay.dismiss')}
             </button>
           </div>
         </Alert>
       )}
       <Card>
-        <h2 className="mb-2 text-lg font-bold">To confirm {pending.length > 0 && <Badge color="blue">{pending.length}</Badge>}</h2>
+        <h2 className="mb-2 text-lg font-bold">{t('payment.pending')} {pending.length > 0 && <Badge color="blue">{pending.length}</Badge>}</h2>
         {payments.isLoading ? (
           <Spinner />
         ) : pending.length ? (
@@ -310,14 +322,14 @@ export function PaymentsPage() {
             ))}
           </ul>
         ) : (
-          <p className="text-slate-600">No payments waiting.</p>
+          <p className="text-slate-600">{t('sales.pay.none')}</p>
         )}
         {payments.error && <Alert tone="error">{friendlyError(payments.error)}</Alert>}
       </Card>
 
       {done.length > 0 && (
         <Card>
-          <h2 className="mb-2 text-lg font-bold">Recent</h2>
+          <h2 className="mb-2 text-lg font-bold">{t('sales.pay.recent')}</h2>
           <ul className="divide-y divide-slate-100">
             {done.map((p) => (
               <PaymentItem key={p.id} p={p} siteName={siteName(p.site_id)} planName={planName(p.plan_id)} onAction={clearConfirmed} onConfirmed={setConfirmed} />
@@ -328,10 +340,9 @@ export function PaymentsPage() {
 
       {profile?.role === 'admin' && (
         <Card className="space-y-3">
-          <h2 className="text-lg font-bold">Buy page</h2>
+          <h2 className="text-lg font-bold">{t('sales.buy.title')}</h2>
           <p className="text-sm text-slate-600">
-            Customers open the page (QR poster, or from the WiFi before they log in), pay to your mobile-money number and type the transaction ID.
-            You get an alert; the card appears on their phone when you confirm. Cards come from the site's stock, or are made on the spot.
+            {t('sales.buy.intro')}
           </p>
           {(sites.data ?? []).map((s) => (
             <BuySettings key={s.id} site={s} />

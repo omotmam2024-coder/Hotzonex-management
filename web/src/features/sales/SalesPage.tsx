@@ -10,6 +10,7 @@ import { invalidateSalesData, usePlans, useRouters, useSites } from '../../hooks
 import { supabase } from '../../lib/supabase';
 import type { ReceiptData } from '../../print/Receipt';
 import { hotspotAddress } from '../../lib/routers';
+import { useT } from '../../i18n';
 
 const PAGE_SIZE = 100;
 const VOID_WINDOW_MS = 24 * 3600 * 1000;
@@ -44,6 +45,7 @@ interface StaffOption {
 }
 
 function VoidDialog({ sale, onClose }: { sale: SaleListRow; onClose: () => void }) {
+  const { t } = useT();
   const queryClient = useQueryClient();
   const [reason, setReason] = useState('');
   // A double tap must not send the void twice.
@@ -64,16 +66,16 @@ function VoidDialog({ sale, onClose }: { sale: SaleListRow; onClose: () => void 
     voidSale.mutate(undefined, { onSettled: () => (inFlight.current = false) });
   }
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/50 p-4 sm:items-center" role="dialog" aria-label="Void sale">
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/50 p-4 sm:items-center" role="dialog" aria-label={t('sales.void.title')}>
       <Card className="w-full max-w-md">
-        <h2 className="text-lg font-bold">Void sale</h2>
+        <h2 className="text-lg font-bold">{t('sales.void.title')}</h2>
         <p className="mt-1 text-slate-600">
-          Code <strong className="font-mono">{sale.code}</strong> · {sale.plan_name} · {formatSSP(sale.amount_ssp)} · {formatJubaTime(sale.sold_at)}
+          {t('sales.void.code')} <strong className="font-mono">{sale.code}</strong> · {sale.plan_name} · {formatSSP(sale.amount_ssp)} · {formatJubaTime(sale.sold_at)}
         </p>
-        <p className="mt-2 text-sm text-slate-600">The voucher will be disabled on the router and the sale removed from report totals. The sale stays in the list as voided.</p>
+        <p className="mt-2 text-sm text-slate-600">{t('sales.void.text')}</p>
         <div className="mt-4">
-          <Field label="Reason">
-            <TextInput value={reason} onChange={(e) => setReason(e.target.value)} maxLength={200} placeholder="e.g. Customer was charged twice" autoFocus />
+          <Field label={t('sales.void.reason')}>
+            <TextInput value={reason} onChange={(e) => setReason(e.target.value)} maxLength={200} placeholder={t('sales.void.reasonPlaceholder')} autoFocus />
           </Field>
         </div>
         {voidSale.error && (
@@ -83,10 +85,10 @@ function VoidDialog({ sale, onClose }: { sale: SaleListRow; onClose: () => void 
         )}
         <div className="mt-4 flex flex-wrap gap-2">
           <Button variant="danger" disabled={reason.trim().length < 3 || voidSale.isPending} onClick={confirmVoid}>
-            {voidSale.isPending && <Spinner />} Void sale
+            {voidSale.isPending && <Spinner />} {t('sales.void.title')}
           </Button>
           <Button variant="ghost" onClick={onClose}>
-            Cancel
+            {t('common.cancel')}
           </Button>
         </div>
       </Card>
@@ -95,6 +97,7 @@ function VoidDialog({ sale, onClose }: { sale: SaleListRow; onClose: () => void 
 }
 
 export function SalesPage() {
+  const { t, dir } = useT();
   const { profile } = useAuth();
   const navigate = useNavigate();
   const isSeller = profile?.role === 'seller';
@@ -176,12 +179,12 @@ export function SalesPage() {
   return (
     <div className="space-y-4">
       <PageHeader
-        title={isSeller ? 'My sales today' : 'Sales'}
-        subtitle={isSeller ? undefined : 'Every sale and router activation'}
+        title={isSeller ? t('sales.titleMine') : t('sales.title')}
+        subtitle={isSeller ? undefined : t('sales.subtitle')}
         actions={
           !isSeller && (
             <Link to="/sales/mark-sold" className={buttonClass('secondary')}>
-              Mark printed cards as sold
+              {t('sales.markSold')}
             </Link>
           )
         }
@@ -190,16 +193,16 @@ export function SalesPage() {
       {!isSeller && (
         <Card>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-            <Field label="From">
+            <Field label={t('sales.from')}>
               <TextInput type="date" value={from} max={to} onChange={(e) => resetPage(setFrom)(e.target.value || today)} />
             </Field>
-            <Field label="To">
+            <Field label={t('sales.to')}>
               <TextInput type="date" value={to} min={from} onChange={(e) => resetPage(setTo)(e.target.value || today)} />
             </Field>
             {isAdmin && (
-              <Field label="Site">
+              <Field label={t('common.site')}>
                 <Select value={siteId} onChange={(e) => resetPage(setSiteId)(e.target.value)}>
-                  <option value="">All sites</option>
+                  <option value="">{t('common.allSites')}</option>
                   {(sites.data ?? []).map((s) => (
                     <option key={s.id} value={s.id}>
                       {s.name}
@@ -208,9 +211,9 @@ export function SalesPage() {
                 </Select>
               </Field>
             )}
-            <Field label="Plan">
+            <Field label={t('common.plan')}>
               <Select value={planId} onChange={(e) => resetPage(setPlanId)(e.target.value)}>
-                <option value="">All plans</option>
+                <option value="">{t('common.allPlans')}</option>
                 {(plans.data ?? []).map((p) => (
                   <option key={p.id} value={p.id}>
                     {p.name}
@@ -218,9 +221,9 @@ export function SalesPage() {
                 ))}
               </Select>
             </Field>
-            <Field label="Cashier / agent">
+            <Field label={t('role.seller')}>
               <Select value={sellerId} onChange={(e) => resetPage(setSellerId)(e.target.value)}>
-                <option value="">All cashiers and agents</option>
+                <option value="">{t('sales.allCashiers')}</option>
                 {(staff.data ?? []).map((s) => (
                   <option key={s.id} value={s.id}>
                     {s.full_name}
@@ -234,16 +237,16 @@ export function SalesPage() {
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
         <Card>
-          <div className="text-sm text-slate-500">Vouchers sold / activated</div>
+          <div className="text-sm text-slate-500">{t('sales.soldActivated')}</div>
           <div className="text-xl font-bold tabular-nums sm:text-3xl">{formatNumber(first?.total_sold ?? 0)}</div>
         </Card>
         <Card>
-          <div className="text-sm text-slate-500">Revenue</div>
+          <div className="text-sm text-slate-500">{t('common.revenue')}</div>
           <div className="text-xl font-bold tabular-nums sm:text-3xl">{formatSSP(first?.total_ssp ?? 0)}</div>
         </Card>
         {voidedCount > 0 && (
           <Card>
-            <div className="text-sm text-slate-500">Voided</div>
+            <div className="text-sm text-slate-500">{t('sales.voided')}</div>
             <div className="text-xl font-bold tabular-nums sm:text-3xl text-red-700">{formatNumber(voidedCount)}</div>
           </Card>
         )}
@@ -251,25 +254,24 @@ export function SalesPage() {
 
       {!isSeller && (
         <p className="text-sm text-slate-600">
-          Includes every activated voucher: Hotzonex vouchers when sold or at their first login, and MikroTicket (router) vouchers at the moment they were
-          first used on the router, at their plan's price.
+          {t('sales.includesNote')}
         </p>
       )}
       {sales.error && <Alert tone="error">{friendlyError(sales.error)}</Alert>}
 
       <Card className="!p-0">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[760px] text-left text-sm">
+          <table className="w-full min-w-[760px] text-start text-sm">
             <thead className="border-b border-slate-200 bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
               <tr>
-                <th className="px-4 py-2">Time</th>
-                <th className="px-4 py-2">Code</th>
-                <th className="px-4 py-2">Plan</th>
-                <th className="px-4 py-2 text-right">Amount</th>
-                <th className="px-4 py-2">Cashier / agent</th>
-                <th className="px-4 py-2">Site</th>
+                <th className="px-4 py-2">{t('sales.col.time')}</th>
+                <th className="px-4 py-2">{t('sales.col.code')}</th>
+                <th className="px-4 py-2">{t('common.plan')}</th>
+                <th className="px-4 py-2 text-end">{t('common.amount')}</th>
+                <th className="px-4 py-2">{t('role.seller')}</th>
+                <th className="px-4 py-2">{t('common.site')}</th>
                 <th className="px-4 py-2">
-                  <span className="sr-only">Actions</span>
+                  <span className="sr-only">{t('sales.col.actions')}</span>
                 </th>
               </tr>
             </thead>
@@ -286,24 +288,24 @@ export function SalesPage() {
                         {s.plan_name}
                       </span>
                     </td>
-                    <td className={`whitespace-nowrap px-4 py-2 text-right font-semibold tabular-nums ${s.voided_at ? 'text-slate-500 line-through' : ''}`}>{formatSSP(s.amount_ssp)}</td>
+                    <td className={`whitespace-nowrap px-4 py-2 text-end font-semibold tabular-nums ${s.voided_at ? 'text-slate-500 line-through' : ''}`}>{formatSSP(s.amount_ssp)}</td>
                     <td className="px-4 py-2">{s.seller_name}</td>
                     <td className="px-4 py-2">{s.site_name}</td>
                     <td className="px-4 py-2">
                       <div className="flex items-center justify-end gap-1">
                         {s.voided_at ? (
                           <span title={`${s.void_reason ?? ''} — ${s.voided_by_name ?? ''}`}>
-                            <Badge color="red">Voided</Badge>
-                            <span className="ml-2 text-xs text-slate-500">{s.void_reason}</span>
+                            <Badge color="red">{t('sales.voided')}</Badge>
+                            <span className="ms-2 text-xs text-slate-500">{s.void_reason}</span>
                           </span>
                         ) : s.voucher_id !== null ? (
                           <button type="button" onClick={() => reprint(s)} className={`${textButtonClass} text-brand-700`}>
-                            Receipt
+                            {t('sales.receipt')}
                           </button>
                         ) : null}
                         {canVoid && (
                           <button type="button" onClick={() => setVoiding(s)} className={`${textButtonClass} text-red-700`}>
-                            Void
+                            {t('sales.void')}
                           </button>
                         )}
                       </div>
@@ -314,7 +316,7 @@ export function SalesPage() {
               {sales.data && rows.length === 0 && (
                 <tr>
                   <td colSpan={7} className="px-4 py-8 text-center text-slate-500">
-                    No sales in this period.
+                    {t('sales.empty')}
                   </td>
                 </tr>
               )}
@@ -325,13 +327,13 @@ export function SalesPage() {
         {pages > 1 && (
           <div className="flex items-center justify-between gap-2 p-3">
             <Button variant="secondary" disabled={page === 0} onClick={() => setPage(page - 1)}>
-              ← Previous
+              {dir === 'rtl' ? '→' : '←'} {t('sales.previous')}
             </Button>
             <span className="text-sm text-slate-600">
-              Page {page + 1} of {pages}
+              {t('sales.pageOf', { page: page + 1, pages })}
             </span>
             <Button variant="secondary" disabled={page + 1 >= pages} onClick={() => setPage(page + 1)}>
-              Next →
+              {t('sales.next')} {dir === 'rtl' ? '←' : '→'}
             </Button>
           </div>
         )}

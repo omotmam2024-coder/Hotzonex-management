@@ -11,6 +11,7 @@ import { fromJson, supabase } from '../../lib/supabase';
 import { VOUCHER_STATUS } from '../../lib/labels';
 import { ROLE_LABELS } from '../../lib/nav';
 import type { Role, VoucherStatus } from '../../lib/types';
+import { useT } from '../../i18n';
 
 type Mode = 'batch' | 'codes';
 
@@ -47,6 +48,7 @@ function parseCodes(text: string): string[] {
 }
 
 export function MarkSoldPage() {
+  const { t } = useT();
   const { profile } = useAuth();
   const queryClient = useQueryClient();
   const routers = useRouters();
@@ -122,8 +124,8 @@ export function MarkSoldPage() {
 
   const mark = useMutation({
     mutationFn: async (): Promise<MarkResult> => {
-      if (!sellerId) throw new Error('Choose the cashier or agent who handed out these cards.');
-      if (chosen.length === 0) throw new Error('Select at least one card.');
+      if (!sellerId) throw new Error(t('sell.mark.errCashier'));
+      if (chosen.length === 0) throw new Error(t('sell.mark.errSelect'));
       const { data, error } = await supabase.rpc('mark_vouchers_sold', { p_voucher_ids: chosen.map((c) => c.id), p_seller_id: sellerId });
       if (error) throw new Error(friendlyError(error));
       return fromJson<MarkResult>(data);
@@ -154,11 +156,11 @@ export function MarkSoldPage() {
 
   return (
     <div className="max-w-4xl space-y-4">
-      <PageHeader title="Mark printed cards as sold" subtitle="Records one cash sale per card at the plan price, for cards handed out from A4 sheets." />
+      <PageHeader title={t('sell.mark.title')} subtitle={t('sell.mark.subtitle')} />
 
       <Card>
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Router">
+          <Field label={t('common.router')}>
             <Select
               value={routerId}
               onChange={(e) => {
@@ -167,7 +169,7 @@ export function MarkSoldPage() {
                 setResult(null);
               }}
             >
-              <option value="">Choose a router…</option>
+              <option value="">{t('sell.mark.chooseRouter')}</option>
               {usableRouters.map((r) => (
                 <option key={r.id} value={r.id}>
                   {r.name}
@@ -175,9 +177,9 @@ export function MarkSoldPage() {
               ))}
             </Select>
           </Field>
-          <Field label="Cashier or agent who handed out the cards">
+          <Field label={t('sell.mark.cashierLabel')}>
             <Select value={sellerId} onChange={(e) => setSellerId(e.target.value)} disabled={!router}>
-              <option value="">Choose a cashier or agent…</option>
+              <option value="">{t('sell.mark.chooseCashier')}</option>
               {sellers.map((s) => (
                 <option key={s.id} value={s.id}>
                   {s.full_name} ({ROLE_LABELS[s.role as Role] ?? s.role})
@@ -198,16 +200,16 @@ export function MarkSoldPage() {
               }}
               className={`min-h-11 rounded-xl px-3 font-semibold ring-1 ${mode === m ? 'bg-brand-600 text-white ring-brand-600' : 'bg-white text-slate-700 ring-slate-300'}`}
             >
-              {m === 'batch' ? 'From a printed batch' : 'Type codes'}
+              {m === 'batch' ? t('sell.mark.fromBatch') : t('sell.mark.typeCodes')}
             </button>
           ))}
         </div>
 
         <div className="mt-4">
           {mode === 'batch' ? (
-            <Field label="Batch">
+            <Field label={t('sell.mark.batch')}>
               <Select value={batchId} onChange={(e) => setBatchId(e.target.value)} disabled={!router}>
-                <option value="">Choose a batch…</option>
+                <option value="">{t('sell.mark.chooseBatch')}</option>
                 {(batches.data ?? []).map((b) => (
                   <option key={b.id} value={b.id}>
                     {formatJubaTime(b.created_at)} · {b.quantity} × {b.plan_name}
@@ -216,12 +218,13 @@ export function MarkSoldPage() {
               </Select>
             </Field>
           ) : (
-            <Field label="Codes" hint="One per line, or separated by spaces or commas">
+            <Field label={t('sell.mark.codes')} hint={t('sell.mark.codesHint')}>
               <TextArea
                 value={codesText}
                 onChange={(e) => setCodesText(e.target.value)}
                 rows={4}
                 inputMode="numeric"
+                dir="ltr"
                 disabled={!router}
                 className="font-mono text-lg"
                 placeholder={'48213570\n48221489'}
@@ -234,10 +237,10 @@ export function MarkSoldPage() {
       {result && (
         <Alert tone={result.sold > 0 ? 'success' : 'warning'}>
           <strong>
-            {formatNumber(result.sold)} sale{result.sold === 1 ? '' : 's'} recorded · {formatSSP(result.total_ssp)}
+            {t(result.sold === 1 ? 'sell.mark.recordedOne' : 'sell.mark.recordedMany', { n: formatNumber(result.sold), amount: formatSSP(result.total_ssp) })}
           </strong>
           {result.skipped.length > 0 && (
-            <ul className="mt-2 list-disc pl-5">
+            <ul className="mt-2 list-disc ps-5">
               {result.skipped.map((s) => (
                 <li key={s.code}>
                   <span className="font-mono">{s.code}</span>: {s.reason}
@@ -247,7 +250,7 @@ export function MarkSoldPage() {
           )}
           <div className="mt-2">
             <Link to="/sales" className="font-semibold underline">
-              View sales
+              {t('sell.mark.viewSales')}
             </Link>
           </div>
         </Alert>
@@ -256,7 +259,7 @@ export function MarkSoldPage() {
       {candidates.error && <Alert tone="error">{friendlyError(candidates.error)}</Alert>}
       {notFound.length > 0 && (
         <Alert tone="warning">
-          Not found on {router?.name}: <span className="font-mono">{notFound.join(', ')}</span>
+          {t('sell.mark.notFound', { router: router?.name ?? '' })} <span className="font-mono">{notFound.join(', ')}</span>
         </Alert>
       )}
 
@@ -266,14 +269,14 @@ export function MarkSoldPage() {
         <Card className="!p-0">
           <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3">
             <span className="font-semibold">
-              {formatNumber(chosen.length)} of {formatNumber(list.length)} selected · {formatSSP(total)}
+              {t('sell.mark.selected', { n: formatNumber(chosen.length), total: formatNumber(list.length), amount: formatSSP(total) })}
             </span>
             <div className="flex gap-1">
               <button type="button" className={`${textButtonClass} text-brand-700`} onClick={() => setSelected(new Set(list.filter(isEligible).map((c) => c.id)))}>
-                Select all
+                {t('sell.mark.selectAll')}
               </button>
               <button type="button" className={`${textButtonClass} text-brand-700`} onClick={() => setSelected(new Set())}>
-                Select none
+                {t('sell.mark.selectNone')}
               </button>
             </div>
           </div>
@@ -281,7 +284,7 @@ export function MarkSoldPage() {
             {list.map((c) => {
               const plan = planById.get(c.plan_id);
               const status = VOUCHER_STATUS[c.status];
-              const blocked = c.status !== 'unused' ? `Already ${status.label.toLowerCase()}` : !c.printed_at ? 'Not printed — sell on the Sell screen' : null;
+              const blocked = c.status !== 'unused' ? t('sell.mark.already', { status: status.label.toLowerCase() }) : !c.printed_at ? t('sell.mark.notPrinted') : null;
               return (
                 <li key={c.id}>
                   <label className={`flex min-h-12 items-center gap-3 px-4 py-2 ${blocked ? 'opacity-60' : 'cursor-pointer'}`}>
@@ -291,7 +294,7 @@ export function MarkSoldPage() {
                     <span className="text-sm text-slate-600">
                       {plan?.name} · {plan ? formatSSP(plan.price_ssp) : ''}
                     </span>
-                    <span className="ml-auto flex items-center gap-2">
+                    <span className="ms-auto flex items-center gap-2">
                       {blocked && <span className="text-xs text-slate-500">{blocked}</span>}
                       {c.status !== 'unused' && <Badge color={status.color}>{status.label}</Badge>}
                     </span>
@@ -302,11 +305,11 @@ export function MarkSoldPage() {
           </ul>
         </Card>
       )}
-      {mode === 'batch' && batchId && candidates.data && list.length === 0 && <Alert tone="info">No printed, unsold cards left in this batch.</Alert>}
+      {mode === 'batch' && batchId && candidates.data && list.length === 0 && <Alert tone="info">{t('sell.mark.noneLeft')}</Alert>}
 
       {mark.error && <Alert tone="error">{mark.error.message}</Alert>}
       <Button className="min-h-12 px-6 text-lg" disabled={mark.isPending || chosen.length === 0 || !sellerId} onClick={recordSales}>
-        {mark.isPending && <Spinner />} Record {formatNumber(chosen.length)} cash sale{chosen.length === 1 ? '' : 's'} · {formatSSP(total)}
+        {mark.isPending && <Spinner />} {t(chosen.length === 1 ? 'sell.mark.recordOne' : 'sell.mark.recordMany', { n: formatNumber(chosen.length), amount: formatSSP(total) })}
       </Button>
     </div>
   );

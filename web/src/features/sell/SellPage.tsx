@@ -16,6 +16,8 @@ import { planOnRouter, type Plan, type RouterInfo } from '../../lib/types';
 import type { ReceiptData } from '../../print/Receipt';
 import { loginAddress } from '../../print/voucherLinks';
 import { hotspotAddress } from '../../lib/routers';
+import { useT } from '../../i18n';
+import { translate } from '../../i18n/translate';
 
 const LAST_SALE_KEY = 'hzc.lastSale';
 const SITE_KEY = 'hzc.sellSite';
@@ -28,10 +30,10 @@ interface LastSale {
 function shareText(r: ReceiptData): string {
   const login = loginAddress(r.dnsName);
   return [
-    `WiFi code: ${r.code}`,
+    translate('sell.share.code', { code: r.code }),
     `${r.planName} · ${formatDuration(r.uptimeSeconds)} · ${formatSSP(r.priceSsp)}`,
-    'Type only this code on the WiFi login page.',
-    login ? `Log in at ${login}${r.hotspotIp ? ` (or ${loginAddress(r.hotspotIp)})` : ''}` : '',
+    translate('sell.typeOnlyCode'),
+    login ? (r.hotspotIp ? translate('sell.share.loginAtOr', { address: login, ip: loginAddress(r.hotspotIp) }) : translate('sell.share.loginAt', { address: login })) : '',
     r.siteName ? `— ${r.siteName}` : '',
   ]
     .filter(Boolean)
@@ -53,35 +55,36 @@ async function shareCode(r: ReceiptData) {
 }
 
 function SaleResult({ sale, onPrint, onNext }: { sale: LastSale; onPrint: () => void; onNext: () => void }) {
+  const { t } = useT();
   const r = sale.receipt;
   const usd = formatUsd(r.priceSsp, useUsdRate());
   return (
-    <div className="fixed inset-0 z-50 flex flex-col overflow-y-auto bg-white" role="dialog" aria-label="Voucher sold">
+    <div className="fixed inset-0 z-50 flex flex-col overflow-y-auto bg-white" role="dialog" aria-label={t('sell.voucherSold')}>
       <div className="px-4 py-5 text-center text-white" style={{ backgroundColor: r.planColor }}>
         <div className="text-3xl font-extrabold tabular-nums sm:text-5xl">{formatSSP(r.priceSsp)}</div>
         {usd && <div className="text-lg font-semibold opacity-90">{usd}</div>}
         <div className="text-2xl font-bold sm:text-3xl">{formatDuration(r.uptimeSeconds)}</div>
       </div>
       <div className="flex flex-1 flex-col items-center justify-center px-4 py-6 text-center">
-        <div className="text-lg font-semibold uppercase tracking-wide text-slate-500">WiFi code</div>
+        <div className="text-lg font-semibold uppercase tracking-wide text-slate-500">{t('sell.wifiCode')}</div>
         <div className="mt-2 flex flex-wrap justify-center gap-x-[0.35em] font-extrabold leading-none tabular-nums text-slate-900" style={{ fontSize: 'clamp(56px, 17vw, 170px)' }} aria-label={r.code}>
           {codeGroups(r.code).map((g, i) => (
             <span key={i}>{g}</span>
           ))}
         </div>
-        <p className="mt-6 text-lg text-slate-700">Type only this code on the WiFi login page.</p>
+        <p className="mt-6 text-lg text-slate-700">{t('sell.typeOnlyCode')}</p>
         <p className="text-xl font-bold text-slate-900">{loginAddress(r.dnsName)}</p>
-        {r.hotspotIp && <p className="text-slate-600">or {loginAddress(r.hotspotIp)}</p>}
+        {r.hotspotIp && <p className="text-slate-600">{t('sell.orAddress', { address: loginAddress(r.hotspotIp) })}</p>}
       </div>
       <div className="grid grid-cols-2 gap-3 p-4 sm:grid-cols-3">
         <Button variant="secondary" onClick={onPrint} className="min-h-16 text-xl">
-          Print
+          {t('common.print')}
         </Button>
         <Button variant="secondary" onClick={() => void shareCode(r)} className="min-h-16 text-xl">
-          Share
+          {t('common.share')}
         </Button>
         <Button onClick={onNext} className="col-span-2 min-h-16 text-xl sm:col-span-1">
-          Sell another
+          {t('sell.sellAnother')}
         </Button>
       </div>
     </div>
@@ -89,6 +92,7 @@ function SaleResult({ sale, onPrint, onNext }: { sale: LastSale; onPrint: () => 
 }
 
 function PlanButton({ plan, stock, busy, canGenerate, onSell }: { plan: Plan; stock: number | undefined; busy: boolean; canGenerate: boolean; onSell: () => void }) {
+  const { t } = useT();
   const count = stock ?? 0;
   const empty = stock !== undefined && count === 0;
   const low = !empty && count < LOW_STOCK;
@@ -97,7 +101,7 @@ function PlanButton({ plan, stock, busy, canGenerate, onSell }: { plan: Plan; st
       type="button"
       onClick={onSell}
       disabled={busy || empty || stock === undefined}
-      className="relative flex min-h-36 w-full flex-col items-start justify-between rounded-2xl p-5 text-left text-white shadow-md transition active:scale-[0.98] disabled:cursor-not-allowed"
+      className="relative flex min-h-36 w-full flex-col items-start justify-between rounded-2xl p-5 text-start text-white shadow-md transition active:scale-[0.98] disabled:cursor-not-allowed"
       style={{ backgroundColor: empty ? '#94a3b8' : plan.color }}
     >
       <div>
@@ -107,13 +111,13 @@ function PlanButton({ plan, stock, busy, canGenerate, onSell }: { plan: Plan; st
       </div>
       <div className="mt-3 w-full">
         {stock === undefined ? (
-          <span className="text-base opacity-90">Counting…</span>
+          <span className="text-base opacity-90">{t('sell.counting')}</span>
         ) : empty ? (
-          <span className="block rounded-lg bg-white/90 px-3 py-2 text-base font-bold text-slate-800">{canGenerate ? 'Out of stock — generate vouchers' : 'Out of stock — tell your manager'}</span>
+          <span className="block rounded-lg bg-white/90 px-3 py-2 text-base font-bold text-slate-800">{canGenerate ? t('sell.outGenerate') : t('sell.outTellManager')}</span>
         ) : low ? (
-          <span className="inline-block rounded-lg bg-amber-300 px-3 py-1 text-lg font-bold text-amber-950">⚠ Only {count} left</span>
+          <span className="inline-block rounded-lg bg-amber-300 px-3 py-1 text-lg font-bold text-amber-950">{t('sell.onlyLeft', { n: count })}</span>
         ) : (
-          <span className="text-lg font-semibold">{count} left</span>
+          <span className="text-lg font-semibold">{t('sell.left', { n: count })}</span>
         )}
       </div>
     </button>
@@ -140,6 +144,7 @@ function newRequestId(): string {
 }
 
 export function SellPage() {
+  const { t } = useT();
   const { profile, siteName: mySiteName } = useAuth();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -189,11 +194,11 @@ export function SellPage() {
 
   const sell = useMutation({
     mutationFn: async (plan: Plan): Promise<LastSale> => {
-      if (!router) throw new Error('Choose a router first.');
+      if (!router) throw new Error(t('sell.chooseRouterFirst'));
       const { data, error } = await supabase.rpc('sell_voucher', { p_router_id: router.id, p_plan_id: plan.id, p_request_id: attempt.current?.id ?? null });
       if (error) throw new SellError(friendlyError(error), isNetworkError(error.message));
       const row = data?.[0];
-      if (!row) throw new Error('The sale did not return a code. Please try again.');
+      if (!row) throw new Error(t('sell.noCodeReturned'));
       return {
         receipt: {
           code: row.code,
@@ -246,20 +251,20 @@ export function SellPage() {
       {lastSale && <SaleResult sale={lastSale} onPrint={printReceipt} onNext={sellAnother} />}
 
       <PageHeader
-        title="Sell"
-        subtitle="Cash only · tap a plan to sell one voucher"
+        title={t('sell.title')}
+        subtitle={t('sell.subtitle')}
         actions={
           !fixedSite && (
             <div className="w-full sm:w-64">
               <Select
                 value={siteId}
-                aria-label="Site"
+                aria-label={t('common.site')}
                 onChange={(e) => {
                   setSiteId(e.target.value);
                   writeStored('local', SITE_KEY, e.target.value);
                 }}
               >
-                <option value="">Choose a site…</option>
+                <option value="">{t('sell.chooseSite')}</option>
                 {(sites.data ?? []).map((s) => (
                   <option key={s.id} value={s.id}>
                     {s.name}
@@ -287,11 +292,13 @@ export function SellPage() {
       )}
 
       <div className="space-y-3">
-        {!siteId && <Alert tone="info">Choose a site to start selling.</Alert>}
-        {siteId && routers.data && siteRouters.length === 0 && <Alert tone="warning">This site has no router yet. Ask the owner to add one on the Routers page.</Alert>}
+        {!siteId && <Alert tone="info">{t('sell.chooseSiteToStart')}</Alert>}
+        {siteId && routers.data && siteRouters.length === 0 && <Alert tone="warning">{t('sell.noRouter')}</Alert>}
         {router?.status === 'offline' && (
           <Alert tone="warning">
-            Router {router.name} is offline{router.last_seen_at ? ` since ${formatJubaTime(router.last_seen_at)}` : ''}. You can still sell, but customers cannot log in until it is back.
+            {router.last_seen_at
+              ? t('sell.routerOfflineSince', { name: router.name, time: formatJubaTime(router.last_seen_at) })
+              : t('sell.routerOffline', { name: router.name })}
           </Alert>
         )}
         {sell.error && <Alert tone="error">{sell.error.message}</Alert>}
@@ -315,8 +322,15 @@ export function SellPage() {
 
       {canGenerate && router && (
         <p className="mt-6 text-sm text-slate-600">
-          Running low? <Link to="/vouchers/generate" className="font-semibold text-brand-700 underline">Generate vouchers</Link>. Pre-printed cards are not sold here — record them with{' '}
-          <Link to="/sales/mark-sold" className="font-semibold text-brand-700 underline">Mark printed cards as sold</Link>.
+          {t('sell.runningLow')}{' '}
+          <Link to="/vouchers/generate" className="font-semibold text-brand-700 underline">
+            {t('sell.generateVouchers')}
+          </Link>
+          . {t('sell.preprintedNote')}{' '}
+          <Link to="/sales/mark-sold" className="font-semibold text-brand-700 underline">
+            {t('sell.markSoldLink')}
+          </Link>
+          .
         </p>
       )}
     </div>
