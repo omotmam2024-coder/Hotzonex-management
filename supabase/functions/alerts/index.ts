@@ -25,6 +25,11 @@ import { formatWhatsAppNumber, WA_NUMBER_RE, waInstallScript } from '../_shared/
 const TELEGRAM = 'https://api.telegram.org';
 const LINK_MINUTES = 30;
 const MAX_ATTEMPTS = 5;
+/** WhatsApp alerts per business per hour: protects the sender number from being blocked as spam
+ *  (e.g. if someone floods a Buy page). Above it alerts still show in the app and on Telegram. */
+const WA_PER_HOUR = 20;
+/** Test messages per business per 10 minutes. */
+const WA_TESTS_PER_10_MIN = 3;
 
 function botToken(): string | null {
   return Deno.env.get('TELEGRAM_BOT_TOKEN') || null;
@@ -136,6 +141,16 @@ async function sendPending(db: SupabaseClient): Promise<Record<string, number>> 
   const settings = new Map(((settingRows ?? []) as (AlertSettings & { tenant_id: string; whatsapp_numbers: string[] | null })[]).map((s) => [s.tenant_id, s]));
   const waCfg = await waConfig(db);
   let waDown = false; // the sender is offline: stop trying it for the rest of this run
+  // WhatsApp alerts each business got in the last hour (counted once, then kept up to date here).
+  const waSentHour = new Map<string, number>();
+  if (waCfg) {
+    const { data: recent } = await db
+      .from('alerts')
+      .select('tenant_id')
+      .in('tenant_id', tenants)
+      .gte('whatsapp_sent_at', new Date(Date.now() - 3600_000).toISOString());
+    for (const r of (recent ?? []) as { tenant_id: string }[]) waSentHour.set(r.tenant_id, (waSentHour.get(r.tenant_id) ?? 0) + 1);
+  }
 
   const out = { sent: 0, skipped: 0, failed: 0 };
   for (const a of alerts) {
@@ -143,19 +158,24 @@ async function sendPending(db: SupabaseClient): Promise<Record<string, number>> 
     const wanted = !!s && wantsAlert(s, a.kind);
     const numbers = (s?.whatsapp_numbers ?? []).filter((n) => WA_NUMBER_RE.test(n));
     const wantTg = wanted && !!botToken() && !!s?.telegram_chat_id && !a.telegram_sent_at;
-    const wantWa = wanted && !!waCfg && numbers.length > 0 && !a.whatsapp_sent_at;
+    let wantWa = wanted && !!waCfg && numbers.length > 0 && !a.whatsapp_sent_at;
     const now = new Date().toISOString();
+    let waNote: string | null = null;
+    if (wantWa && (waSentHour.get(a.tenant_id) ?? 0) >= WA_PER_HOUR) {
+      wantWa = false;
+      waNote = `WhatsApp: more than ${WA_PER_HOUR} alerts this hour, not sent there`;
+    }
 
     if (!wantTg && !wantWa) {
       // Kept in the app's alert list; nothing (more) to send.
-      const reason = a.telegram_sent_at || a.whatsapp_sent_at ? null : !wanted ? 'switched off' : 'no Telegram chat or WhatsApp number';
+      const reason = waNote ?? (a.telegram_sent_at || a.whatsapp_sent_at ? null : !wanted ? 'switched off' : 'no Telegram chat or WhatsApp number');
       await db.from('alerts').update({ sent_at: now, send_error: reason }).eq('id', a.id);
       out.skipped++;
       continue;
     }
 
     const text = alertMessage(a, a.tenants?.name ?? '');
-    const errors: string[] = [];
+    const errors: string[] = waNote ? [waNote] : [];
     const patch: Record<string, unknown> = {};
     if (wantTg) {
       try {
@@ -188,7 +208,10 @@ async function sendPending(db: SupabaseClient): Promise<Record<string, number>> 
           }
         }
         // Delivered to at least one number: done (a wrong number would never succeed on retry).
-        if (delivered > 0) patch.whatsapp_sent_at = now;
+        if (delivered > 0) {
+          patch.whatsapp_sent_at = now;
+          waSentHour.set(a.tenant_id, (waSentHour.get(a.tenant_id) ?? 0) + 1);
+        }
       }
     }
 
@@ -230,6 +253,14 @@ async function whatsappTest(db: SupabaseClient, req: Request) {
   const { data: s } = await db.from('alert_settings').select('whatsapp_numbers').eq('tenant_id', caller.tenantId).maybeSingle();
   const numbers = ((s?.whatsapp_numbers as string[] | null) ?? []).filter((n) => WA_NUMBER_RE.test(n));
   if (!numbers.length) throw new HttpError(400, 'Add a WhatsApp number first.');
+  const { count } = await db
+    .from('audit_log')
+    .select('id', { count: 'exact', head: true })
+    .eq('tenant_id', caller.tenantId)
+    .eq('action', 'alerts.whatsapp_test')
+    .gte('created_at', new Date(Date.now() - 10 * 60_000).toISOString());
+  if ((count ?? 0) >= WA_TESTS_PER_10_MIN) throw new HttpError(429, 'Too many test messages. Wait 10 minutes and try again.');
+  await audit(db, caller, 'alerts.whatsapp_test', { numbers: numbers.length });
   const { data: t } = await db.from('tenants').select('name').eq('id', caller.tenantId).maybeSingle();
   const text = `✅ ${t?.name ?? 'Hotzonex'}: test alert from Hotzonex Cloud. Alerts will come to this WhatsApp.`;
   const sent: string[] = [];

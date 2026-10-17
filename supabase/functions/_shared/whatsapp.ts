@@ -261,7 +261,10 @@ cat > /opt/hzc-wa/package.json <<'EOF'
 EOF
 cat > /opt/hzc-wa/server.mjs <<'HZC_WA_JS_EOF'
 ${WA_BRIDGE_JS}HZC_WA_JS_EOF
-(cd /opt/hzc-wa && npm install --omit=dev --no-audit --no-fund --loglevel=error)
+# --ignore-scripts: no package may run its own install commands on this server.
+(cd /opt/hzc-wa && npm install --omit=dev --ignore-scripts --no-audit --no-fund --loglevel=error)
+chown -R root:root /opt/hzc-wa
+chmod -R go-w /opt/hzc-wa
 install -d -m 700 /etc/hotzonex
 (umask 077; printf 'HZC_WA_SECRET=%s\\n' "$HZC_WA_SECRET" > /etc/hotzonex/wa.env)
 
@@ -277,22 +280,45 @@ Environment=HZC_WA_AUTH=/var/lib/hzc-wa/auth
 ExecStart=/usr/bin/env node /opt/hzc-wa/server.mjs
 Restart=always
 RestartSec=5
+UMask=0077
 NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=true
 PrivateTmp=true
+PrivateDevices=true
 ReadWritePaths=/var/lib/hzc-wa
+CapabilityBoundingSet=
+AmbientCapabilities=
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectClock=true
+ProtectHostname=true
+RestrictNamespaces=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+LockPersonality=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+SystemCallArchitectures=native
 [Install]
 WantedBy=multi-user.target
 EOF
 
 echo "== HTTPS relay: /wa"
 install -d -m 755 /etc/caddy/hzc.d
-cat > /etc/caddy/hzc.d/wa.caddy <<'EOF'
-handle /wa/* {
+# Only requests that carry the secret reach the program; anything else gets the relay's plain 404.
+(umask 027; cat > /etc/caddy/hzc.d/wa.caddy <<EOF
+@hzc_wa {
+	path /wa/*
+	header X-Hzc-Wa $HZC_WA_SECRET
+}
+handle @hzc_wa {
 	reverse_proxy 127.0.0.1:${WA_PORT}
 }
 EOF
+)
+chgrp caddy /etc/caddy/hzc.d/wa.caddy 2>/dev/null || true
 if ! grep -q 'import /etc/caddy/hzc.d/' /etc/caddy/Caddyfile; then
   cp /etc/caddy/Caddyfile /etc/caddy/Caddyfile.before-wa
   sed -i '0,/{[[:space:]]*$/s//{\\n\\timport \\/etc\\/caddy\\/hzc.d\\/*.caddy/' /etc/caddy/Caddyfile

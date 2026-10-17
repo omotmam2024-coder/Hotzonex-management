@@ -27,6 +27,11 @@ test('install script: valid bash, holds no secret, carries the program unchanged
   assert.ok(script.includes(WA_BRIDGE_JS));
   assert.ok(!/HZC_WA_SECRET=[0-9a-f]{8}/.test(script));
   assert.ok(script.includes("import /etc/caddy/hzc.d/"));
+  // Caddy only forwards requests carrying the secret; packages cannot run install scripts; sandboxed service.
+  assert.ok(script.includes('header X-Hzc-Wa $HZC_WA_SECRET'));
+  assert.ok(script.includes('--ignore-scripts'));
+  assert.ok(script.includes('User=hzc-wa') && script.includes('CapabilityBoundingSet=') && script.includes('ProtectSystem=strict'));
+  assert.ok(script.includes('127.0.0.1') && !/listen\([^)]*0\.0\.0\.0/.test(script));
 });
 
 // ---------------------------------------------------------------------------------------------
