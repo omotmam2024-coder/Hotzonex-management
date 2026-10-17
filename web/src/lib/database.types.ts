@@ -124,6 +124,7 @@ export type Database = {
           telegram_chat_title: string | null
           tenant_id: string
           updated_at: string
+          whatsapp_numbers: string[]
         }
         Insert: {
           link_code?: string | null
@@ -137,6 +138,7 @@ export type Database = {
           telegram_chat_title?: string | null
           tenant_id: string
           updated_at?: string
+          whatsapp_numbers?: string[]
         }
         Update: {
           link_code?: string | null
@@ -150,6 +152,7 @@ export type Database = {
           telegram_chat_title?: string | null
           tenant_id?: string
           updated_at?: string
+          whatsapp_numbers?: string[]
         }
         Relationships: [
           {
@@ -174,8 +177,10 @@ export type Database = {
           send_error: string | null
           sent_at: string | null
           site_id: string | null
+          telegram_sent_at: string | null
           tenant_id: string
           title: string
+          whatsapp_sent_at: string | null
         }
         Insert: {
           body?: string
@@ -189,8 +194,10 @@ export type Database = {
           send_error?: string | null
           sent_at?: string | null
           site_id?: string | null
+          telegram_sent_at?: string | null
           tenant_id: string
           title: string
+          whatsapp_sent_at?: string | null
         }
         Update: {
           body?: string
@@ -204,8 +211,10 @@ export type Database = {
           send_error?: string | null
           sent_at?: string | null
           site_id?: string | null
+          telegram_sent_at?: string | null
           tenant_id?: string
           title?: string
+          whatsapp_sent_at?: string | null
         }
         Relationships: [
           {
@@ -1742,6 +1751,7 @@ export type Database = {
         Args: { p_comment: string; p_tz: string }
         Returns: string
       }
+      normalize_whatsapp_number: { Args: { p: string }; Returns: string }
       platform_billing: { Args: never; Returns: Json }
       platform_mark_invoice: {
         Args: { p_invoice_id: string; p_ref?: string; p_status: string }
@@ -1873,6 +1883,7 @@ export type Database = {
       router_code_length: { Args: { p_router_id: string }; Returns: number }
       router_own_profiles: { Args: { p_info: Json }; Returns: string[] }
       router_secret_key: { Args: never; Returns: string }
+      save_alert_whatsapp: { Args: { p_numbers: string[] }; Returns: Json }
       save_alert_settings: {
         Args: {
           p_low_stock_threshold: number

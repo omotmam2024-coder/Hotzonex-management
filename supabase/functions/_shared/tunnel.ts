@@ -188,8 +188,11 @@ WantedBy=timers.target
 EOF
 
 echo "== HTTPS relay"
+# Extra routes (e.g. the WhatsApp sender, /wa) live in /etc/caddy/hzc.d and survive running this again.
+install -d -m 755 /etc/caddy/hzc.d
 cat > /etc/caddy/Caddyfile <<EOF
 $HOST {
+\timport /etc/caddy/hzc.d/*.caddy
 \t@relay {
 \t\theader X-Hzc-Relay $HZC_SECRET
 \t\tpath_regexp hzc ^/r/(10\\.99\\.0\\.[0-9]{1,3}):([0-9]{1,5})(/rest(/.*)?)$

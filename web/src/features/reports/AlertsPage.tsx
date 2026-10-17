@@ -2,11 +2,12 @@ import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../../auth/AuthProvider';
 import { PageHeader } from '../../components/PageHeader';
-import { Alert, Badge, Button, Card, Checkbox, Field, Spinner, TextInput } from '../../components/ui';
+import { Alert, Badge, Button, Card, Checkbox, Field, Spinner, TextArea, TextInput } from '../../components/ui';
 import { friendlyError } from '../../lib/errors';
 import { formatJubaTime } from '../../lib/format';
 import { invokeFunction } from '../../lib/functions';
 import { fromJson, supabase } from '../../lib/supabase';
+import { formatWhatsAppNumber, type WhatsAppStatus } from '../../lib/whatsapp';
 
 interface AlertSettings {
   telegram_connected: boolean;
@@ -16,6 +17,7 @@ interface AlertSettings {
   notify_low_stock: boolean;
   low_stock_threshold: number;
   notify_payments: boolean;
+  whatsapp_numbers: string[];
 }
 
 interface AlertRow {
@@ -121,6 +123,77 @@ function TelegramCard({ settings }: { settings: AlertSettings }) {
   );
 }
 
+function WhatsAppCard({ settings }: { settings: AlertSettings }) {
+  const queryClient = useQueryClient();
+  const saved = settings.whatsapp_numbers.map(formatWhatsAppNumber).join('\n');
+  const [text, setText] = useState(saved);
+  const status = useQuery({
+    queryKey: ['whatsapp-status'],
+    queryFn: () => invokeFunction<WhatsAppStatus>('alerts', { action: 'whatsapp_status' }),
+    staleTime: 60_000,
+  });
+  const save = useMutation({
+    mutationFn: async () => {
+      const list = text.split(/[\n,;]+/).map((n) => n.trim()).filter(Boolean);
+      if (list.length > 5) throw new Error('Up to 5 WhatsApp numbers.');
+      const { data, error } = await supabase.rpc('save_alert_whatsapp', { p_numbers: list });
+      if (error) throw new Error(friendlyError(error));
+      return fromJson<AlertSettings>(data);
+    },
+    onSuccess: (d) => {
+      queryClient.setQueryData(['alert-settings'], d);
+      setText(d.whatsapp_numbers.map(formatWhatsAppNumber).join('\n'));
+    },
+  });
+  const test = useMutation({ mutationFn: () => invokeFunction<{ sent: string[]; failed: string[] }>('alerts', { action: 'whatsapp_test' }) });
+
+  const s = status.data;
+  const hasNumbers = settings.whatsapp_numbers.length > 0;
+  const error = save.error ?? test.error;
+  return (
+    <Card className="space-y-3">
+      <h2 className="text-lg font-bold">WhatsApp</h2>
+      <p className="text-slate-700">
+        Alerts come as normal WhatsApp messages
+        {s?.connected && s.sender ? (
+          <>
+            {' '}
+            from Hotzonex Cloud's number <b>{s.sender}</b>. Save that number in your phone so the messages are not hidden.
+          </>
+        ) : (
+          '.'
+        )}
+      </p>
+      {s && !s.connected && (
+        <Alert tone="info">
+          {s.installed
+            ? 'Hotzonex Cloud’s WhatsApp sender is offline right now. Your alerts are sent as soon as it is back.'
+            : 'WhatsApp sending is being set up by Hotzonex Cloud. Save your numbers now; alerts start once it is ready.'}
+        </Alert>
+      )}
+      <Field label="WhatsApp numbers (up to 5, one per line)" hint="For example 0924904216 or +211924904216. Numbers starting with 0 are South Sudan numbers.">
+        <TextArea rows={3} inputMode="tel" value={text} onChange={(e) => setText(e.target.value.slice(0, 200))} placeholder="0924904216" />
+      </Field>
+      <div className="flex flex-wrap gap-2">
+        <Button onClick={() => save.mutate()} disabled={save.isPending || text.trim() === saved.trim()}>
+          {save.isPending && <Spinner />} Save numbers
+        </Button>
+        <Button variant="secondary" onClick={() => test.mutate()} disabled={test.isPending || !hasNumbers || !s?.connected}>
+          {test.isPending && <Spinner />} Send a test message
+        </Button>
+      </div>
+      {save.isSuccess && <Alert tone="success">Saved.</Alert>}
+      {test.data && (
+        <Alert tone={test.data.failed.length ? 'warning' : 'success'}>
+          {test.data.sent.length > 0 && <>Test sent to {test.data.sent.join(', ')}. </>}
+          {test.data.failed.length > 0 && <>Not sent: {test.data.failed.join('; ')}</>}
+        </Alert>
+      )}
+      {error && <Alert tone="error">{friendlyError(error)}</Alert>}
+    </Card>
+  );
+}
+
 function SettingsCard({ settings }: { settings: AlertSettings }) {
   const queryClient = useQueryClient();
   const [form, setForm] = useState(settings);
@@ -205,6 +278,7 @@ export function AlertsPage() {
       <PageHeader title="Alerts" subtitle="Routers offline, cards that failed, low stock, payments to confirm" />
       {isAdmin && settings.data && (
         <div className="grid gap-4 lg:grid-cols-2">
+          <WhatsAppCard settings={settings.data} />
           <TelegramCard settings={settings.data} />
           <SettingsCard settings={settings.data} />
         </div>
