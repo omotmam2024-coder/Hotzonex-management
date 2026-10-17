@@ -12,6 +12,7 @@ import { CardSheet } from '../../print/CardSheet';
 import { LAYOUTS, type CardsPerPage } from '../../print/layouts';
 import type { CardData } from '../../print/VoucherCard';
 import { hotspotAddress } from '../../lib/routers';
+import { translate, useT } from '../../i18n';
 
 const MAX_CARDS = 1000;
 
@@ -37,7 +38,7 @@ async function loadCards(params: URLSearchParams): Promise<CardData[]> {
   else if (router) {
     q = q.eq('router_id', router);
     if (plan) q = q.eq('plan_id', plan);
-  } else throw new Error('Choose a batch or a router first.');
+  } else throw new Error(translate('vouchers.sheet.chooseFirst'));
   if (params.get('new') !== '0') q = q.is('printed_at', null);
 
   const { data, error } = await q.order('plan_id').order('code').limit(limit);
@@ -77,6 +78,7 @@ async function loadCards(params: URLSearchParams): Promise<CardData[]> {
 }
 
 export function PrintSheetPage() {
+  const { t, dir } = useT();
   const [params] = useSearchParams();
   const { business } = useAuth();
   const requested = Number(params.get('per'));
@@ -106,7 +108,7 @@ export function PrintSheetPage() {
       // Render the marked cards before the print window opens.
       flushSync(() => setMarked(ids));
       if (ids.length === 0) {
-        setError('These cards were already printed (perhaps on another computer). Nothing new to print.');
+        setError(t('vouchers.sheet.alreadyPrinted'));
         return;
       }
     } catch (err) {
@@ -130,19 +132,20 @@ export function PrintSheetPage() {
       <div className="no-print sticky top-0 z-10 bg-white/95 px-4 py-3 shadow">
         <div className="mx-auto flex max-w-5xl flex-wrap items-center gap-3">
           <Link to="/vouchers/print" className="inline-flex min-h-11 items-center rounded-xl px-3 font-semibold text-slate-700 ring-1 ring-slate-300">
-            ← Back
+            {dir === 'rtl' ? '→' : '←'} {t('common.back')}
           </Link>
           <div className="flex-1 text-sm text-slate-700">
             {cards.isLoading ? (
-              'Loading cards…'
+              t('vouchers.sheet.loading')
             ) : (
               <>
-                <strong>{formatNumber(list.length)}</strong> cards · {perPage} per page · <strong>{pages}</strong> A4 page{pages === 1 ? '' : 's'}
+                <strong>{formatNumber(list.length)}</strong> {t('vouchers.sheet.cardsWord')} · {t('vouchers.sheet.perPage', { n: perPage })} ·{' '}
+                <strong>{pages}</strong> {t(pages === 1 ? 'vouchers.sheet.pageOne' : 'vouchers.sheet.pageMany')}
               </>
             )}
           </div>
           <Button onClick={handlePrint} disabled={marking || all.length === 0} className="min-h-12 px-6 text-lg">
-            {marking && <Spinner />} Print
+            {marking && <Spinner />} {t('common.print')}
           </Button>
         </div>
         <div className="mx-auto max-w-5xl">
@@ -156,13 +159,13 @@ export function PrintSheetPage() {
               <Alert tone="success">
                 <span className="flex flex-wrap items-center gap-3">
                   <span>
-                    {formatNumber(marked.length)} card{marked.length === 1 ? '' : 's'} marked as printed
-                    {marked.length < all.length ? ` (${formatNumber(all.length - marked.length)} were printed before and are left out)` : ''}. In the print window choose A4,
-                    scale 100%, no headers.
+                    {t(marked.length === 1 ? 'vouchers.sheet.markedOne' : 'vouchers.sheet.markedMany', { n: formatNumber(marked.length) })}
+                    {marked.length < all.length ? ` ${t('vouchers.sheet.leftOut', { n: formatNumber(all.length - marked.length) })}` : ''}.{' '}
+                    {t('vouchers.sheet.printTip')}
                   </span>
                   {marked.length > 0 && (
                     <button type="button" onClick={undo} className="font-semibold underline">
-                      Printing failed or cancelled? Unmark these cards
+                      {t('vouchers.sheet.unmark')}
                     </button>
                   )}
                 </span>
@@ -171,7 +174,7 @@ export function PrintSheetPage() {
           )}
           {undone && (
             <div className="mt-2">
-              <Alert tone="info">The cards are marked as not printed again.</Alert>
+              <Alert tone="info">{t('vouchers.sheet.undone')}</Alert>
             </div>
           )}
         </div>
@@ -186,7 +189,7 @@ export function PrintSheetPage() {
         )}
         {cards.data && list.length === 0 && (
           <div className="mx-auto max-w-xl">
-            <Alert tone="warning">No cards to print. Only vouchers that are already on the router can be printed.</Alert>
+            <Alert tone="warning">{t('vouchers.sheet.noCards')}</Alert>
           </div>
         )}
         {list.length > 0 && <CardSheet cards={list} perPage={perPage} brand={brandOf(business)} />}

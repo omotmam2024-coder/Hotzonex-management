@@ -8,6 +8,7 @@ import { useAuth } from '../../auth/AuthProvider';
 import { brandOf } from '../../print/brand';
 import { Receipt, type ReceiptData, type ReceiptWidth } from '../../print/Receipt';
 import { hotspotAddress } from '../../lib/routers';
+import { translate, useT } from '../../i18n';
 
 const WIDTH_KEY = 'hzc.receiptWidth';
 
@@ -27,8 +28,8 @@ async function loadReceipt(voucherId: string): Promise<ReceiptData> {
     .eq('id', voucherId)
     .maybeSingle();
   if (error) throw new Error(error.message);
-  if (!v) throw new Error('Voucher not found.');
-  if (!v.on_router) throw new Error('This voucher is not on the router yet, so it cannot be printed.');
+  if (!v) throw new Error(translate('vouchers.receipt.notFound'));
+  if (!v.on_router) throw new Error(translate('vouchers.receipt.notOnRouter'));
 
   const [router, plan, site, sale] = await Promise.all([
     supabase.from('routers').select('dns_name, hotspot_server, hotspot_info').eq('id', v.router_id).single(),
@@ -38,14 +39,14 @@ async function loadReceipt(voucherId: string): Promise<ReceiptData> {
   ]);
   const err = router.error ?? plan.error ?? site.error ?? sale.error;
   if (err) throw new Error(err.message);
-  if (!router.data || !plan.data || !site.data) throw new Error('Voucher details are missing.');
+  if (!router.data || !plan.data || !site.data) throw new Error(translate('vouchers.receipt.missing'));
 
   let sellerName: string | null = null;
   if (sale.data?.seller_id) {
     const { data: seller } = await supabase.from('profiles').select('full_name').eq('id', sale.data.seller_id).maybeSingle();
     sellerName = seller?.full_name ?? null;
   } else if (sale.data) {
-    sellerName = 'Automatic (first login)';
+    sellerName = translate('vouchers.receipt.automatic');
   }
 
   return {
@@ -67,6 +68,7 @@ async function loadReceipt(voucherId: string): Promise<ReceiptData> {
  * navigation state (sellers cannot read vouchers directly); otherwise it is loaded by id.
  */
 export function PrintReceiptPage() {
+  const { t, dir, lang } = useT();
   const { voucherId } = useParams<{ voucherId: string }>();
   const [params] = useSearchParams();
   const location = useLocation();
@@ -77,7 +79,8 @@ export function PrintReceiptPage() {
   const { business } = useAuth();
 
   const receipt = useQuery({
-    queryKey: ['receipt', voucherId],
+    // The language is in the key because the receipt holds a translated seller text.
+    queryKey: ['receipt', voucherId, lang],
     enabled: !passed && Boolean(voucherId),
     queryFn: () => loadReceipt(voucherId ?? ''),
   });
@@ -106,7 +109,7 @@ export function PrintReceiptPage() {
       <div className="no-print sticky top-0 z-10 bg-white/95 px-4 py-3 shadow">
         <div className="mx-auto flex max-w-xl flex-wrap items-center gap-2">
           <Button variant="secondary" onClick={() => navigate(-1)}>
-            ← Back
+            {dir === 'rtl' ? '→' : '←'} {t('common.back')}
           </Button>
           <div className="flex flex-1 justify-center gap-1">
             {([58, 80] as ReceiptWidth[]).map((w) => (
@@ -121,7 +124,7 @@ export function PrintReceiptPage() {
             ))}
           </div>
           <Button onClick={() => window.print()} disabled={!data} className="min-h-12 px-6 text-lg">
-            Print receipt
+            {t('vouchers.receipt.print')}
           </Button>
         </div>
       </div>

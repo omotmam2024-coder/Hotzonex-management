@@ -5,7 +5,9 @@ import { useAuth } from '../../auth/AuthProvider';
 import { PageHeader } from '../../components/PageHeader';
 import { Alert, Badge, Button, buttonClass, Card, Field, Select, Spinner, TextInput } from '../../components/ui';
 import { friendlyError } from '../../lib/errors';
-import { formatDuration, formatJubaTime, formatNumber, formatSSP } from '../../lib/format';
+import { formatJubaTime, formatNumber, formatSSP } from '../../lib/format';
+import { useT } from '../../i18n';
+import { durationText } from '../../print/duration';
 import { invalidateSalesData, usePlans, useRouters, useSites } from '../../hooks/queries';
 import { supabase } from '../../lib/supabase';
 import { planOnRouter, type BatchStatus } from '../../lib/types';
@@ -19,6 +21,7 @@ function isPushing(b: BatchStatus) {
 }
 
 function BatchRow({ batch }: { batch: BatchStatus }) {
+  const { t } = useT();
   const queryClient = useQueryClient();
   const retry = useMutation({
     mutationFn: async () => {
@@ -32,25 +35,26 @@ function BatchRow({ batch }: { batch: BatchStatus }) {
   if (isPushing(batch)) {
     status = (
       <span className="flex items-center gap-2 text-brand-700">
-        <Spinner className="h-4 w-4" /> Pushing to router… {formatNumber(batch.pushed_count)}/{formatNumber(batch.voucher_count)}
+        <Spinner className="h-4 w-4" /> {t('vouchers.gen.pushing', { done: formatNumber(batch.pushed_count), total: formatNumber(batch.voucher_count) })}
       </span>
     );
   } else if (batch.push_status === 'done') {
     const disabled = batch.voucher_count - batch.pushed_count;
     status = (
       <span className="flex flex-wrap items-center gap-2">
-        <Badge color="green">Ready</Badge>
+        <Badge color="green">{t('vouchers.gen.ready')}</Badge>
         <span className="text-sm text-slate-600">
-          {formatNumber(batch.pushed_count)} on router{disabled > 0 ? ` · ${disabled} disabled (code already used on router)` : ''}
+          {t('vouchers.gen.onRouter', { n: formatNumber(batch.pushed_count) })}
+          {disabled > 0 ? ` · ${t('vouchers.gen.disabledUsed', { n: disabled })}` : ''}
         </span>
       </span>
     );
   } else {
     status = (
       <span className="flex flex-wrap items-center gap-2">
-        <Badge color="red">{batch.push_status === 'failed' ? 'Push failed' : 'Not pushed'}</Badge>
+        <Badge color="red">{batch.push_status === 'failed' ? t('vouchers.gen.pushFailed') : t('vouchers.gen.notPushed')}</Badge>
         <span className="text-sm text-slate-600">
-          {formatNumber(batch.pushed_count)}/{formatNumber(batch.voucher_count)} on router
+          {t('vouchers.gen.onRouterOf', { done: formatNumber(batch.pushed_count), total: formatNumber(batch.voucher_count) })}
         </span>
       </span>
     );
@@ -64,7 +68,7 @@ function BatchRow({ batch }: { batch: BatchStatus }) {
           <div className="font-semibold">
             {formatNumber(batch.quantity)} × {batch.plan_name}{' '}
             <span className="font-normal text-slate-500">
-              ({formatSSP(batch.price_ssp)} · {formatDuration(batch.uptime_seconds)})
+              ({formatSSP(batch.price_ssp)} · {durationText(batch.uptime_seconds)})
             </span>
           </div>
           <div className="text-sm text-slate-500">
@@ -78,7 +82,7 @@ function BatchRow({ batch }: { batch: BatchStatus }) {
             </p>
           ))}
           {batch.push_status === 'done' && !(batch.push_warnings ?? []).length && batch.pushed_count > 0 && (
-            <p className="mt-1 text-xs text-green-700">Checked on the router ✓</p>
+            <p className="mt-1 text-xs text-green-700">{t('vouchers.gen.checked')}</p>
           )}
           {retry.error && <p className="mt-1 text-sm text-red-700">{friendlyError(retry.error)}</p>}
         </div>
@@ -86,7 +90,7 @@ function BatchRow({ batch }: { batch: BatchStatus }) {
       <div className="flex shrink-0 gap-2">
         {(batch.push_status === 'failed' || batch.push_status === null) && (
           <Button variant="secondary" onClick={() => retry.mutate()} disabled={retry.isPending}>
-            Retry push
+            {t('vouchers.gen.retryPush')}
           </Button>
         )}
         {batch.pushed_count > 0 && (
@@ -94,14 +98,14 @@ function BatchRow({ batch }: { batch: BatchStatus }) {
             to={`/vouchers/print?batch=${batch.id}`}
             className={buttonClass('secondary')}
           >
-            Print
+            {t('common.print')}
           </Link>
         )}
         <Link
           to={`/vouchers?batch=${batch.id}`}
           className={buttonClass('secondary')}
         >
-          View codes
+          {t('vouchers.gen.viewCodes')}
         </Link>
       </div>
     </li>
@@ -109,6 +113,7 @@ function BatchRow({ batch }: { batch: BatchStatus }) {
 }
 
 export function GenerateVouchersPage() {
+  const { t } = useT();
   const { profile } = useAuth();
   const queryClient = useQueryClient();
   const sites = useSites();
@@ -176,7 +181,9 @@ export function GenerateVouchersPage() {
       const input = validate(generateVouchersSchema, { p_router_id: routerId, p_plan_id: planId, p_quantity: quantity, p_code_length: codeLength });
       if (router?.status === 'offline') {
         throw new Error(
-          `Router ${router.name} is offline${router.last_seen_at ? ` since ${formatJubaTime(router.last_seen_at)}` : ''}. Generate vouchers when it is back online.`,
+          router.last_seen_at
+            ? t('vouchers.gen.offlineErrSince', { name: router.name, time: formatJubaTime(router.last_seen_at) })
+            : t('vouchers.gen.offlineErr', { name: router.name }),
         );
       }
       const { error } = await supabase.rpc('generate_vouchers', input);
@@ -185,7 +192,7 @@ export function GenerateVouchersPage() {
     },
     onSuccess: (qty) => {
       const plan = activePlans.find((p) => p.id === planId);
-      setNotice(`${formatNumber(qty)} × ${plan?.name ?? 'vouchers'} created. They can be sold or printed once the batch shows Ready.`);
+      setNotice(t('vouchers.gen.created', { n: formatNumber(qty), plan: plan?.name ?? t('vouchers.gen.vouchersWord') }));
       invalidateSalesData(queryClient);
     },
   });
@@ -203,11 +210,11 @@ export function GenerateVouchersPage() {
   return (
     <div className="space-y-4">
       <PageHeader
-        title="Generate vouchers"
-        subtitle="Codes are numbers only. Customers type just the code to log in."
+        title={t('vouchers.gen.title')}
+        subtitle={t('vouchers.gen.subtitle')}
         actions={
           <Link to="/vouchers" className={buttonClass('secondary')}>
-            All vouchers
+            {t('vouchers.gen.allVouchers')}
           </Link>
         }
       />
@@ -215,9 +222,9 @@ export function GenerateVouchersPage() {
       <Card className="max-w-3xl">
         <form onSubmit={submit} className="space-y-4" noValidate>
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Site">
+            <Field label={t('common.site')}>
               <Select value={siteId} onChange={(e) => setSiteId(e.target.value)} disabled={Boolean(fixedSite)}>
-                <option value="">Choose a site…</option>
+                <option value="">{t('vouchers.gen.chooseSite')}</option>
                 {(sites.data ?? []).map((s) => (
                   <option key={s.id} value={s.id}>
                     {s.name}
@@ -225,31 +232,31 @@ export function GenerateVouchersPage() {
                 ))}
               </Select>
             </Field>
-            <Field label="Router">
+            <Field label={t('common.router')}>
               <Select value={routerId} onChange={(e) => setRouterId(e.target.value)} disabled={!siteId}>
-                <option value="">{siteId && siteRouters.length === 0 ? 'No routers at this site' : 'Choose a router…'}</option>
+                <option value="">{siteId && siteRouters.length === 0 ? t('vouchers.gen.noRouters') : t('vouchers.gen.chooseRouter')}</option>
                 {siteRouters.map((r) => (
                   <option key={r.id} value={r.id}>
-                    {r.name} {r.status === 'offline' ? '(offline)' : ''}
+                    {r.name} {r.status === 'offline' ? t('vouchers.gen.offlineTag') : ''}
                   </option>
                 ))}
               </Select>
             </Field>
-            <Field label="Plan">
+            <Field label={t('common.plan')}>
               <Select value={planId} onChange={(e) => setPlanId(e.target.value)}>
-                <option value="">Choose a plan…</option>
+                <option value="">{t('vouchers.gen.choosePlan')}</option>
                 {activePlans.map((p) => (
                   <option key={p.id} value={p.id}>
-                    {p.name} — {formatSSP(p.price_ssp)} · {formatDuration(p.uptime_seconds)}
+                    {p.name} — {formatSSP(p.price_ssp)} · {durationText(p.uptime_seconds)}
                   </option>
                 ))}
               </Select>
             </Field>
             <div className="grid grid-cols-2 gap-4">
-              <Field label="Quantity" hint="1 to 1000">
-                <TextInput inputMode="numeric" value={quantity} onChange={(e) => setQuantity(e.target.value.replace(/\D/g, '').slice(0, 4))} />
+              <Field label={t('vouchers.gen.quantity')} hint={t('vouchers.gen.quantityHint')}>
+                <TextInput inputMode="numeric" dir="ltr" value={quantity} onChange={(e) => setQuantity(e.target.value.replace(/\D/g, '').slice(0, 4))} />
               </Field>
-              <Field label="Code length" hint={ownLength ? `Digits · this router's cards use ${ownLength}` : 'Digits'}>
+              <Field label={t('vouchers.gen.codeLength')} hint={ownLength ? t('vouchers.gen.digitsRouter', { n: ownLength }) : t('vouchers.gen.digits')}>
                 <Select value={codeLength} onChange={(e) => setCodeLength(e.target.value)}>
                   {[6, 7, 8, 9, 10].map((n) => (
                     <option key={n} value={n}>
@@ -263,30 +270,31 @@ export function GenerateVouchersPage() {
 
           {ownLength && Number(codeLength) !== ownLength && (
             <Alert tone="warning">
-              {router?.name}'s own cards have {ownLength} digits, and its login page is made for that length. Codes of {codeLength} digits may not log in there.
+              {t('vouchers.gen.lengthWarn', { router: router?.name ?? '', own: ownLength, len: codeLength })}
             </Alert>
           )}
 
           {router?.status === 'offline' && (
             <Alert tone="warning">
-              Router {router.name} is offline{router.last_seen_at ? ` since ${formatJubaTime(router.last_seen_at)}` : ''}. Vouchers cannot be pushed until it is back
-              online.
+              {router.last_seen_at
+                ? t('vouchers.gen.offlineWarnSince', { name: router.name, time: formatJubaTime(router.last_seen_at) })
+                : t('vouchers.gen.offlineWarn', { name: router.name })}
             </Alert>
           )}
           {generate.error && <Alert tone="error">{generate.error.message}</Alert>}
           {notice && <Alert tone="success">{notice}</Alert>}
 
           <Button type="submit" disabled={generate.isPending} className="min-h-12 px-8 text-lg">
-            {generate.isPending && <Spinner />} Generate
+            {generate.isPending && <Spinner />} {t('vouchers.gen.generate')}
           </Button>
         </form>
       </Card>
 
       <Card>
-        <h2 className="text-lg font-bold">Recent batches</h2>
+        <h2 className="text-lg font-bold">{t('vouchers.gen.recent')}</h2>
         {batches.isLoading && <Spinner className="mt-3 h-6 w-6 text-brand-600" />}
         {batches.error && <Alert tone="error">{friendlyError(batches.error)}</Alert>}
-        {batches.data?.length === 0 && <p className="mt-2 text-slate-600">No batches yet.</p>}
+        {batches.data?.length === 0 && <p className="mt-2 text-slate-600">{t('vouchers.gen.noBatches')}</p>}
         <ul className="mt-1">
           {(batches.data ?? []).map((b) => (
             <BatchRow key={b.id} batch={b} />

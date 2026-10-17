@@ -4,7 +4,9 @@ import { useQuery } from '@tanstack/react-query';
 import { PageHeader } from '../../components/PageHeader';
 import { Alert, Button, Card, Checkbox, Field, Select, TextInput } from '../../components/ui';
 import { friendlyError } from '../../lib/errors';
-import { formatDuration, formatJubaTime, formatNumber, formatSSP } from '../../lib/format';
+import { formatJubaTime, formatNumber, formatSSP } from '../../lib/format';
+import { useT } from '../../i18n';
+import { durationText } from '../../print/duration';
 import { usePlans, useRouters } from '../../hooks/queries';
 import { supabase } from '../../lib/supabase';
 import { LAYOUTS, type CardsPerPage } from '../../print/layouts';
@@ -22,6 +24,7 @@ interface BatchOption {
 type Source = 'batch' | 'unused';
 
 export function PrintSetupPage() {
+  const { t } = useT();
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const routers = useRouters();
@@ -88,7 +91,7 @@ export function PrintSetupPage() {
 
   return (
     <div className="max-w-3xl space-y-4">
-      <PageHeader title="Print voucher cards" subtitle="A4 sheets with cut lines. Printing is not a sale; cards stay unused until sold." />
+      <PageHeader title={t('vouchers.print.title')} subtitle={t('vouchers.print.subtitle')} />
 
       <Card>
         <div className="mb-4 grid grid-cols-2 gap-2">
@@ -99,15 +102,15 @@ export function PrintSetupPage() {
               onClick={() => setSource(s)}
               className={`min-h-12 rounded-xl px-3 font-semibold ring-1 ${source === s ? 'bg-brand-600 text-white ring-brand-600' : 'bg-white text-slate-700 ring-slate-300'}`}
             >
-              {s === 'batch' ? 'A batch' : 'Unused cards'}
+              {s === 'batch' ? t('vouchers.print.aBatch') : t('vouchers.print.unused')}
             </button>
           ))}
         </div>
 
         {source === 'batch' ? (
-          <Field label="Batch">
+          <Field label={t('vouchers.batch')}>
             <Select value={batchId} onChange={(e) => setBatchId(e.target.value)}>
-              <option value="">Choose a batch…</option>
+              <option value="">{t('vouchers.print.chooseBatch')}</option>
               {(batches.data ?? []).map((b) => (
                 <option key={b.id} value={b.id}>
                   {formatJubaTime(b.created_at)} · {formatNumber(b.pushed_count)} × {b.plan_name} · {b.router_name}
@@ -117,9 +120,9 @@ export function PrintSetupPage() {
           </Field>
         ) : (
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Router">
+            <Field label={t('common.router')}>
               <Select value={routerId} onChange={(e) => setRouterId(e.target.value)}>
-                <option value="">Choose a router…</option>
+                <option value="">{t('vouchers.gen.chooseRouter')}</option>
                 {usableRouters.map((r) => (
                   <option key={r.id} value={r.id}>
                     {r.name}
@@ -127,27 +130,27 @@ export function PrintSetupPage() {
                 ))}
               </Select>
             </Field>
-            <Field label="Plan">
+            <Field label={t('common.plan')}>
               <Select value={planId} onChange={(e) => setPlanId(e.target.value)}>
-                <option value="">All plans</option>
+                <option value="">{t('common.allPlans')}</option>
                 {(plans.data ?? []).map((p) => (
                   <option key={p.id} value={p.id}>
-                    {p.name} — {formatSSP(p.price_ssp)} · {formatDuration(p.uptime_seconds)}
+                    {p.name} — {formatSSP(p.price_ssp)} · {durationText(p.uptime_seconds)}
                   </option>
                 ))}
               </Select>
             </Field>
-            <Field label="How many cards" hint="Empty = all matching cards (max 1000)">
-              <TextInput inputMode="numeric" value={count} placeholder="all" onChange={(e) => setCount(e.target.value.replace(/\D/g, '').slice(0, 4))} />
+            <Field label={t('vouchers.print.howMany')} hint={t('vouchers.print.howManyHint')}>
+              <TextInput inputMode="numeric" dir="ltr" value={count} placeholder={t('vouchers.print.allPlaceholder')} onChange={(e) => setCount(e.target.value.replace(/\D/g, '').slice(0, 4))} />
             </Field>
             <div className="flex items-end">
-              <Checkbox label="Only cards not printed before" checked={onlyNew} onChange={setOnlyNew} />
+              <Checkbox label={t('vouchers.print.onlyNew')} checked={onlyNew} onChange={setOnlyNew} />
             </div>
           </div>
         )}
 
         <div className="mt-5">
-          <span className="mb-2 block text-sm font-medium text-slate-700">Cards per A4 page</span>
+          <span className="mb-2 block text-sm font-medium text-slate-700">{t('vouchers.print.perPage')}</span>
           <div className="grid grid-cols-3 gap-2">
             {([24, 40, 50] as CardsPerPage[]).map((n) => {
               const disabled = n === 50 && !fiftyFits;
@@ -169,7 +172,7 @@ export function PrintSetupPage() {
               );
             })}
           </div>
-          {!fiftyFits && <p className="mt-2 text-sm text-slate-600">50 per page fits codes up to 8 digits. These codes are longer.</p>}
+          {!fiftyFits && <p className="mt-2 text-sm text-slate-600">{t('vouchers.print.fiftyNote')}</p>}
         </div>
 
         {batches.error && (
@@ -179,7 +182,7 @@ export function PrintSetupPage() {
         )}
 
         <Button className="mt-5 min-h-12 px-6 text-lg" disabled={!target} onClick={() => target && navigate(target)}>
-          Open print preview
+          {t('vouchers.print.openPreview')}
         </Button>
       </Card>
     </div>

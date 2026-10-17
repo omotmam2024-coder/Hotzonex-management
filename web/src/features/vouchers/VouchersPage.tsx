@@ -7,6 +7,7 @@ import { Alert, Badge, Button, buttonClass, Card, Field, Select, Spinner, TextIn
 import { friendlyError } from '../../lib/errors';
 import { formatJubaTime, formatNumber } from '../../lib/format';
 import { invokeFunction } from '../../lib/functions';
+import { translate, useT } from '../../i18n';
 import { invalidateSalesData, usePlans, useRouters } from '../../hooks/queries';
 import { VOUCHER_STATUS } from '../../lib/labels';
 import { supabase } from '../../lib/supabase';
@@ -26,10 +27,10 @@ interface DeleteResult {
 
 function deleteMessage(r: DeleteResult): string {
   const parts = [];
-  if (r.deleted) parts.push(`${r.deleted} deleted`);
-  if (r.removing) parts.push(`${r.removing} switched off and being deleted from the router (gone from this list once the router has removed them; if the router is offline, as soon as it is back)`);
-  if (r.kept) parts.push(`${r.kept} kept because they were sold or used`);
-  return parts.length ? `${parts.join('; ')}.` : 'Nothing to delete.';
+  if (r.deleted) parts.push(translate('vouchers.del.deleted', { n: r.deleted }));
+  if (r.removing) parts.push(translate('vouchers.del.removing', { n: r.removing }));
+  if (r.kept) parts.push(translate('vouchers.del.kept', { n: r.kept }));
+  return parts.length ? `${parts.join('; ')}.` : translate('vouchers.del.nothing');
 }
 
 interface BatchOption {
@@ -41,6 +42,7 @@ interface BatchOption {
 }
 
 export function VouchersPage() {
+  const { t, dir } = useT();
   const [params, setParams] = useSearchParams();
   const routers = useRouters();
   const plans = usePlans();
@@ -122,7 +124,7 @@ export function VouchersPage() {
   });
   function deleteSelected() {
     const ids = [...selected];
-    if (!window.confirm(`Delete ${ids.length} voucher${ids.length === 1 ? '' : 's'}? They are deleted from the router too and cannot be sold or used any more.`)) return;
+    if (!window.confirm(t(ids.length === 1 ? 'vouchers.confirmDeleteOne' : 'vouchers.confirmDeleteMany', { n: ids.length }))) return;
     remove.mutate(ids);
   }
 
@@ -145,18 +147,18 @@ export function VouchersPage() {
   return (
     <div className="space-y-4">
       <PageHeader
-        title="Vouchers"
-        subtitle="Every voucher code on your routers"
+        title={t('vouchers.title')}
+        subtitle={t('vouchers.subtitle')}
         actions={
           <div className="flex flex-wrap gap-2">
             <Link
               to={batchId ? `/vouchers/print?batch=${batchId}` : '/vouchers/print'}
               className={buttonClass('secondary')}
             >
-              Print cards
+              {t('vouchers.printCards')}
             </Link>
             <Link to="/vouchers/generate" className={buttonClass('primary')}>
-              + Generate vouchers
+              {t('vouchers.generateBtn')}
             </Link>
           </div>
         }
@@ -164,12 +166,12 @@ export function VouchersPage() {
 
       <Card>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-          <Field label="Search code">
-            <TextInput inputMode="numeric" placeholder="Type digits…" value={codeInput} onChange={(e) => setCodeInput(e.target.value)} />
+          <Field label={t('vouchers.searchCode')}>
+            <TextInput inputMode="numeric" dir="ltr" placeholder={t('vouchers.typeDigits')} value={codeInput} onChange={(e) => setCodeInput(e.target.value)} />
           </Field>
-          <Field label="Router">
+          <Field label={t('common.router')}>
             <Select value={routerId} onChange={(e) => setFilter('router', e.target.value)}>
-              <option value="">All routers</option>
+              <option value="">{t('vouchers.allRouters')}</option>
               {(routers.data ?? []).map((r) => (
                 <option key={r.id} value={r.id}>
                   {r.name}
@@ -177,9 +179,9 @@ export function VouchersPage() {
               ))}
             </Select>
           </Field>
-          <Field label="Plan">
+          <Field label={t('common.plan')}>
             <Select value={planId} onChange={(e) => setFilter('plan', e.target.value)}>
-              <option value="">All plans</option>
+              <option value="">{t('common.allPlans')}</option>
               {(plans.data ?? []).map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.name}
@@ -187,9 +189,9 @@ export function VouchersPage() {
               ))}
             </Select>
           </Field>
-          <Field label="Status">
+          <Field label={t('vouchers.status')}>
             <Select value={status} onChange={(e) => setFilter('status', e.target.value)}>
-              <option value="">All statuses</option>
+              <option value="">{t('vouchers.allStatuses')}</option>
               {(Object.keys(VOUCHER_STATUS) as VoucherStatus[]).map((s) => (
                 <option key={s} value={s}>
                   {VOUCHER_STATUS[s].label}
@@ -197,9 +199,9 @@ export function VouchersPage() {
               ))}
             </Select>
           </Field>
-          <Field label="Batch">
+          <Field label={t('vouchers.batch')}>
             <Select value={batchId} onChange={(e) => setFilter('batch', e.target.value)}>
-              <option value="">All batches</option>
+              <option value="">{t('vouchers.allBatches')}</option>
               {(batches.data ?? []).map((b) => (
                 <option key={b.id} value={b.id}>
                   {formatJubaTime(b.created_at)} · {b.quantity} × {b.plan_name} · {b.router_name}
@@ -210,7 +212,7 @@ export function VouchersPage() {
         </div>
         {hasFilters && (
           <button type="button" className={`${textButtonClass} mt-1 text-brand-700`} onClick={() => setParams({}, { replace: true })}>
-            Clear filters
+            {t('vouchers.clearFilters')}
           </button>
         )}
       </Card>
@@ -222,20 +224,20 @@ export function VouchersPage() {
       <Card className="!p-0">
         <div className="flex items-center justify-between px-4 py-3 text-sm text-slate-600">
           <span>
-            {vouchers.isFetching && <Spinner className="mr-2 h-4 w-4 align-[-2px] text-brand-600" />}
-            {formatNumber(total)} voucher{total === 1 ? '' : 's'}
+            {vouchers.isFetching && <Spinner className="me-2 h-4 w-4 align-[-2px] text-brand-600" />}
+            {t(total === 1 ? 'vouchers.countOne' : 'vouchers.countMany', { n: formatNumber(total) })}
           </span>
           <span className="flex items-center gap-3">
             {isAdmin && selected.size > 0 && (
               <Button variant="danger" disabled={remove.isPending} onClick={deleteSelected}>
-                {remove.isPending ? <Spinner /> : null} Delete {selected.size}
+                {remove.isPending ? <Spinner /> : null} {t('vouchers.deleteN', { n: selected.size })}
               </Button>
             )}
-            Page {page + 1} of {pages}
+            {t('vouchers.pageOf', { page: page + 1, pages })}
           </span>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[700px] text-left text-sm">
+          <table className="w-full min-w-[700px] text-start text-sm">
             <thead className="border-y border-slate-200 bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
               <tr>
                 {isAdmin && (
@@ -243,22 +245,22 @@ export function VouchersPage() {
                     <input
                       type="checkbox"
                       className="h-5 w-5"
-                      aria-label="Select all unsold vouchers on this page"
+                      aria-label={t('vouchers.selectAll')}
                       checked={allPicked}
                       disabled={!deletable.length}
                       onChange={() => setSelected(allPicked ? new Set() : new Set(deletable.map((v) => v.id)))}
                     />
                   </th>
                 )}
-                <th className="px-4 py-2">Code</th>
-                <th className="px-4 py-2">Plan</th>
-                <th className="px-4 py-2">Status</th>
-                <th className="px-4 py-2">On router</th>
-                <th className="px-4 py-2">Router</th>
-                <th className="px-4 py-2">Printed</th>
-                <th className="px-4 py-2">Sold</th>
+                <th className="px-4 py-2">{t('vouchers.col.code')}</th>
+                <th className="px-4 py-2">{t('common.plan')}</th>
+                <th className="px-4 py-2">{t('vouchers.status')}</th>
+                <th className="px-4 py-2">{t('vouchers.col.onRouter')}</th>
+                <th className="px-4 py-2">{t('common.router')}</th>
+                <th className="px-4 py-2">{t('vouchers.col.printed')}</th>
+                <th className="px-4 py-2">{t('vouchers.col.sold')}</th>
                 <th className="px-4 py-2">
-                  <span className="sr-only">Receipt</span>
+                  <span className="sr-only">{t('vouchers.receiptLink')}</span>
                 </th>
               </tr>
             </thead>
@@ -273,15 +275,17 @@ export function VouchersPage() {
                         <input
                           type="checkbox"
                           className="h-5 w-5"
-                          aria-label={`Select ${v.code}`}
-                          title={DELETABLE.includes(v.status) ? undefined : 'Sold vouchers are kept for the sales records'}
+                          aria-label={t('vouchers.selectCode', { code: v.code })}
+                          title={DELETABLE.includes(v.status) ? undefined : t('vouchers.soldKept')}
                           checked={selected.has(v.id)}
                           disabled={!DELETABLE.includes(v.status)}
                           onChange={() => toggle(v.id)}
                         />
                       </td>
                     )}
-                    <td className="px-4 py-2 font-mono text-base font-semibold tracking-wider">{v.code}</td>
+                    <td className="px-4 py-2 font-mono text-base font-semibold tracking-wider">
+                      <span dir="ltr">{v.code}</span>
+                    </td>
                     <td className="px-4 py-2">
                       <span className="flex items-center gap-2">
                         <span className="h-3 w-3 rounded-full" style={{ backgroundColor: plan?.color ?? '#94a3b8' }} />
@@ -291,14 +295,14 @@ export function VouchersPage() {
                     <td className="px-4 py-2">
                       <Badge color={badge.color}>{badge.label}</Badge>
                     </td>
-                    <td className="px-4 py-2">{v.on_router ? 'Yes' : <span className="text-amber-700">Not yet</span>}</td>
+                    <td className="px-4 py-2">{v.on_router ? t('common.yes') : <span className="text-amber-700">{t('vouchers.notYet')}</span>}</td>
                     <td className="px-4 py-2">{routerById.get(v.router_id)?.name ?? '—'}</td>
                     <td className="px-4 py-2">{v.printed_at ? formatJubaTime(v.printed_at) : '—'}</td>
                     <td className="px-4 py-2">{v.sold_at ? formatJubaTime(v.sold_at) : '—'}</td>
-                    <td className="px-4 py-2 text-right">
+                    <td className="px-4 py-2 text-end">
                       {v.on_router && v.status !== 'disabled' && (
                         <Link to={`/print/receipt/${v.id}`} className={`${textButtonClass} text-brand-700`}>
-                          Receipt
+                          {t('vouchers.receiptLink')}
                         </Link>
                       )}
                     </td>
@@ -308,7 +312,7 @@ export function VouchersPage() {
               {vouchers.data && vouchers.data.rows.length === 0 && (
                 <tr>
                   <td colSpan={isAdmin ? 9 : 8} className="px-4 py-6 text-center text-slate-500">
-                    No vouchers match these filters.
+                    {t('vouchers.noMatch')}
                   </td>
                 </tr>
               )}
@@ -318,10 +322,10 @@ export function VouchersPage() {
         {pages > 1 && (
           <div className="flex justify-between gap-2 p-3">
             <Button variant="secondary" disabled={page === 0} onClick={() => setFilter('page', String(page - 1))}>
-              ← Previous
+              {dir === 'rtl' ? '→' : '←'} {t('vouchers.previous')}
             </Button>
             <Button variant="secondary" disabled={page + 1 >= pages} onClick={() => setFilter('page', String(page + 1))}>
-              Next →
+              {t('vouchers.next')} {dir === 'rtl' ? '←' : '→'}
             </Button>
           </div>
         )}

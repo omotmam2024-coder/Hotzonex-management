@@ -1,4 +1,5 @@
-import { formatDuration, formatSSP } from '../lib/format';
+import { formatSSP } from '../lib/format';
+import { durationText } from './duration';
 import type { PrintBrand } from './brand';
 import type { SheetLayout } from './layouts';
 import { loginAddress } from './voucherLinks';
@@ -51,13 +52,18 @@ export function VoucherCard({ card, layout, brand }: { card: CardData; layout: S
             fontVariantNumeric: 'tabular-nums',
           }}
         >
-          {card.code}
+          {/* The code always reads left to right, also on Arabic cards. */}
+          <span dir="ltr">{card.code}</span>
         </div>
         <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: '1mm', marginTop: 'auto' }}>
           <div style={{ minWidth: 0 }}>
-            <div style={{ fontSize: `${layout.pricePt}pt`, lineHeight: 1.15, fontWeight: 800 }}>{formatSSP(card.priceSsp)}</div>
-            <div style={{ fontSize: `${layout.pricePt}pt`, lineHeight: 1.15, fontWeight: 700 }}>{formatDuration(card.uptimeSeconds)}</div>
-            <div style={{ fontSize: `${layout.smallPt}pt`, lineHeight: 1.15, wordBreak: 'break-all' }}>{loginAddress(card.dnsName)}</div>
+            <div style={{ fontSize: `${layout.pricePt}pt`, lineHeight: 1.15, fontWeight: 800 }}>
+              <span dir="ltr">{formatSSP(card.priceSsp)}</span>
+            </div>
+            <div style={{ fontSize: `${layout.pricePt}pt`, lineHeight: 1.15, fontWeight: 700 }}>{durationText(card.uptimeSeconds)}</div>
+            <div style={{ fontSize: `${layout.smallPt}pt`, lineHeight: 1.15, wordBreak: 'break-all' }}>
+              <span dir="ltr">{loginAddress(card.dnsName)}</span>
+            </div>
           </div>
         </div>
       </div>
