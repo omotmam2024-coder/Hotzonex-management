@@ -166,7 +166,7 @@ const ar = {
   'common.note': 'ملاحظة',
   'common.noteOptional': 'ملاحظة (اختياري)',
   'common.amount': 'المبلغ',
-  'common.amountSsp': 'المبلغ (جنيه)',
+  'common.amountSsp': 'المبلغ (SSP)',
   'common.never': 'أبداً',
   'common.justNow': 'الآن',
   'common.minAgo': 'قبل {n} دقيقة',
