@@ -1,18 +1,43 @@
 # Changelog
 
+## 17 October 2026 — consistency pass
+
+A review of the whole app for the same words, the same look and small bugs.
+
+### Database (migration `20261017090000_review_fixes.sql`, applied)
+- The audit log no longer writes some events twice: voids are logged once by `void_sale`, and staff
+  or plan changes made by an Edge Function are logged once by that function with the real person.
+- Retry-safe selling: when the same sale attempt arrives twice at the same moment, the second reply
+  returns the sale only to the same cashier.
+- Two internal helper functions can no longer be called by signed-in users.
+- Every migration is applied and the web app's database types were regenerated from the live
+  project; `web/src/lib/database.pending.ts` keeps only the generator gaps.
+
+### Same words everywhere
+- **Voucher** for the code, **card** for the printed paper and the customer's screens.
+- Role labels **Owner / Manager / Cashier / agent**; **Revenue** for money taken.
+- Page headers and buttons look and read the same on every page; dark-mode gaps filled.
+
+### Bugs fixed
+- The router edit form was reset every 5 seconds while you typed.
+- The "payment confirmed" message disappeared too soon.
+- Billing crashed when the phone was offline.
+- Lists showed old figures after a sale, an expense or a staff change.
+- The switch on **Mark as sold** for choosing the router did not work.
+
 ## Sell-ready release — 16 October 2026
 
 Findings and plan: [AUDIT.md](AUDIT.md), [PLAN.md](PLAN.md). Every change below is on the branch
 `claude/clever-mccarthy-1780c7`; the web app deploys from it automatically. All database migrations from this release are applied.
 
 ### Phase 1 — security and bugs
-- **Audit trail** (migration `20261016170000_audit_trail.sql`): every sale, void, voucher batch,
-  plan or price change and staff role/access change is written to `audit_log` (who, what, when,
-  which business), whatever screen or worker made it. Cash handovers and seller terms were already
-  logged by their own functions.
+- **Audit trail** (migration `20261016170000_audit_trail.sql`): every sale, voucher batch, plan or
+  price change and staff role/access change is written to `audit_log` (who, what, when, which
+  business), whatever screen or worker made it. Voids, cash handovers, seller terms and changes made
+  by Edge Functions are logged by their own functions (no duplicates since `20261017090000`).
 - **Retry-safe selling** (migration `20261016171000_idempotent_sell.sql` + Sell page): each sale
   attempt carries a request id; a lost reply is retried automatically and returns the same card, so
-  a bad connection can no longer sell two cards. Works before the migration too (old behaviour).
+  a bad connection can no longer sell two cards.
 - **Tighter grants** (migration `20261016172000_tighten_grants.sql`): no TRUNCATE / TRIGGER /
   REFERENCES for signed-in users or visitors.
 - **Friendly 404 page**; a page that fails to draw shows "Reload" instead of a white screen.
@@ -47,8 +72,8 @@ Findings and plan: [AUDIT.md](AUDIT.md), [PLAN.md](PLAN.md). Every change below 
 
 ### Phase 4 — polish
 - Database types generated from the live schema and used by the Supabase client
-  (`web/src/lib/database.types.ts`; objects from the pending migrations in
-  `web/src/lib/database.pending.ts`).
+  (`web/src/lib/database.types.ts`; `web/src/lib/database.pending.ts` keeps only what the
+  generator cannot see).
 - Folders: `features/<area>/` for pages, `components/ui/` for the UI kit, `hooks/` for data hooks.
 - README: every Edge Function to deploy, environment variables, roles, lint, applying migrations.
 
@@ -81,18 +106,21 @@ limits, the Buy page stuck on "Loading…", poster QR border and join-WiFi QR, 2
 
 ## What you need to do
 
+Every migration is applied (latest 17 October 2026) and the database types are regenerated, so
+nothing is left to apply. What is left for you:
+
 1. **Make the GitHub repository private** (Settings → General → Danger Zone → Change visibility).
    Then check that DigitalOcean still deploys (App → Settings → Source; reconnect GitHub if asked).
-2. ~~Apply the migrations~~ — done: every migration is applied (16 October 2026) and the
-   database types were regenerated from the live project.
-3. **Check the plan limits and prices** on Businesses → Subscription plans after applying, and
-   move each customer to the right plan (existing ones start on Business).
-4. **Read the Terms page** (`/terms`) and change anything you do not agree with.
-5. **Contact email**: add a public business email in `web/src/lib/contact.ts` (it is hidden
+2. **Read the Terms page** (`/terms`) and change anything you do not agree with.
+3. **Contact email**: add a public business email in `web/src/lib/contact.ts` (it is hidden
    until then; your personal email is not published).
-6. Optional: add `TELEGRAM_BOT_TOKEN` in Supabase → Edge Functions → Secrets for Telegram alerts;
+4. Optional: add `TELEGRAM_BOT_TOKEN` in Supabase → Edge Functions → Secrets for Telegram alerts;
    upgrade Supabase to Pro for daily backups and leaked-password protection.
-7. No new environment variables and no DNS changes are needed.
+5. Good to do: check the plan limits and prices on Businesses → Subscription plans, and that each
+   customer is on the right plan (existing ones started on Business). Write down the router
+   password key (README → Backups) somewhere safe.
+
+No new environment variables and no DNS changes are needed.
 
 ## Decisions (AUDIT.md §0)
 - Hosting stays on **DigitalOcean**; the mobile-money **Buy page stays** (owner, 16 October 2026).
@@ -100,6 +128,18 @@ limits, the Buy page stuck on "Loading…", poster QR border and join-WiFi QR, 2
 
 ## Recommended next steps
 - Agent codes printed on cards for agents who sell offline, settled at cash-up.
-- A per-business audit log page (the data is recorded once the migration is applied).
+- A per-business audit log page (the data is already being recorded).
 - Automatic code swap when a mobile-money card's code clashes with a router user.
 - Supabase Pro + the backup script on a schedule (README → Backups).
+
+## Known follow-ups
+- Routers connected by **script** (cloud) do not record router logins, so "expiring soon" and
+  MikroTicket activations need routers connected **directly** or through the **tunnel**.
+- The router login portal lists **every active plan of the business**, not only the plans of
+  that router.
+- Security headers (X-Frame-Options and others) are only in `web/vercel.json`, so they are **not**
+  sent on DigitalOcean.
+- The web app shows times in Africa/Juba, while the database uses each business's own time zone
+  (the same for businesses in South Sudan; different for a business elsewhere).
+- No automated tests for the database (SQL) functions yet.
+- `router-direct` compares its worker secret with a plain compare, not a constant-time one.

@@ -6,7 +6,7 @@ project_id = "hotzonex-cloud"
 schemas = ["public"]
 
 [db]
-major_version = 15
+major_version = 17
 
 [auth]
 site_url = "http://localhost:5173"
@@ -14,7 +14,9 @@ site_url = "http://localhost:5173"
 # Live project (Dashboard → Authentication → URL Configuration): Site URL https://app.hotzonex.net,
 # Redirect URLs https://app.hotzonex.net/** and https://hotzonex-cloud-rum4d.ondigitalocean.app/**.
 additional_redirect_urls = ["http://localhost:5173/**"]
-# Staff accounts are created by admins only; nobody can sign themselves up.
+# Public email sign-up in Supabase Auth stays off. Staff accounts are made by owners (create-staff);
+# new businesses sign up on the /signup page, which creates the owner's login through the signup
+# Edge Function with the service role.
 enable_signup = false
 
 [auth.email]

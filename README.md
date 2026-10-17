@@ -6,10 +6,25 @@
 MikroTik hotspot voucher management for Hotzonex WiFi in Juba, South Sudan
 (sites: Gorom, Jebel Iraq, HQ, Sub-Office — one RouterOS v7 router per site).
 
-It does five things: **add routers**, **create vouchers** and push them to the router,
-**print** A4 card sheets and thermal receipts, **sell** vouchers for cash at a cashier screen,
-and **report** sales and usage by day, week and month. Money is whole South Sudanese Pounds (SSP);
-all times are Africa/Juba (UTC+2).
+What it does:
+
+- **Routers**: add each MikroTik router (by address and login, by tunnel, or by a setup script).
+- **Vouchers**: create voucher codes, push them to the router, and **print** A4 card sheets and
+  thermal receipts (codes only, no QR).
+- **Selling**: sell for cash at a cashier screen (retry-safe: a bad connection never sells two cards),
+  mark pre-printed cards as sold, and the mobile-money **Buy** page that a cashier confirms.
+- **Reports**: revenue and usage by day, week and month, with a **profit** line.
+- **Expenses & profit**: record running costs and see revenue − agent commission − expenses = profit.
+- **Business settings**: business name, logo and the dollar rate (USD is shown next to SSP).
+- **Selling Hotzonex Cloud to other businesses**: a public landing page, self sign-up with a
+  welcome wizard, and subscription plans with limits (Starter, Business, Pro).
+- **Dark mode**: Light / Dark / Auto switch at the bottom of the menu.
+
+Money is whole South Sudanese Pounds (SSP); the web app shows times in Africa/Juba (UTC+2).
+
+Live address: <https://app.hotzonex.net>, hosted on **DigitalOcean App Platform**, which deploys
+automatically from the branch `claude/clever-mccarthy-1780c7`. Database, logins and Edge Functions
+are on Supabase (project `tyiwnaxdejtsdofgnuow`).
 
 ## How it fits together
 
@@ -43,8 +58,9 @@ setting. What it does write is limited to:
 
 | Folder | What it is | Runs on |
 | --- | --- | --- |
-| `web/` | React 18 + TypeScript + Vite + Tailwind staff app | DigitalOcean (or Vercel) |
-| `supabase/` | Migrations, seed and Edge Functions (`add-router`, `create-staff`, `router-gateway`, `router-direct`) | Supabase |
+| `web/` | React 18 + TypeScript + Vite + Tailwind staff app, landing page, sign-up and Buy page | DigitalOcean App Platform |
+| `supabase/` | Migrations, seed and the 10 Edge Functions: `add-router`, `create-staff`, `delete-items`, `router-gateway`, `router-direct`, `tunnel`, `portal`, `alerts`, `buy`, `signup` | Supabase |
+| `scripts/` | Backup script for a Droplet | Your own server (optional) |
 
 ---
 
@@ -122,16 +138,16 @@ built into `dist/sw.js`) and remembers the signed-in account and the small scree
 routers) for a day. Opening it again shows the last screen at once and refreshes it in the background;
 it opens even when the connection is poor. A new version is picked up on the next opening.
 
-### Deploy to Vercel (alternative)
+Every push to the branch `claude/clever-mccarthy-1780c7` redeploys the web app on DigitalOcean.
 
-1. Import the GitHub repository in Vercel (**Add New → Project**).
-2. **Root Directory:** `web`. Framework, build command (`npm run build`) and output (`dist`)
-   come from `web/vercel.json`, which also routes every page to the app and sets security headers.
-3. **Environment Variables:** `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` (same values as
-   `web/.env`). Deploy.
-4. In Supabase **Authentication → URL Configuration**, set **Site URL** to the Vercel address.
+### Vercel — not supported
 
-Every push to the main branch then redeploys the web app.
+DigitalOcean App Platform is the only supported host. `web/vercel.json` is an old file kept in the
+repository, but a Vercel copy of the app would **not work**: the Edge Functions only answer the
+addresses in `supabase/functions/_shared/cors.ts` (`app.hotzonex.net`, the DigitalOcean address
+and local development), and no Vercel address is on that list.
+The extra security headers in that file (X-Frame-Options and others) are therefore **not** sent on
+DigitalOcean today (see CHANGELOG → Known follow-ups).
 
 ## 3. Connect each router
 
@@ -177,13 +193,13 @@ certificates yet: `/certificate settings set builtin-trust-anchors=trusted`. To 
 script-connected router: `/system scheduler remove [find name="hzc-cloud"]` and
 `/system script remove [find name="hzc-cloud"]`.
 
-## 5. First-day checklist
+## 4. First-day checklist
 
-1. Log in as the admin.
+1. Log in as the owner.
 2. **Routers → Sites:** add your sites (Gorom, Jebel Iraq, Sub-Office…).
 3. **Routers → Add router** for each site (address, username, password) → paste the setup script if one is shown. It must show *Online* with the model, RouterOS version and hotspot.
 4. **Plans:** check prices, time, validity, speed and colours. Each save updates the router profiles.
-5. **Staff:** create managers and sellers (each with a site).
+5. **Staff:** create managers and cashiers (each with a site).
 6. **Vouchers → Generate vouchers:** wait for the batch to show **Ready**.
 7. **Vouchers → Print cards** for pre-printed cards, and/or sell from the **Sell** screen.
 
@@ -193,12 +209,13 @@ script-connected router: `/system scheduler remove [find name="hzc-cloud"]` and
 
 | Where | Variable | What / where to get it |
 | --- | --- | --- |
-| `web/.env`, DigitalOcean, Vercel | `VITE_SUPABASE_URL` | Supabase → Project Settings → API → Project URL (optional: the app has Hotzonex Cloud's project built in) |
-| `web/.env`, DigitalOcean, Vercel | `VITE_SUPABASE_ANON_KEY` | Supabase → Project Settings → API → `anon` public key (used only together with a matching URL) |
+| `web/.env`, DigitalOcean | `VITE_SUPABASE_URL` | Supabase → Project Settings → API → Project URL (optional: the app has Hotzonex Cloud's project built in) |
+| `web/.env`, DigitalOcean | `VITE_SUPABASE_ANON_KEY` | Supabase → Project Settings → API → `anon` public key (used only together with a matching URL) |
 | Supabase Edge Functions → Secrets | `TELEGRAM_BOT_TOKEN` | Optional. From @BotFather; turns on Telegram alerts |
 
-No other secret is needed: the router password key and the worker secret are created inside the
-database (Vault) by the migrations. The service-role key is never put in the web app.
+No other secret is needed: the router password key (Vault secret `router_secret_key`) and the
+worker secret are created inside the database by the migrations. There is no `ROUTER_SECRET_KEY`
+environment variable. The service-role key is never put in the web app.
 
 ---
 
@@ -206,13 +223,18 @@ database (Vault) by the migrations. The service-role key is never put in the web
 
 ### Roles
 
-| Role (database value) | Menu | Can do |
+| Role (database value) | Menu (from `web/src/lib/nav.ts`) | Can do |
 | --- | --- | --- |
-| Owner (`admin`) | Everything, incl. Plans, Routers, Staff, Billing, Business settings | Everything, all sites; voids; Disconnect |
-| Manager (`manager`) | Dashboard, Sell, Vouchers, Sales, Reports, Active Users | Own site: generate and print vouchers, sell, mark as sold, sales and reports |
-| Cashier / Agent (`seller`) | Sell, Payments, Sales, Cash-up | Own site: sell and print receipts; own sales and cash; agents get a commission and credit limit |
+| Owner (`admin`) | Dashboard, Reports, Expenses & profit, Alerts, Sell, Payments, Sales, Cash-up, Vouchers, Plans, Routers, Active Users, Login Portal, Business settings, Staff, Billing, Security | Everything, all sites; voids; Disconnect; whole-business expenses |
+| Manager (`manager`) | Dashboard, Reports, Expenses & profit, Alerts, Sell, Payments, Sales, Cash-up, Vouchers, Active Users, Security | Own site: generate and print vouchers, sell, mark as sold, sales, reports, and that site's expenses |
+| Cashier / agent (`seller`) | Sell, Payments, Sales, Cash-up, Security | Own site: sell, print and share; own sales and cash; agents get a commission and credit limit |
+
+**Businesses** is shown only to the people who run Hotzonex Cloud itself (platform admins).
+A cashier's phone tab bar shows Sell, Payments, Sales and Cash-up; owners and managers see
+Dashboard, Sell, Payments and Vouchers (the menu has the rest).
 
 Roles are enforced in the database (RLS policies and checks inside every function), not only by the menu.
+The database values `admin / manager / seller` stay as they are; only the labels on screen changed.
 
 ### Router jobs
 
@@ -247,7 +269,9 @@ at once.
 
 - **Sell screen:** one big button per plan (price, duration, cards left; yellow below 20,
   disabled at 0). Each tap sells one voucher — two cashiers can never get the same code — and
-  shows it full-screen with **Print receipt** and **Sell another**.
+  shows it full-screen with **Print** and **Share** (the phone's share sheet, WhatsApp as a
+  fallback). If the connection drops during a sale, the app tries again with the same request
+  and gets back the same card, so a cashier can never sell two cards by accident.
 - **Pre-printed cards** are never sold on the Sell screen. Record them with
   **Sales → Mark printed cards as sold**, or switch on **Sell on first login** for the site
   (Routers → Sites): the first time an unused card logs in, a cash sale is recorded with no seller.
@@ -298,7 +322,8 @@ press **Install on router** again to update the router.
 - The pages are standard MikroTik hotspot pages (login, status, logout, error, alogin, redirect,
   rlogin, md5.js) and use CHAP when the hotspot offers it, PAP otherwise.
 - **Code** login mode: customers type only the voucher code (the code is also the password).
-  MikroTicket and other vouchers with a separate password still work with **I have a password**.
+  MikroTicket and other router users with a separate username and password tap
+  **I have a username and password**, which shows a second box.
   **Username + password** mode shows both fields.
 - The router's previous folder (e.g. `hotspot` or `flash/hotspot`) is remembered and left on the
   router; **Switch back** returns to it with one click.
@@ -306,12 +331,34 @@ press **Install on router** again to update the router.
 ### Reports
 
 - **Dashboard:** today / this week (Mon–Sun) / this month revenue, users online now, revenue for
-  the last 14 days, and stock left per plan per site.
+  the last 14 days, stock left per plan per site, routers online/offline with last seen, and
+  **cards expiring in the next 24 hours**.
 - **Reports:** Daily, Weekly and Monthly tabs with filters for site, plan and seller. Sections:
-  summary with change versus the previous period, by plan, by seller, by site, sales per hour
-  (daily) or per day (weekly; monthly with weekly subtotals), and voucher status.
+  summary with change versus the previous period, then a **profit line**: revenue − agent
+  commission − expenses = profit (with a link to Expenses & profit); by plan, by seller, by site,
+  sales per hour (daily) or per day (weekly; monthly with weekly subtotals), and voucher status.
   **Print** gives a clean A4 report; **Export CSV** opens in Excel.
-- All totals come from SQL functions in Africa/Juba time and always exclude voided sales.
+- All totals always exclude voided sales.
+
+### Expenses & profit
+
+**Expenses & profit** (owners and managers) records running costs. Categories: internet, power,
+rent, salaries, feeding, equipment, repairs, printing, transport, other. Each expense is for one
+site or (owners only) for the whole business. The page shows revenue − agent commission −
+expenses = **profit** per day, week or month, day by day and per category, with **Print** and
+**CSV**. Managers record and see only their own site's expenses. Every added, changed or deleted
+expense is written to the audit log.
+
+### Dark mode
+
+At the bottom of the menu there is a **Light / Dark / Auto** switch (Auto follows the phone or
+computer setting). The choice is saved on each device; Light is the default. Printed cards,
+receipts and reports are always printed light.
+
+### Business settings
+
+**Business settings** (owners): business name, logo (shown on printed cards) and the **dollar rate**. Once a rate is set, USD (≈ $) is shown next to SSP on the
+dashboard, the sale screen and reports.
 
 ---
 
@@ -343,13 +390,29 @@ difference, and the cash each seller holds now. **Receive cash** records what a 
 over it, they cannot sell until they hand in cash. Sellers see their own figures.
 
 ### Selling Hotzonex Cloud (sign-up and billing)
-New businesses sign up at `/signup` (free trial, default 14 days). As a platform admin, set the
+Visitors see the landing page at `/` (features, screenshots, prices, FAQ, contact). New businesses
+sign up at `/signup` (free trial, default 14 days) and then go through a short **welcome wizard**
+(details and logo, site, router, plan, first cards). As a platform admin, set the
 **price per router per month**, grace days, trial days and how businesses pay you under
 **Businesses → Billing for Hotzonex Cloud**. With price 0 nobody is invoiced. Existing businesses are
 **Not billed** until you untick it. Each morning an invoice is made per billed business (connected
 routers × price); reminders go out before the due day; unpaid after the grace days, the business is
 paused (its WiFi keeps working, its admins see only the invoice and can send their payment's
 transaction ID). **Mark paid** switches it back on.
+
+**Subscription plans and limits.** Each billed business is on a plan; the database refuses to go
+over its limits:
+
+| Plan | Routers | Sites | Staff | Vouchers a month |
+| --- | --- | --- | --- | --- |
+| Starter | 1 | 1 | 3 | 5,000 |
+| Business | 5 | 3 | 15 | 30,000 |
+| Pro | no limit | no limit | no limit | no limit |
+
+Each plan can have its own price (optional). Owners see their plan and usage on **Billing**.
+On **Businesses → Subscription plans** you change the limits and prices; on a business's row you
+**move it to another plan** and **extend its trial** (+14 or +30 days). Businesses that are
+**Not billed** (such as your own) have no limits.
 
 ## Security
 
@@ -363,7 +426,11 @@ transaction ID). **Mark paid** switches it back on.
   the database) and checks Hotzonex Cloud's HTTPS certificate, so the commands it runs can only come
   from Hotzonex Cloud. Protect the Supabase account with a strong password and two-factor sign-in.
 - The service role key never leaves Supabase (Edge Functions only).
-- Admin actions (router added/updated/removed, staff created/updated, sale voided) are written to `audit_log`.
+- The **audit trail** (`audit_log`: who, what, when, which business) records sales, voids, voucher
+  batches, plan and price changes, staff role / active / site changes, staff created, routers
+  added / updated / removed, expenses, business settings, billing plans, and support-mode actions.
+  Voids are logged by `void_sale`; cash handovers and seller terms by their own functions. Each
+  event is written once (no duplicates).
 - **2-step login** (authenticator app, Security page): once someone turns it on, the database gives
   their login no access at all until the code is typed (`mfa_satisfied`), so a stolen password alone
   opens nothing. Platform powers (all businesses, support mode, billing) need it always.
@@ -402,8 +469,17 @@ transaction ID). **Mark paid** switches it back on.
   new Supabase project: apply `supabase/migrations`, then restore `auth.dump` first and
   `public.dump` second, each with
   `PGOPTIONS='-c session_replication_role=replica' pg_restore --data-only --no-owner -d "$NEW_DATABASE_URL" <file>`
-  (the option keeps the database's own triggers from re-running on the copied rows). Router passwords in the copy are encrypted with `ROUTER_SECRET_KEY`: keep that key
-  written down somewhere safe (not in the bucket), or re-enter the router passwords after a restore.
+  (the option keeps the database's own triggers from re-running on the copied rows).
+- **The router password key — back it up separately.** Router passwords and the WireGuard tunnel
+  keys are encrypted with one key kept in Supabase Vault, secret name `router_secret_key` (created
+  by migration `20261011072952_router_secrets_in_vault.sql`). It is **not** in the backup files and
+  there is no environment variable for it. To read it, open Supabase → **SQL Editor** (which runs
+  as the database owner) and run:
+  `select decrypted_secret from vault.decrypted_secrets where name = 'router_secret_key';`
+  Write the value down somewhere safe and offline (not in the backup bucket, not in chat or email).
+  A new project must get the same key in Vault (`vault.create_secret(<value>, 'router_secret_key')`)
+  before the copied router passwords can be used; without it, re-enter every router password and
+  run the tunnel script again.
 - **Routers:** `/export file=hotzonex-backup` in each router terminal, then download the `.rsc`
   from Files. Vouchers on a reset router can be pushed again with **Retry push**.
 
@@ -418,7 +494,7 @@ transaction ID). **Mark paid** switches it back on.
 | Router stays "Waiting for router" | Cloud: the setup script was not pasted, or the router has no internet. Run `/system script run hzc-cloud` and `/log print where topics~"script"` |
 | "Hotspot server … was not found on this router" | Edit the router and use one of the server names listed in the message (IP → Hotspot → Servers) |
 | Router shows Offline | Cloud: it has not called in for 2 minutes. Direct: the minute check could not reach it (the reason is shown) |
-| Voucher codes do not log in on the portal | `/log print where topics~"hotspot"` on the router. "invalid password" for a MikroTicket voucher in Code mode: use **I have a password**. The user must exist under IP → Hotspot → Users |
+| Voucher codes do not log in on the portal | `/log print where topics~"hotspot"` on the router. "invalid password" for a MikroTicket voucher in Code mode: use **I have a username and password**. The user must exist under IP → Hotspot → Users |
 | Portal install fails | The router must reach `*.supabase.co` over HTTPS (`/tool fetch` with `check-certificate=yes-without-crl`) and have free storage |
 | Batch stuck on "Push failed" | Router offline; it resumes by itself when back, or press **Retry push** |
 
@@ -432,12 +508,16 @@ npm test                 # router/billing/buy logic and the form checks (Node 22
 npm run build:web
 ```
 
-All four must pass before a push: DigitalOcean (and Vercel) build every commit on the branch.
+All four must pass before a push: DigitalOcean builds every commit on the branch.
 
 ### Database migrations
 
-Migrations are in `supabase/migrations/`, applied in file-name order. Never edit a file that was
-applied; add a new one. To apply new ones to the live project:
+Migrations are in `supabase/migrations/`, applied in file-name order. **Every file there is applied
+to the live project** (latest: `20261017090000_review_fixes.sql`, 17 October 2026). The live
+database runs Postgres 17.
+
+Never edit a file that was applied. A database change is written as a **new file**, reviewed, and
+only then applied to the live project:
 
 ```bash
 supabase link --project-ref tyiwnaxdejtsdofgnuow
@@ -445,8 +525,7 @@ supabase migration list        # shows which files are not applied yet
 supabase db push               # applies them, in order
 ```
 
-(Or paste each new file into Supabase → SQL Editor, oldest first.) The web app keeps working
-before a migration is applied: features that need it stay hidden or say so.
+(Or paste each new file into Supabase → SQL Editor, oldest first.)
 
 After applying, regenerate the database types used by the web app:
 
@@ -454,4 +533,6 @@ After applying, regenerate the database types used by the web app:
 supabase gen types typescript --project-id tyiwnaxdejtsdofgnuow > web/src/lib/database.types.ts
 ```
 
-and remove the matching entries from `web/src/lib/database.pending.ts`.
+`web/src/lib/database.pending.ts` now holds only the "generator gaps" (things the generator cannot
+see, such as `tenant_id` filled by a trigger). If a new migration needs entries there before it is
+applied, remove them again once it is applied and the types are regenerated.
