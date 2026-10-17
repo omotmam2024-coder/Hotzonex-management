@@ -67,6 +67,8 @@ const en = {
   'msg.waChangedOften': 'The WhatsApp numbers were changed too often today. Try again tomorrow.',
   'msg.waNotConnected': 'The WhatsApp sender is not connected right now. Try again later.',
   'msg.chooseLanguage': 'Choose English, Arabic or Kiswahili.',
+  'msg.routerNoAnswer': 'The router did not answer. Check that it is switched on, has internet, and has the Hotzonex connector installed (Routers → Setup script).',
+  'msg.tooSlow': 'The connection is too slow right now. Check your internet and try again.',
 } as const;
 
 type Keys = Record<keyof typeof en, string>;
@@ -136,6 +138,8 @@ const ar = {
   'msg.waChangedOften': 'تم تغيير أرقام الواتساب كثيراً اليوم. حاول غداً.',
   'msg.waNotConnected': 'مرسل الواتساب غير متصل الآن. حاول لاحقاً.',
   'msg.chooseLanguage': 'اختر الإنجليزية أو العربية أو السواحيلية.',
+  'msg.routerNoAnswer': 'لم يستجب الراوتر. تأكد أنه يعمل ومتصل بالإنترنت ومثبّت عليه برنامج Hotzonex (الراوترات ← سكربت الإعداد).',
+  'msg.tooSlow': 'الاتصال بطيء جداً الآن. تحقق من الإنترنت وحاول مرة أخرى.',
 } satisfies Keys;
 
 const sw = {
@@ -203,6 +207,8 @@ const sw = {
   'msg.waChangedOften': 'Namba za WhatsApp zimebadilishwa mara nyingi leo. Jaribu kesho.',
   'msg.waNotConnected': 'Mtumaji wa WhatsApp hajaunganishwa sasa. Jaribu baadaye.',
   'msg.chooseLanguage': 'Chagua Kiingereza, Kiarabu au Kiswahili.',
+  'msg.routerNoAnswer': 'Router haikujibu. Hakikisha imewashwa, ina intaneti, na imewekewa programu ya Hotzonex (Router → Skripti ya kuweka).',
+  'msg.tooSlow': 'Muunganisho ni wa polepole sana sasa. Kagua intaneti yako ujaribu tena.',
 } satisfies Keys;
 
 export const messages = { en, ar, sw };

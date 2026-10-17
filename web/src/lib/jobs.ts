@@ -1,11 +1,10 @@
 import { supabase } from './supabase';
+import { translate } from '../i18n/translate';
 import type { JobRow } from './types';
 
 export class RouterTimeoutError extends Error {
   constructor() {
-    super(
-      'The router did not answer. Check that it is switched on, has internet, and has the Hotzonex connector installed (Routers → Setup script).',
-    );
+    super(translate('msg.routerNoAnswer'));
   }
 }
 
