@@ -20,7 +20,26 @@ import type { SupabaseClient } from 'npm:@supabase/supabase-js@2.117.3';
 import { audit, requireAdmin, requirePlatformAdmin, serviceClient } from '../_shared/auth.ts';
 import { corsFor, HttpError, json } from '../_shared/cors.ts';
 import { alertMessage, LINK_CODE_RE, wantsAlert, type AlertRow, type AlertSettings } from '../_shared/alerts.ts';
-import { formatWhatsAppNumber, WA_NUMBER_RE, WA_PLATFORM_SID, waInstallScript } from '../_shared/whatsapp.ts';
+import { formatWhatsAppNumber, normalizeWhatsAppNumber, WA_NUMBER_RE, WA_PLATFORM_SID, waInstallScript } from '../_shared/whatsapp.ts';
+import {
+  BILLING_CODES,
+  BILLING_LABELS,
+  BILLING_VARS,
+  billingCode,
+  billingDate,
+  billingDays,
+  billingInvoiceId,
+  cleanTemplates,
+  DEFAULT_TEMPLATES,
+  isLang,
+  LANGS,
+  PRICE_UNIT,
+  renderBilling,
+  ssp,
+  unknownVars,
+  type Lang,
+  type Templates,
+} from '../_shared/billing-messages.ts';
 
 const TELEGRAM = 'https://api.telegram.org';
 const LINK_MINUTES = 30;
@@ -115,11 +134,80 @@ const errorText = (err: unknown) => (err instanceof Error ? err.message : String
 // Sending
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// Billing messages in the business's language
+// ---------------------------------------------------------------------------
+
+async function customTemplates(db: SupabaseClient): Promise<Partial<Templates>> {
+  const raw = await config(db, 'billing_templates');
+  if (!raw) return {};
+  try {
+    return cleanTemplates(JSON.parse(raw));
+  } catch {
+    return {};
+  }
+}
+
+type BillingAlert = { tenant_id: string; key: string; tenants: { name: string } | null };
+
+/** What the billing messages need: invoices, trial ends, prices, routers, payment instructions. */
+async function billingContext(db: SupabaseClient, alerts: BillingAlert[]) {
+  const contactPhone = new Map<string, string>();
+  if (!alerts.length) return { contactPhone, render: () => null as string | null };
+  const tenants = [...new Set(alerts.map((a) => a.tenant_id))];
+  const invoiceIds = [...new Set(alerts.map((a) => billingInvoiceId(a.key)).filter((id): id is string => !!id))];
+  const [custom, howto, std, tb, inv, routers] = await Promise.all([
+    customTemplates(db),
+    config(db, 'billing_instructions'),
+    config(db, 'billing_price_per_router_ssp'),
+    db.from('tenant_billing').select('tenant_id, contact_phone, trial_ends_at, price_per_router_ssp, subscription_plans(price_per_router_ssp)').in('tenant_id', tenants),
+    invoiceIds.length
+      ? db.from('invoices').select('id, number, amount_ssp, period_start, period_end, due_at').in('id', invoiceIds)
+      : Promise.resolve({ data: [] as unknown[] }),
+    db.from('routers').select('tenant_id').in('tenant_id', tenants).neq('status', 'pending'),
+  ]);
+  type Tb = { tenant_id: string; contact_phone: string | null; trial_ends_at: string | null; price_per_router_ssp: number | null; subscription_plans: { price_per_router_ssp: number | null } | null };
+  type Inv = { id: string; number: string; amount_ssp: number; period_start: string; period_end: string; due_at: string };
+  const billingRows = new Map(((tb.data ?? []) as unknown as Tb[]).map((r) => [r.tenant_id, r]));
+  const invoices = new Map(((inv.data ?? []) as Inv[]).map((r) => [r.id, r]));
+  const routerCount = new Map<string, number>();
+  for (const r of (routers.data ?? []) as { tenant_id: string }[]) routerCount.set(r.tenant_id, (routerCount.get(r.tenant_id) ?? 0) + 1);
+  for (const r of billingRows.values()) {
+    const n = r.contact_phone ? normalizeWhatsAppNumber(r.contact_phone) : null;
+    if (n) contactPhone.set(r.tenant_id, n);
+  }
+
+  const render = (a: BillingAlert, lang: Lang): string | null => {
+    const code = billingCode(a.key);
+    if (!code) return null;
+    const b = billingRows.get(a.tenant_id);
+    const price = b?.price_per_router_ssp ?? b?.subscription_plans?.price_per_router_ssp ?? (Number(std) || 0);
+    const i = invoices.get(billingInvoiceId(a.key) ?? '');
+    const days = billingDays(a.key);
+    const vars: Record<string, string | number | null> = {
+      business: a.tenants?.name ?? '',
+      days,
+      price: price > 0 ? `${ssp(price)} ${PRICE_UNIT[lang]}` : '',
+      pay: howto ?? '',
+      invoice: i?.number ?? null,
+      amount: i ? ssp(i.amount_ssp) : null,
+      period: i ? `${billingDate(i.period_start)} – ${billingDate(i.period_end)}` : null,
+      due: i ? billingDate(i.due_at) : null,
+      date: code === 'trial_ending' ? billingDate(b?.trial_ends_at) : i ? billingDate(i.period_end) : null,
+    };
+    if (code === 'renew_soon') vars.amount = ssp(Math.max(routerCount.get(a.tenant_id) ?? 0, 1) * price);
+    // A message that needs an invoice we cannot find falls back to the plain English alert.
+    if (['invoice', 'due_soon', 'suspended', 'paid', 'renew_soon'].includes(code) && !i) return null;
+    return renderBilling(code, lang, vars, custom);
+  };
+  return { contactPhone, render };
+}
+
 async function sendPending(db: SupabaseClient): Promise<Record<string, number>> {
   const since = new Date(Date.now() - 24 * 3600_000).toISOString();
   const { data: rows, error } = await db
     .from('alerts')
-    .select('id, tenant_id, kind, title, body, created_at, send_attempts, telegram_sent_at, whatsapp_sent_at, tenants(name)')
+    .select('id, tenant_id, kind, key, title, body, created_at, send_attempts, telegram_sent_at, whatsapp_sent_at, tenants(name)')
     .is('sent_at', null)
     .lt('send_attempts', MAX_ATTEMPTS)
     .gte('created_at', since)
@@ -129,6 +217,7 @@ async function sendPending(db: SupabaseClient): Promise<Record<string, number>> 
   const alerts = (rows ?? []) as unknown as (AlertRow & {
     id: string;
     tenant_id: string;
+    key: string;
     send_attempts: number;
     telegram_sent_at: string | null;
     whatsapp_sent_at: string | null;
@@ -138,7 +227,10 @@ async function sendPending(db: SupabaseClient): Promise<Record<string, number>> 
 
   const tenants = [...new Set(alerts.map((a) => a.tenant_id))];
   const { data: settingRows } = await db.from('alert_settings').select('*').in('tenant_id', tenants);
-  const settings = new Map(((settingRows ?? []) as (AlertSettings & { tenant_id: string; whatsapp_numbers: string[] | null })[]).map((s) => [s.tenant_id, s]));
+  const settings = new Map(
+    ((settingRows ?? []) as (AlertSettings & { tenant_id: string; whatsapp_numbers: string[] | null; lang: string | null })[]).map((s) => [s.tenant_id, s]),
+  );
+  const billing = await billingContext(db, alerts.filter((a) => a.kind === 'billing'));
   const waCfg = await waConfig(db);
   let waDown = false; // the sender is offline: stop trying it for the rest of this run
   // WhatsApp alerts each business got in the last hour (counted once, then kept up to date here).
@@ -155,8 +247,15 @@ async function sendPending(db: SupabaseClient): Promise<Record<string, number>> 
   const out = { sent: 0, skipped: 0, failed: 0 };
   for (const a of alerts) {
     const s = settings.get(a.tenant_id);
-    const wanted = !!s && wantsAlert(s, a.kind);
-    const numbers = (s?.whatsapp_numbers ?? []).filter((n) => WA_NUMBER_RE.test(n));
+    const isBilling = a.kind === 'billing';
+    // Billing messages always go, even to a business that never opened its alert settings.
+    const wanted = isBilling || (!!s && wantsAlert(s, a.kind));
+    let numbers = (s?.whatsapp_numbers ?? []).filter((n) => WA_NUMBER_RE.test(n));
+    if (isBilling && !numbers.length) {
+      // No alert numbers saved: billing messages go to the phone given at sign-up.
+      const contact = billing.contactPhone.get(a.tenant_id);
+      if (contact) numbers = [contact];
+    }
     const wantTg = wanted && !!botToken() && !!s?.telegram_chat_id && !a.telegram_sent_at;
     let wantWa = wanted && !!waCfg && numbers.length > 0 && !a.whatsapp_sent_at;
     const now = new Date().toISOString();
@@ -174,7 +273,7 @@ async function sendPending(db: SupabaseClient): Promise<Record<string, number>> 
       continue;
     }
 
-    const text = alertMessage(a, a.tenants?.name ?? '');
+    const text = (isBilling && billing.render(a, isLang(s?.lang) ? s.lang : 'en')) || alertMessage(a, a.tenants?.name ?? '');
     const errors: string[] = waNote ? [waNote] : [];
     const patch: Record<string, unknown> = {};
     if (wantTg) {
@@ -252,7 +351,7 @@ async function whatsappTest(db: SupabaseClient, req: Request) {
   const caller = await requireAdmin(req, db);
   const c = await waConfig(db);
   if (!c) throw new HttpError(400, 'WhatsApp sending is not set up yet. Ask Hotzonex Cloud.');
-  const { data: s } = await db.from('alert_settings').select('whatsapp_numbers').eq('tenant_id', caller.tenantId).maybeSingle();
+  const { data: s } = await db.from('alert_settings').select('whatsapp_numbers, lang').eq('tenant_id', caller.tenantId).maybeSingle();
   const numbers = ((s?.whatsapp_numbers as string[] | null) ?? []).filter((n) => WA_NUMBER_RE.test(n));
   if (!numbers.length) throw new HttpError(400, 'Add a WhatsApp number first.');
   const { count } = await db
@@ -264,7 +363,13 @@ async function whatsappTest(db: SupabaseClient, req: Request) {
   if ((count ?? 0) >= WA_TESTS_PER_10_MIN) throw new HttpError(429, 'Too many test messages. Wait 10 minutes and try again.');
   await audit(db, caller, 'alerts.whatsapp_test', { numbers: numbers.length });
   const { data: t } = await db.from('tenants').select('name').eq('id', caller.tenantId).maybeSingle();
-  const text = `✅ ${t?.name ?? 'Hotzonex'}: test alert from Hotzonex Cloud. Alerts will come to this WhatsApp.`;
+  const name = t?.name ?? 'Hotzonex';
+  const lang: Lang = isLang(s?.lang) ? s.lang : 'en';
+  const text = {
+    en: `✅ ${name}: test message from Hotzonex Cloud. Alerts and billing reminders will come to this WhatsApp.`,
+    ar: `✅ ${name}: رسالة تجريبية من Hotzonex Cloud. ستصلك التنبيهات وتذكيرات الفواتير على هذا الواتساب.`,
+    sw: `✅ ${name}: ujumbe wa majaribio kutoka Hotzonex Cloud. Arifa na vikumbusho vya malipo vitakuja kwenye WhatsApp hii.`,
+  }[lang];
   const sent: string[] = [];
   const failed: string[] = [];
   for (const n of numbers) {
@@ -298,6 +403,36 @@ async function whatsappSetup(db: SupabaseClient, req: Request) {
   await audit(db, caller, 'alerts.whatsapp_setup', {});
   const base = (Deno.env.get('SUPABASE_URL') ?? '').replace(/\/$/, '');
   return { command: `curl -fsSL "${base}/functions/v1/alerts?f=wa-install" | sudo HZC_WA_SECRET=${secret} bash` };
+}
+
+/** Platform admin: the billing messages (defaults and the saved custom texts) for the editor. */
+async function billingTemplates(db: SupabaseClient, req: Request) {
+  await requirePlatformAdmin(req, db);
+  return {
+    codes: BILLING_CODES.map((code) => ({ code, label: BILLING_LABELS[code], vars: BILLING_VARS[code] })),
+    langs: LANGS,
+    defaults: DEFAULT_TEMPLATES,
+    custom: await customTemplates(db),
+  };
+}
+
+async function billingTemplatesSave(db: SupabaseClient, req: Request, body: Record<string, unknown>) {
+  const caller = await requirePlatformAdmin(req, db);
+  const custom = cleanTemplates(body.custom);
+  for (const code of BILLING_CODES) {
+    for (const lang of LANGS) {
+      const t = custom[code]?.[lang];
+      if (!t) continue;
+      const bad = unknownVars(code, t);
+      if (bad.length) throw new HttpError(400, `"${BILLING_LABELS[code]}" (${lang}): {${bad.join('}, {')}} is not a word this message knows.`);
+      // Same as the default: no need to keep a copy.
+      if (t === DEFAULT_TEMPLATES[code][lang]) delete custom[code]![lang];
+    }
+  }
+  const { error } = await db.from('app_config').upsert({ key: 'billing_templates', value: JSON.stringify(custom) }, { onConflict: 'key' });
+  if (error) throw new Error(`Could not save the billing messages: ${error.message}`);
+  await audit(db, caller, 'billing.templates_saved', { changed: Object.keys(custom) });
+  return { custom };
 }
 
 async function whatsappLogout(db: SupabaseClient, req: Request) {
@@ -432,6 +567,10 @@ async function handle(req: Request): Promise<Response> {
         return json(await whatsappSetup(db, req));
       case 'whatsapp_logout':
         return json(await whatsappLogout(db, req));
+      case 'billing_templates':
+        return json(await billingTemplates(db, req));
+      case 'billing_templates_save':
+        return json(await billingTemplatesSave(db, req, body));
       default:
         throw new HttpError(400, 'Unknown action.');
     }

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../../auth/AuthProvider';
 import { PageHeader } from '../../components/PageHeader';
-import { Alert, Badge, Button, Card, Checkbox, Field, Spinner, TextArea, TextInput } from '../../components/ui';
+import { Alert, Badge, Button, Card, Checkbox, Field, Select, Spinner, TextArea, TextInput } from '../../components/ui';
 import { friendlyError } from '../../lib/errors';
 import { formatJubaTime } from '../../lib/format';
 import { invokeFunction } from '../../lib/functions';
@@ -18,7 +18,14 @@ interface AlertSettings {
   low_stock_threshold: number;
   notify_payments: boolean;
   whatsapp_numbers: string[];
+  lang: 'en' | 'ar' | 'sw';
 }
+
+const LANGUAGES: { key: AlertSettings['lang']; label: string }[] = [
+  { key: 'en', label: 'English' },
+  { key: 'ar', label: 'العربية (Arabic)' },
+  { key: 'sw', label: 'Kiswahili' },
+];
 
 interface AlertRow {
   id: string;
@@ -146,10 +153,18 @@ function WhatsAppCard({ settings }: { settings: AlertSettings }) {
     },
   });
   const test = useMutation({ mutationFn: () => invokeFunction<{ sent: string[]; failed: string[] }>('alerts', { action: 'whatsapp_test' }) });
+  const language = useMutation({
+    mutationFn: async (lang: AlertSettings['lang']) => {
+      const { data, error } = await supabase.rpc('save_alert_language', { p_lang: lang });
+      if (error) throw new Error(friendlyError(error));
+      return fromJson<AlertSettings>(data);
+    },
+    onSuccess: (d) => queryClient.setQueryData(['alert-settings'], d),
+  });
 
   const s = status.data;
   const hasNumbers = settings.whatsapp_numbers.length > 0;
-  const error = save.error ?? test.error;
+  const error = save.error ?? test.error ?? language.error;
   return (
     <Card className="space-y-3">
       <h2 className="text-lg font-bold">WhatsApp</h2>
@@ -173,6 +188,15 @@ function WhatsAppCard({ settings }: { settings: AlertSettings }) {
       )}
       <Field label="WhatsApp numbers (up to 5, one per line)" hint="For example 0924904216 or +211924904216. Numbers starting with 0 are South Sudan numbers.">
         <TextArea rows={3} inputMode="tel" value={text} onChange={(e) => setText(e.target.value.slice(0, 200))} placeholder="0924904216" />
+      </Field>
+      <Field label="Language of Hotzonex messages" hint="Billing reminders (free trial or paid month ending, invoices) come in this language.">
+        <Select value={settings.lang} onChange={(e) => language.mutate(e.target.value as AlertSettings['lang'])} disabled={language.isPending}>
+          {LANGUAGES.map((l) => (
+            <option key={l.key} value={l.key}>
+              {l.label}
+            </option>
+          ))}
+        </Select>
       </Field>
       <div className="flex flex-wrap gap-2">
         <Button onClick={() => save.mutate()} disabled={save.isPending || text.trim() === saved.trim()}>

@@ -113,6 +113,7 @@ export type Database = {
       }
       alert_settings: {
         Row: {
+          lang: string
           link_code: string | null
           link_code_expires_at: string | null
           low_stock_threshold: number
@@ -127,6 +128,7 @@ export type Database = {
           whatsapp_numbers: string[]
         }
         Insert: {
+          lang?: string
           link_code?: string | null
           link_code_expires_at?: string | null
           low_stock_threshold?: number
@@ -141,6 +143,7 @@ export type Database = {
           whatsapp_numbers?: string[]
         }
         Update: {
+          lang?: string
           link_code?: string | null
           link_code_expires_at?: string | null
           low_stock_threshold?: number
@@ -1660,6 +1663,7 @@ export type Database = {
         Returns: undefined
       }
       billing_overview: { Args: never; Returns: Json }
+      billing_reminders: { Args: never; Returns: number }
       billing_run: { Args: never; Returns: Json }
       billing_tenant_of_caller: { Args: never; Returns: string }
       billing_usage: { Args: never; Returns: Json }
@@ -1883,6 +1887,7 @@ export type Database = {
       router_code_length: { Args: { p_router_id: string }; Returns: number }
       router_own_profiles: { Args: { p_info: Json }; Returns: string[] }
       router_secret_key: { Args: never; Returns: string }
+      save_alert_language: { Args: { p_lang: string }; Returns: Json }
       save_alert_whatsapp: { Args: { p_numbers: string[] }; Returns: Json }
       save_alert_settings: {
         Args: {
