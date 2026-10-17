@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { HotspotSetup, RouterConnectionStatus, SetupScriptCard } from '../../components/RouterSetup';
 import { useTunnelServer } from '../../hooks/useTunnelServer';
-import { Alert, Button, Spinner } from '../../components/ui';
+import { PageHeader } from '../../components/PageHeader';
+import { Alert, Button, Field, Select, Spinner, TextInput } from '../../components/ui';
 import { friendlyError } from '../../lib/errors';
 import { invokeFunction } from '../../lib/functions';
 import { RouterTimeoutError, waitForJob } from '../../lib/jobs';
@@ -33,18 +34,6 @@ type Phase =
   | { kind: 'success'; routerId: string; result: TestConnectionResult }
   | { kind: 'failed'; message: string; routerId?: string };
 
-/** Outlined field with the label sitting on the border, like the MikroTik apps. */
-function Outlined({ label, children, className = '' }: { label: string; children: ReactNode; className?: string }) {
-  return (
-    <label className={`relative block rounded-2xl border-2 border-slate-800 px-4 pb-2 pt-3 focus-within:border-brand-600 ${className}`}>
-      <span className="absolute -top-2.5 left-3 bg-white px-1 text-sm text-slate-500">{label}</span>
-      {children}
-    </label>
-  );
-}
-
-const inputClass = 'min-h-11 w-full bg-transparent py-1 text-lg text-slate-900 outline-none placeholder:text-slate-500 disabled:text-slate-500';
-
 export function RouterFormPage() {
   const { id } = useParams<{ id: string }>();
   const isEdit = Boolean(id);
@@ -64,14 +53,18 @@ export function RouterFormPage() {
     enabled: isEdit,
     queryFn: async (): Promise<RouterInfo | null> => {
       const { data, error } = await supabase.from('routers').select(ROUTER_COLUMNS).eq('id', id ?? '').maybeSingle();
-      if (error) throw new Error(error.message);
+      if (error) throw new Error(friendlyError(error));
       return data as RouterInfo | null;
     },
   });
 
+  // Fill the form once per router: ['router', id] is refetched every few seconds while the hotspot
+  // setup is shown, and re-filling would wipe what the user is typing (including the password).
+  const seededFor = useRef<string | null>(null);
   useEffect(() => {
     const r = existing.data;
-    if (r) {
+    if (r && seededFor.current !== r.id) {
+      seededFor.current = r.id;
       setForm({
         host: r.host ?? '',
         port: String(r.port ?? 80),
@@ -148,14 +141,14 @@ export function RouterFormPage() {
   if (isEdit && !existing.isLoading && !existing.data) return <Alert tone="error">This router no longer exists.</Alert>;
 
   const header = (title: string) => (
-    <div className="-mx-4 -mt-4 mb-6 border-b-2 border-brand-600 bg-slate-50 px-4 py-4 sm:-mx-6 sm:px-6">
-      <div className="flex items-center gap-4">
-        <button type="button" aria-label="Back" className="-ml-2 flex h-11 w-11 items-center justify-center rounded-lg text-2xl text-slate-800 hover:bg-slate-200" onClick={() => navigate('/routers')}>
-          ←
-        </button>
-        <h1 className="text-2xl font-bold text-slate-900">{title}</h1>
-      </div>
-    </div>
+    <PageHeader
+      title={title}
+      actions={
+        <Button variant="ghost" onClick={() => navigate('/routers')}>
+          ← Routers
+        </Button>
+      }
+    />
   );
 
   if (phase.kind === 'setup') {
@@ -209,10 +202,10 @@ export function RouterFormPage() {
   const servers = existing.data?.hotspot_info?.servers ?? [];
 
   return (
-    <div className="max-w-3xl">
-      {header(switchToTunnel ? 'Switch to tunnel' : isEdit ? 'Edit Router' : 'New Router')}
+    <div className="max-w-3xl space-y-4">
+      {header(switchToTunnel ? 'Switch to tunnel' : isEdit ? 'Edit router' : 'New router')}
 
-      <form onSubmit={handleSubmit} className="space-y-6" noValidate>
+      <form onSubmit={handleSubmit} className="space-y-4" noValidate>
         {switchToTunnel && (
           <Alert tone="info">
             Hotzonex will reach this router through your tunnel server instead of the <code>hzc-cloud</code> scheduler. Enter the router’s login and the port
@@ -227,22 +220,25 @@ export function RouterFormPage() {
           </p>
         )}
         <div className="flex gap-3">
-          <Outlined label="Address" className="flex-1">
-            <input className={inputClass} value={form.host} onChange={(e) => set('host', e.target.value)} placeholder="192.168.88.1" autoComplete="off" disabled={busy} />
-          </Outlined>
-          <Outlined label="Port" className="w-28">
-            <input className={inputClass} value={form.port} onChange={(e) => set('port', e.target.value.replace(/\D/g, ''))} inputMode="numeric" disabled={busy} />
-          </Outlined>
+          <div className="min-w-0 flex-1">
+            <Field label="Address">
+              <TextInput value={form.host} onChange={(e) => set('host', e.target.value)} placeholder="192.168.88.1" autoComplete="off" disabled={busy} />
+            </Field>
+          </div>
+          <div className="w-28">
+            <Field label="Port">
+              <TextInput value={form.port} onChange={(e) => set('port', e.target.value.replace(/\D/g, ''))} inputMode="numeric" disabled={busy} />
+            </Field>
+          </div>
         </div>
 
-        <Outlined label="Username">
-          <input className={inputClass} value={form.username} onChange={(e) => set('username', e.target.value)} autoComplete="off" disabled={busy} />
-        </Outlined>
+        <Field label="Username">
+          <TextInput value={form.username} onChange={(e) => set('username', e.target.value)} autoComplete="off" disabled={busy} />
+        </Field>
 
-        <Outlined label="Password">
+        <Field label="Password">
           <div className="flex items-center gap-2">
-            <input
-              className={inputClass}
+            <TextInput
               type={showPassword ? 'text' : 'password'}
               value={form.password}
               onChange={(e) => set('password', e.target.value)}
@@ -250,44 +246,44 @@ export function RouterFormPage() {
               autoComplete="new-password"
               disabled={busy}
             />
-            <button type="button" className="min-h-11 px-2 text-sm font-semibold text-slate-700" onClick={() => setShowPassword((v) => !v)}>
+            <Button variant="ghost" className="shrink-0" onClick={() => setShowPassword((v) => !v)}>
               {showPassword ? 'Hide' : 'Show'}
-            </button>
+            </Button>
           </div>
-        </Outlined>
+        </Field>
 
-        <Outlined label="Comment">
-          <input className={inputClass} value={form.comment} onChange={(e) => set('comment', e.target.value)} placeholder="e.g. Jebel Iraq main" maxLength={60} disabled={busy} />
-        </Outlined>
+        <Field label="Comment">
+          <TextInput value={form.comment} onChange={(e) => set('comment', e.target.value)} placeholder="e.g. Jebel Iraq main" maxLength={60} disabled={busy} />
+        </Field>
 
         {activeSites.length > 1 && (
-          <Outlined label="Site">
-            <select className={inputClass} value={form.site_id} onChange={(e) => set('site_id', e.target.value)} disabled={busy}>
+          <Field label="Site">
+            <Select value={form.site_id} onChange={(e) => set('site_id', e.target.value)} disabled={busy}>
               <option value="">Choose a site…</option>
               {activeSites.map((s) => (
                 <option key={s.id} value={s.id}>
                   {s.name}
                 </option>
               ))}
-            </select>
-          </Outlined>
+            </Select>
+          </Field>
         )}
 
         {isEdit && servers.length > 0 && (
-          <div className="grid gap-6 sm:grid-cols-2">
-            <Outlined label="Hotspot (on the router)">
-              <select className={inputClass} value={form.hotspot_server} onChange={(e) => set('hotspot_server', e.target.value)} disabled={busy}>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Hotspot (on the router)">
+              <Select value={form.hotspot_server} onChange={(e) => set('hotspot_server', e.target.value)} disabled={busy}>
                 {servers.map((h) => (
                   <option key={h.name} value={h.name} disabled={h.disabled}>
                     {h.name}
                     {h.disabled ? ' (switched off)' : ''}
                   </option>
                 ))}
-              </select>
-            </Outlined>
-            <Outlined label="Login address on cards">
-              <input className={inputClass} value={form.dns_name} onChange={(e) => set('dns_name', e.target.value)} placeholder="hotzonex.wifi" disabled={busy} />
-            </Outlined>
+              </Select>
+            </Field>
+            <Field label="Login address on cards">
+              <TextInput value={form.dns_name} onChange={(e) => set('dns_name', e.target.value)} placeholder="hotzonex.wifi" disabled={busy} />
+            </Field>
           </div>
         )}
 
@@ -301,11 +297,7 @@ export function RouterFormPage() {
           </Alert>
         )}
 
-        <button
-          type="submit"
-          disabled={busy}
-          className="flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl bg-brand-600 text-lg font-bold text-white hover:bg-brand-700 disabled:opacity-60"
-        >
+        <Button type="submit" disabled={busy} className="min-h-14 w-full text-lg">
           {busy ? (
             <>
               <Spinner /> {phase.kind === 'saving' ? 'Saving…' : 'Connecting…'}
@@ -317,18 +309,14 @@ export function RouterFormPage() {
           ) : (
             'Connect'
           )}
-        </button>
+        </Button>
 
         <p className="text-center text-sm text-slate-500">
           Hotzonex uses the hotspot already set up on your router and never changes it or its profiles. Plans and vouchers are managed here in Hotzonex.
         </p>
       </form>
 
-      {phase.kind === 'failed' && phase.routerId && (
-        <div className="mt-6">
-          <HotspotSetup routerId={phase.routerId} />
-        </div>
-      )}
+      {phase.kind === 'failed' && phase.routerId && <HotspotSetup routerId={phase.routerId} />}
     </div>
   );
 }

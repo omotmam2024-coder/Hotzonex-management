@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { CONTACT, whatsappLink } from '../../lib/contact';
-import { formatNumber } from '../../lib/format';
+import { formatNumber, formatSSP } from '../../lib/format';
 import { supabaseAnonKey, supabaseUrl } from '../../lib/supabase';
 
 interface PublicPlan {
@@ -32,7 +32,7 @@ const DEFAULT_PRICING: Pricing = {
   ],
 };
 
-/** The live plans and prices (no login needed); keeps the defaults when offline or not set up yet. */
+/** The live plans and prices (no login needed); keeps the defaults as an offline fallback if they cannot load. */
 function usePricing(): Pricing {
   const [pricing, setPricing] = useState(DEFAULT_PRICING);
   useEffect(() => {
@@ -188,7 +188,7 @@ export function LandingPage() {
                   <h3 className="text-xl font-bold">{p.name}</h3>
                   <p className="mt-1 text-slate-600">{p.description}</p>
                   <p className="mt-4">
-                    <span className="text-3xl font-extrabold">{formatNumber(price)} SSP</span>
+                    <span className="text-3xl font-extrabold">{formatSSP(price)}</span>
                     <span className="text-slate-600"> per router / month</span>
                   </p>
                   <ul className="mt-4 flex-1 space-y-1 text-slate-700">

@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { friendlyError } from '../lib/errors';
-import { supabase } from '../lib/supabase';
+import { fromJson, supabase } from '../lib/supabase';
 
 export interface Invoice {
   id: string;
@@ -28,6 +28,9 @@ interface BillingOverview {
   invoices: Invoice[];
 }
 
+/** billing_overview's jsonb: a business with no billing row has no exempt flag or invoices. */
+type BillingOverviewJson = Omit<BillingOverview, 'exempt' | 'invoices'> & { exempt?: boolean | null; invoices?: Invoice[] | null };
+
 export function useBillingOverview(enabled = true) {
   return useQuery({
     queryKey: ['billing'],
@@ -36,8 +39,8 @@ export function useBillingOverview(enabled = true) {
     queryFn: async (): Promise<BillingOverview> => {
       const { data, error } = await supabase.rpc('billing_overview');
       if (error) throw new Error(friendlyError(error));
-      const b = (data ?? {}) as Partial<BillingOverview>;
-      return { ...b, exempt: b.exempt ?? true, invoices: Array.isArray(b.invoices) ? b.invoices : [] } as BillingOverview;
+      const b = fromJson<BillingOverviewJson>(data ?? {});
+      return { ...b, exempt: b.exempt ?? true, invoices: Array.isArray(b.invoices) ? b.invoices : [] };
     },
   });
 }

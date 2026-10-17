@@ -125,10 +125,10 @@ export function BusinessesPage() {
   const list = useQuery({
     queryKey: ['businesses'],
     enabled: twoStep,
-    queryFn: async () => {
+    queryFn: async (): Promise<BusinessRow[]> => {
       const { data, error } = await supabase.rpc('platform_tenants');
       if (error) throw error;
-      return (data ?? []) as BusinessRow[];
+      return data ?? [];
     },
   });
 

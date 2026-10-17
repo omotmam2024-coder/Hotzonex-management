@@ -42,6 +42,9 @@ function StaffEditor({ initial, onClose }: { initial: StaffForm; onClose: () => 
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['staff'] });
+      void queryClient.invalidateQueries({ queryKey: ['staff-options'] });
+      void queryClient.invalidateQueries({ queryKey: ['staff-options-full'] });
+      void queryClient.invalidateQueries({ queryKey: ['billing-usage'] });
       onClose();
     },
   });

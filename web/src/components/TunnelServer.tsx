@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useTunnelServer } from '../hooks/useTunnelServer';
 import { friendlyError } from '../lib/errors';
-import { Alert, Badge, Button, Card, Spinner } from './ui';
+import { Alert, Badge, Button, Card, Spinner, textButtonClass } from './ui';
 
 /** Explains the tunnel server and gives the one install command for the VPS. */
 export function TunnelServerCard() {
@@ -85,7 +85,7 @@ export function TunnelServerCard() {
         </div>
       )}
       {t.ready && (
-        <button type="button" className="mt-2 text-sm font-semibold text-brand-700 underline" onClick={() => setOpen((v) => !v)}>
+        <button type="button" className={`${textButtonClass} -ml-2 mt-1 text-brand-700`} onClick={() => setOpen((v) => !v)}>
           {open ? 'Hide install command' : 'Show install command'}
         </button>
       )}

@@ -57,7 +57,7 @@ export function BusinessSettingsForm({ onSaved, saveLabel = 'Save' }: { onSaved?
       if (!business) throw new Error('Your business is not loaded yet.');
       const path = `${business.id}/logo-${Date.now()}.${ext}`;
       const { error } = await supabase.storage.from('logos').upload(path, file, { contentType: file.type, upsert: false });
-      if (error) throw new Error(/bucket not found/i.test(error.message) ? 'Logo uploads need the database update of 16 October (migration 20261016180000).' : friendlyError(error));
+      if (error) throw new Error(friendlyError(error));
       return supabase.storage.from('logos').getPublicUrl(path).data.publicUrl;
     },
     onSuccess: (url) => {
@@ -70,7 +70,6 @@ export function BusinessSettingsForm({ onSaved, saveLabel = 'Save' }: { onSaved?
     mutationFn: async () => {
       const v = validate(settingsSchema, { name, usdRate });
       const { error } = await supabase.rpc('save_business_settings', { p_name: v.name, p_logo_url: logoUrl || null, p_usd_rate: v.usdRate });
-      if (error?.code === 'PGRST202') throw new Error('Business settings need the database update of 16 October (migration 20261016180000).');
       if (error) throw new Error(friendlyError(error));
     },
     onSuccess: async () => {
@@ -99,9 +98,7 @@ export function BusinessSettingsForm({ onSaved, saveLabel = 'Save' }: { onSaved?
 
   return (
     <div className="space-y-4">
-      {settings.data?.needsUpdate && (
-        <Alert tone="warning">These settings need the database update of 16 October (migration 20261016180000). Ask Hotzonex Cloud to apply it.</Alert>
-      )}
+      {settings.error && <Alert tone="error">{friendlyError(settings.error)}</Alert>}
       <form onSubmit={submit} className="space-y-5" noValidate>
           <Field label="Business name" hint="Shown on printed cards and on your Buy page.">
             <TextInput value={name} onChange={(e) => setName(e.target.value)} maxLength={100} autoComplete="organization" />

@@ -4,6 +4,7 @@ import { useAuth } from '../../auth/AuthProvider';
 import { friendlyError } from '../../lib/errors';
 import { homePathFor } from '../../lib/nav';
 import { supabase } from '../../lib/supabase';
+import { Alert } from '../../components/ui';
 
 type Stage = 'checking' | 'ready' | 'bad_link' | 'done';
 
@@ -93,9 +94,9 @@ export function ResetPasswordPage() {
 
         {stage === 'bad_link' && (
           <div className="space-y-4">
-            <p role="alert" className="rounded-xl bg-red-50 p-3 text-sm font-medium text-red-800">
+            <Alert tone="error">
               {linkError} Reset links work once and expire after an hour; ask for a new one.
-            </p>
+            </Alert>
             <Link to="/login" className="block text-center font-semibold text-brand-700 hover:underline">
               Back to login
             </Link>
@@ -113,9 +114,9 @@ export function ResetPasswordPage() {
               <input type="password" autoComplete="new-password" required value={confirm} onChange={(e) => setConfirm(e.target.value)} className={input} />
             </label>
             {error && (
-              <p role="alert" className="rounded-xl bg-red-50 p-3 text-sm font-medium text-red-800">
+              <Alert tone="error">
                 {error}
-              </p>
+              </Alert>
             )}
             <button
               type="submit"
@@ -129,7 +130,7 @@ export function ResetPasswordPage() {
 
         {stage === 'done' && (
           <div className="space-y-4 text-center">
-            <p className="rounded-xl bg-green-50 p-3 text-sm font-medium text-green-800">Your password is changed.</p>
+            <Alert tone="success">Your password is changed.</Alert>
             <button
               type="button"
               onClick={() => navigate(profile ? homePathFor(profile.role) : '/', { replace: true })}

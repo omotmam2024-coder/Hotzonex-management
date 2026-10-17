@@ -1,10 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { friendlyError } from '../lib/errors';
-import { formatJubaTime, formatNumber } from '../lib/format';
+import { formatJubaDate, formatJubaTime, formatSSP, jubaToday } from '../lib/format';
 import { fromJson, supabase } from '../lib/supabase';
 import { BusinessPlanControl, PlansCard } from './PlanLimits';
-import { Alert, Badge, Button, Card, Checkbox, Field, Spinner, TextInput } from './ui';
+import { Alert, Badge, Button, Card, Checkbox, Field, Spinner, TextArea, TextInput } from './ui';
 
 interface PlatformInvoice {
   id: string;
@@ -42,6 +42,37 @@ interface PlatformBillingData {
 
 const KEY = ['platform-billing'];
 
+const jubaParts = new Intl.DateTimeFormat('en-US', {
+  timeZone: 'Africa/Juba',
+  hourCycle: 'h23',
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+  hour: '2-digit',
+  minute: '2-digit',
+});
+
+/** A moment's wall-clock parts in Juba. */
+function jubaClock(date: Date) {
+  const parts = jubaParts.formatToParts(date);
+  const get = (type: Intl.DateTimeFormatPartTypes) => parts.find((x) => x.type === type)?.value ?? '00';
+  return { year: get('year'), month: get('month'), day: get('day'), hour: get('hour'), minute: get('minute') };
+}
+
+/** The Juba calendar day (YYYY-MM-DD) of a timestamp. */
+function jubaDay(iso: string): string {
+  const c = jubaClock(new Date(iso));
+  return `${c.year}-${c.month}-${c.day}`;
+}
+
+/** 23:59 Juba time on a YYYY-MM-DD day, as an ISO timestamp (Juba's UTC offset worked out, not hard-coded). */
+function jubaEndOfDay(day: string): string {
+  const guess = new Date(`${day}T23:59:00Z`);
+  const c = jubaClock(guess);
+  const offset = Date.UTC(Number(c.year), Number(c.month) - 1, Number(c.day), Number(c.hour), Number(c.minute)) - guess.getTime();
+  return new Date(guess.getTime() - offset).toISOString();
+}
+
 function ConfigCard({ config }: { config: PlatformBillingData['config'] }) {
   const queryClient = useQueryClient();
   const [f, setF] = useState({ price: String(config.price_per_router_ssp), howto: config.instructions, grace: String(config.grace_days), trial: String(config.trial_days) });
@@ -77,12 +108,7 @@ function ConfigCard({ config }: { config: PlatformBillingData['config'] }) {
         </Field>
       </div>
       <Field label="How businesses pay you" hint="Shown on their invoices, e.g. MTN MoMo 092 123 4567 (Hotzonex Cloud), reference = invoice number">
-        <textarea
-          value={f.howto}
-          onChange={(e) => setF((x) => ({ ...x, howto: e.target.value.slice(0, 500) }))}
-          rows={2}
-          className="w-full rounded-xl border border-slate-300 p-3 text-base focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100"
-        />
+        <TextArea value={f.howto} onChange={(e) => setF((x) => ({ ...x, howto: e.target.value.slice(0, 500) }))} rows={2} />
       </Field>
       <Button onClick={() => save.mutate()} disabled={save.isPending}>
         {save.isPending && <Spinner />} Save
@@ -97,8 +123,11 @@ function BusinessBilling({ b, stdPrice }: { b: PlatformBusiness; stdPrice: numbe
   const queryClient = useQueryClient();
   const [exempt, setExempt] = useState(Boolean(b.exempt));
   const [price, setPrice] = useState(b.price_per_router_ssp === null ? '' : String(b.price_per_router_ssp));
-  const [trialEnd, setTrialEnd] = useState(b.trial_ends_at ? b.trial_ends_at.slice(0, 10) : '');
+  const [trialEnd, setTrialEnd] = useState(b.trial_ends_at ? jubaDay(b.trial_ends_at) : '');
+  // After a refetch, show what is saved.
   useEffect(() => setExempt(Boolean(b.exempt)), [b.exempt]);
+  useEffect(() => setPrice(b.price_per_router_ssp === null ? '' : String(b.price_per_router_ssp)), [b.price_per_router_ssp]);
+  useEffect(() => setTrialEnd(b.trial_ends_at ? jubaDay(b.trial_ends_at) : ''), [b.trial_ends_at]);
 
   const save = useMutation({
     // trialOverride: a new trial end chosen with a shortcut (saved at once).
@@ -108,7 +137,7 @@ function BusinessBilling({ b, stdPrice }: { b: PlatformBusiness; stdPrice: numbe
         p_tenant_id: b.tenant_id,
         p_exempt: exempt,
         p_price: price.trim() === '' ? null : Number(price),
-        p_trial_ends_at: day ? new Date(`${day}T23:59:00+02:00`).toISOString() : null,
+        p_trial_ends_at: day ? jubaEndOfDay(day) : null,
       });
       if (error) throw new Error(friendlyError(error));
     },
@@ -116,12 +145,12 @@ function BusinessBilling({ b, stdPrice }: { b: PlatformBusiness; stdPrice: numbe
   });
   // From the later of today and the current trial end.
   function extendTrial(days: number) {
-    const today = new Date().toISOString().slice(0, 10);
+    const today = jubaToday();
     const from = trialEnd && trialEnd > today ? trialEnd : today;
     const end = new Date(`${from}T12:00:00Z`);
     end.setUTCDate(end.getUTCDate() + days);
     const next = end.toISOString().slice(0, 10);
-    if (!window.confirm(`Free trial for ${b.name} until ${next}?`)) return;
+    if (!window.confirm(`Free trial for ${b.name} until ${formatJubaDate(next)}?`)) return;
     setTrialEnd(next);
     save.mutate(next);
   }
@@ -132,7 +161,17 @@ function BusinessBilling({ b, stdPrice }: { b: PlatformBusiness; stdPrice: numbe
       if (error) throw new Error(friendlyError(error));
     },
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: KEY }),
+    onSettled: () => {
+      markInFlight.current = false;
+    },
   });
+  // Blocks a second tap before the button disables.
+  const markInFlight = useRef(false);
+  function markInvoice(id: string, status: 'paid' | 'void', question: string) {
+    if (markInFlight.current || !window.confirm(question)) return;
+    markInFlight.current = true;
+    mark.mutate({ id, status });
+  }
 
   return (
     <li className="space-y-2 py-4">
@@ -155,7 +194,7 @@ function BusinessBilling({ b, stdPrice }: { b: PlatformBusiness; stdPrice: numbe
       </div>
       <div className="grid gap-2 sm:grid-cols-[auto_12rem_12rem_auto] sm:items-end">
         <Checkbox label="Not billed" checked={exempt} onChange={setExempt} />
-        <Field label="Own price (SSP)" hint={`Empty: standard ${formatNumber(stdPrice)}`}>
+        <Field label="Own price (SSP)" hint={`Empty: standard ${formatSSP(stdPrice)}`}>
           <TextInput inputMode="numeric" value={price} onChange={(e) => setPrice(e.target.value.replace(/\D/g, '').slice(0, 9))} />
         </Field>
         <Field label="Trial until">
@@ -172,7 +211,7 @@ function BusinessBilling({ b, stdPrice }: { b: PlatformBusiness; stdPrice: numbe
           {b.invoices.map((i) => (
             <li key={i.id} className="flex flex-wrap items-center justify-between gap-2">
               <span>
-                <b>{i.number}</b> · {formatNumber(i.amount_ssp)} SSP · {i.routers} router{i.routers === 1 ? '' : 's'} ·{' '}
+                <b>{i.number}</b> · {formatSSP(i.amount_ssp)} · {i.routers} router{i.routers === 1 ? '' : 's'} ·{' '}
                 {i.status === 'open' ? `due ${formatJubaTime(i.due_at)}` : i.status === 'paid' ? `paid ${i.paid_ref ? `(ref ${i.paid_ref})` : ''}` : 'void'}
                 {i.status === 'open' && i.customer_ref && (
                   <span className="ml-1 font-semibold text-brand-800">· says paid, ref {i.customer_ref}</span>
@@ -181,12 +220,12 @@ function BusinessBilling({ b, stdPrice }: { b: PlatformBusiness; stdPrice: numbe
               {i.status === 'open' && (
                 <span className="flex gap-2">
                   <Button
-                    onClick={() => window.confirm(`Did ${formatNumber(i.amount_ssp)} SSP for ${i.number} arrive?`) && mark.mutate({ id: i.id, status: 'paid' })}
+                    onClick={() => markInvoice(i.id, 'paid', `Did ${formatSSP(i.amount_ssp)} for ${i.number} arrive?`)}
                     disabled={mark.isPending}
                   >
                     Mark paid
                   </Button>
-                  <Button variant="ghost" onClick={() => window.confirm(`Cancel ${i.number}?`) && mark.mutate({ id: i.id, status: 'void' })} disabled={mark.isPending}>
+                  <Button variant="ghost" onClick={() => markInvoice(i.id, 'void', `Cancel ${i.number}?`)} disabled={mark.isPending}>
                     Void
                   </Button>
                 </span>
@@ -210,9 +249,9 @@ export function PlatformBilling() {
       return fromJson<PlatformBillingData>(data);
     },
   });
-  if (data.isLoading) return <Spinner />;
   if (data.error) return <Alert tone="error">{friendlyError(data.error)}</Alert>;
-  const d = data.data!;
+  const d = data.data;
+  if (!d) return data.fetchStatus === 'paused' ? <Alert tone="warning">No internet connection. Billing loads when you are back online.</Alert> : <Spinner />;
   return (
     <div className="space-y-4">
       <ConfigCard config={d.config} />

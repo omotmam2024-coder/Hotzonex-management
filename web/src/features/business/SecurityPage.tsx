@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../../auth/AuthProvider';
 import { PageHeader } from '../../components/PageHeader';
-import { Alert, Badge, Button, Card, Spinner } from '../../components/ui';
+import { Alert, Badge, Button, Card, Spinner, TextInput } from '../../components/ui';
 import { friendlyError } from '../../lib/errors';
 import { supabase } from '../../lib/supabase';
 
@@ -103,12 +103,13 @@ export function SecurityPage() {
             </p>
             <p className="font-semibold">2. Type the 6-digit code the app shows:</p>
             <div className="flex flex-wrap gap-2">
-              <input
+              <TextInput
                 value={code}
                 onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
                 inputMode="numeric"
                 autoComplete="one-time-code"
-                className="min-h-12 w-40 rounded-xl border border-slate-300 text-center font-mono text-2xl tracking-[0.3em]"
+                aria-label="6-digit code"
+                className="!w-40 min-h-12 text-center font-mono text-2xl tracking-[0.3em]"
               />
               <Button onClick={() => confirm.mutate()} disabled={confirm.isPending || code.length !== 6}>
                 {confirm.isPending && <Spinner />} Turn on

@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import { useQueryClient } from '@tanstack/react-query';
-import { supabase, supabaseUrl } from '../lib/supabase';
+import { fromJson, supabase, supabaseUrl } from '../lib/supabase';
 import { friendlyError } from '../lib/errors';
 import { readStored, writeStored } from '../lib/storage';
 import type { Profile } from '../lib/types';
@@ -161,7 +161,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const { sites, tenants, ...rest } = data;
     // Support mode: the platform admin works in the customer's business.
     const supporting: SupportedBusiness | null =
-      platform && level === 'aal2' ? (((await supabase.rpc('support_session')).data as SupportedBusiness | null) ?? null) : null;
+      platform && level === 'aal2' ? (fromJson<SupportedBusiness | null>((await supabase.rpc('support_session')).data) ?? null) : null;
     setSupport(supporting ? { tenant_id: supporting.tenant_id, name: supporting.name, until: supporting.until } : null);
     setProfile(rest);
     setSiteName(sites?.name ?? null);

@@ -1,8 +1,8 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useBillingOverview, type Invoice } from '../hooks/useBillingOverview';
 import { friendlyError } from '../lib/errors';
-import { formatJubaTime, formatNumber } from '../lib/format';
+import { formatJubaDate, formatJubaTime, formatSSP } from '../lib/format';
 import { supabase } from '../lib/supabase';
 import { OwnerPlanUsage } from './PlanLimits';
 import { Alert, Badge, Button, Card, Spinner, TextInput } from './ui';
@@ -13,24 +13,32 @@ export function daysLeft(iso: string | null): number | null {
   return Math.max(0, Math.ceil((new Date(iso).getTime() - Date.now()) / 86400_000));
 }
 
-const day = (d: string) => new Date(`${d}T00:00:00`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
-
 function PayForm({ invoice }: { invoice: Invoice }) {
   const queryClient = useQueryClient();
   const [ref, setRef] = useState('');
+  // Blocks a second tap before the button disables.
+  const inFlight = useRef(false);
   const send = useMutation({
     mutationFn: async () => {
       const { error } = await supabase.rpc('submit_invoice_payment', { p_invoice_id: invoice.id, p_ref: validate(paymentRefSchema, ref) });
       if (error) throw new Error(friendlyError(error));
     },
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['billing'] }),
+    onSettled: () => {
+      inFlight.current = false;
+    },
   });
+  function submit() {
+    if (inFlight.current) return;
+    inFlight.current = true;
+    send.mutate();
+  }
   return (
     <div className="mt-2 flex flex-wrap items-end gap-2">
       <div className="min-w-48 flex-1">
         <TextInput value={ref} onChange={(e) => setRef(e.target.value)} placeholder="Transaction ID of your payment" autoCapitalize="characters" />
       </div>
-      <Button onClick={() => send.mutate()} disabled={send.isPending || ref.trim().length < 4}>
+      <Button onClick={submit} disabled={send.isPending || ref.trim().length < 4}>
         {send.isPending && <Spinner />} I have paid
       </Button>
       {send.error && <Alert tone="error">{friendlyError(send.error)}</Alert>}
@@ -41,9 +49,10 @@ function PayForm({ invoice }: { invoice: Invoice }) {
 /** The business's plan and invoices, and how to pay them. */
 export function BillingPanel() {
   const billing = useBillingOverview();
-  if (billing.isLoading) return <Spinner />;
   if (billing.error) return <Alert tone="error">{friendlyError(billing.error)}</Alert>;
-  const b = billing.data!;
+  const b = billing.data;
+  if (!b)
+    return billing.fetchStatus === 'paused' ? <Alert tone="warning">No internet connection. Billing loads when you are back online.</Alert> : <Spinner />;
   const open = b.invoices.filter((i) => i.status === 'open');
   const left = daysLeft(b.trial_ends_at);
 
@@ -68,15 +77,15 @@ export function BillingPanel() {
         ) : (
           <p className="text-slate-700">
             {b.price_per_router_ssp > 0
-              ? `${formatNumber(b.price_per_router_ssp)} SSP per connected router per month · ${b.routers} router${b.routers === 1 ? '' : 's'} now.`
+              ? `${formatSSP(b.price_per_router_ssp)} per connected router per month · ${b.routers} router${b.routers === 1 ? '' : 's'} now.`
               : 'No monthly fee is set yet.'}
             {b.status === 'trial' && b.trial_ends_at && ` The free trial ends on ${formatJubaTime(b.trial_ends_at)}.`}
           </p>
         )}
         {b.instructions && !b.exempt && (
-          <div className="rounded-xl bg-amber-50 p-3 text-sm text-amber-950">
+          <Alert tone="warning">
             <b>How to pay:</b> <span className="whitespace-pre-line">{b.instructions}</span>
-          </div>
+          </Alert>
         )}
       </Card>
 
@@ -89,10 +98,10 @@ export function BillingPanel() {
                 <div className="flex flex-wrap items-start justify-between gap-2">
                   <div>
                     <p className="font-semibold text-slate-900">
-                      {i.number} · {formatNumber(i.amount_ssp)} SSP
+                      {i.number} · {formatSSP(i.amount_ssp)}
                     </p>
                     <p className="text-sm text-slate-600">
-                      {day(i.period_start)} – {day(i.period_end)} · {i.routers} router{i.routers === 1 ? '' : 's'} × {formatNumber(i.price_per_router_ssp)} SSP
+                      {formatJubaDate(i.period_start)} – {formatJubaDate(i.period_end)} · {i.routers} router{i.routers === 1 ? '' : 's'} × {formatSSP(i.price_per_router_ssp)}
                     </p>
                     {i.status === 'open' && <p className="text-sm text-slate-600">Due {formatJubaTime(i.due_at)}</p>}
                     {i.status === 'open' && i.customer_ref && (

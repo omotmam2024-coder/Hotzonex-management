@@ -54,7 +54,7 @@ export interface RouterInfo {
 export const ROUTER_COLUMNS =
   'id, created_at, site_id, name, connection, host, tunnel_ip, port, use_https, username, hotspot_info, hotspot_users, hotspot_server, dns_name, status, last_seen_at, model, ros_version, last_error, last_usage_at';
 
-export type JobStatus = 'queued' | 'running' | 'done' | 'failed';
+type JobStatus = 'queued' | 'running' | 'done' | 'failed';
 
 export interface JobRow {
   id: string;
@@ -101,7 +101,7 @@ export type Plan = Pick<
   plan_routers: PlanRouter[];
 };
 
-export type PlanRouter = Pick<Tables<'plan_routers'>, 'router_id' | 'profile_name' | 'managed'>;
+type PlanRouter = Pick<Tables<'plan_routers'>, 'router_id' | 'profile_name' | 'managed'>;
 
 export const PLAN_COLUMNS =
   'id, name, price_ssp, uptime_seconds, validity_seconds, rate_limit, data_limit_mb, shared_users, color, router_profile_name, is_active, plan_routers(router_id, profile_name, managed)';

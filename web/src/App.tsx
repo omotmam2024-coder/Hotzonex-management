@@ -144,6 +144,8 @@ export function App() {
             </Route>
             <Route element={<RequireRole roles={rolesFor('/staff')} />}>
               <Route path="/staff" element={<StaffPage />} />
+            </Route>
+            <Route element={<RequireRole roles={rolesFor('/businesses')} />}>
               <Route
                 path="/businesses"
                 element={

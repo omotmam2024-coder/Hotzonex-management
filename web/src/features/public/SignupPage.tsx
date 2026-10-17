@@ -4,6 +4,7 @@ import { useAuth } from '../../auth/AuthProvider';
 import { friendlyError } from '../../lib/errors';
 import { invokeFunction } from '../../lib/functions';
 import { signupSchema, validate } from '../../lib/validation';
+import { Alert } from '../../components/ui';
 
 const input =
   'min-h-12 w-full rounded-xl border border-slate-300 px-3 text-base focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100';
@@ -59,9 +60,9 @@ export function SignupPage() {
           {field('email', 'Email (your login)', { type: 'email', inputMode: 'email', autoComplete: 'username', required: true })}
           {field('password', 'Password (at least 8 characters)', { type: 'password', autoComplete: 'new-password', required: true })}
           {error && (
-            <p role="alert" className="rounded-xl bg-red-50 p-3 text-sm font-medium text-red-800">
+            <Alert tone="error">
               {error}
-            </p>
+            </Alert>
           )}
           <button
             type="submit"

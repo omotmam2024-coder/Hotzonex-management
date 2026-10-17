@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { z } from 'zod';
 import { friendlyError } from '../lib/errors';
-import { formatNumber } from '../lib/format';
+import { formatNumber, formatSSP } from '../lib/format';
 import { fromJson, supabase } from '../lib/supabase';
 import { validate } from '../lib/validation';
 import { Alert, Badge, Button, Card, Checkbox, Field, Select, Spinner, TextInput } from './ui';
@@ -25,16 +25,14 @@ interface PlatformPlans {
   businesses: { tenant_id: string; plan_id: string; exempt: boolean; vouchers_month: number }[];
 }
 
-const NEEDS_UPDATE = 'Plans need the database update of 16 October (migration 20261016190000).';
 const PLANS_KEY = ['platform-plans'];
 
-/** Platform owner: every plan and each business's plan (null while the migration is not applied). */
+/** Platform owner: every plan and each business's plan. */
 function usePlatformPlans() {
   return useQuery({
     queryKey: PLANS_KEY,
-    queryFn: async (): Promise<PlatformPlans | null> => {
+    queryFn: async (): Promise<PlatformPlans> => {
       const { data, error } = await supabase.rpc('platform_plans');
-      if (error?.code === 'PGRST202') return null;
       if (error) throw new Error(friendlyError(error));
       return fromJson<PlatformPlans>(data);
     },
@@ -133,7 +131,7 @@ function PlanEditor({ plan, stdPrice, onDone }: { plan: SubscriptionPlan | null;
         <TextInput value={form.description} onChange={set('description')} />
       </Field>
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
-        {num('price', 'Price / router / month (SSP)', `Empty: standard ${formatNumber(stdPrice)}`)}
+        {num('price', 'Price / router / month (SSP)', `Empty: standard ${formatSSP(stdPrice)}`)}
         {num('max_routers', 'Routers')}
         {num('max_sites', 'Sites')}
         {num('max_staff', 'Staff logins')}
@@ -157,9 +155,8 @@ function PlanEditor({ plan, stdPrice, onDone }: { plan: SubscriptionPlan | null;
 export function PlansCard({ stdPrice }: { stdPrice: number }) {
   const plans = usePlatformPlans();
   const [editing, setEditing] = useState<string | 'new' | null>(null);
-  if (plans.isLoading) return <Spinner />;
   if (plans.error) return <Alert tone="error">{friendlyError(plans.error)}</Alert>;
-  if (!plans.data) return <Alert tone="warning">{NEEDS_UPDATE}</Alert>;
+  if (!plans.data) return <Spinner />;
   return (
     <Card className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -174,6 +171,7 @@ export function PlansCard({ stdPrice }: { stdPrice: number }) {
         )}
       </div>
       {editing === 'new' && <PlanEditor plan={null} stdPrice={stdPrice} onDone={() => setEditing(null)} />}
+      {plans.data.plans.length === 0 && editing !== 'new' && <p className="text-sm text-slate-600">No plans yet.</p>}
       <ul className="divide-y divide-slate-100">
         {plans.data.plans.map((p) => (
           <li key={p.id} className="space-y-2 py-3">
@@ -187,7 +185,7 @@ export function PlansCard({ stdPrice }: { stdPrice: number }) {
                   </p>
                   <p className="text-sm text-slate-600">{planSummary(p)}</p>
                   <p className="text-sm text-slate-600">
-                    {formatNumber(p.price_per_router_ssp ?? stdPrice)} SSP per router per month{p.price_per_router_ssp === null ? ' (standard price)' : ''}
+                    {formatSSP(p.price_per_router_ssp ?? stdPrice)} per router per month{p.price_per_router_ssp === null ? ' (standard price)' : ''}
                   </p>
                 </div>
                 <Button variant="secondary" onClick={() => setEditing(p.id)}>
@@ -214,7 +212,12 @@ export function BusinessPlanControl({ tenantId, onExtendTrial }: { tenantId: str
       const { error } = await supabase.rpc('platform_set_business_plan', { p_tenant_id: tenantId, p_plan_id: id });
       if (error) throw new Error(friendlyError(error));
     },
-    onSuccess: () => void queryClient.invalidateQueries({ queryKey: PLANS_KEY }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: PLANS_KEY });
+      void queryClient.invalidateQueries({ queryKey: ['platform-billing'] });
+    },
+    // Show the plan that is really saved, not the one that failed.
+    onError: () => setPlanId(row?.plan_id ?? ''),
   });
   if (!plans.data || !row) return null;
   const plan = plans.data.plans.find((p) => p.id === row.plan_id);
@@ -281,18 +284,18 @@ function Meter({ label, used, max }: { label: string; used: number; max: number 
   );
 }
 
-/** Business owner: the plan and how much of it is used (hidden until the migration is applied). */
+/** Business owner: the plan and how much of it is used. */
 export function OwnerPlanUsage() {
   const usage = useQuery({
     queryKey: ['billing-usage'],
     staleTime: 60_000,
-    queryFn: async (): Promise<Usage | null> => {
+    queryFn: async (): Promise<Usage> => {
       const { data, error } = await supabase.rpc('billing_usage');
-      if (error?.code === 'PGRST202') return null;
       if (error) throw new Error(friendlyError(error));
-      return data as Usage | null;
+      return fromJson<Usage>(data);
     },
   });
+  if (usage.error) return <Alert tone="error">{friendlyError(usage.error)}</Alert>;
   const u = usage.data;
   if (!u) return null;
   return (

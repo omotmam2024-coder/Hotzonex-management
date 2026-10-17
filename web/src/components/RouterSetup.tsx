@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { friendlyError } from '../lib/errors';
 import { formatNumber, timeAgo } from '../lib/format';
 import { usePlans } from '../hooks/queries';
 import { routerStatus } from '../lib/routers';
 import { supabase } from '../lib/supabase';
 import { ROUTER_COLUMNS, type HotspotInfo, type RouterInfo } from '../lib/types';
-import { Alert, Badge, Button, Card, Spinner } from './ui';
+import { Alert, Badge, Button, Card, Spinner, textButtonClass } from './ui';
 
 /** The router's setup script with plain steps and a copy button. */
 export function SetupScriptCard({ script, kind = 'cloud' }: { script: string; kind?: 'cloud' | 'tunnel' }) {
@@ -83,7 +84,7 @@ export function RouterConnectionStatus({ routerId, onEdit }: { routerId: string;
     refetchInterval: 3000,
     queryFn: async (): Promise<RouterInfo | null> => {
       const { data, error } = await supabase.from('routers').select(ROUTER_COLUMNS).eq('id', routerId).maybeSingle();
-      if (error) throw new Error(error.message);
+      if (error) throw new Error(friendlyError(error));
       return data as RouterInfo | null;
     },
   });
@@ -103,7 +104,7 @@ export function RouterConnectionStatus({ routerId, onEdit }: { routerId: string;
       <Alert tone="error">
         <span className="block">{r.last_error}</span>
         {onEdit && (
-          <button type="button" className="mt-2 font-semibold underline" onClick={onEdit}>
+          <button type="button" className={`${textButtonClass} -ml-2 mt-1 underline`} onClick={onEdit}>
             Edit router
           </button>
         )}
@@ -204,7 +205,7 @@ export function HotspotSetup({ routerId }: { routerId: string }) {
     refetchInterval: 5000,
     queryFn: async (): Promise<RouterInfo | null> => {
       const { data, error } = await supabase.from('routers').select(ROUTER_COLUMNS).eq('id', routerId).maybeSingle();
-      if (error) throw new Error(error.message);
+      if (error) throw new Error(friendlyError(error));
       return data as RouterInfo | null;
     },
   });

@@ -297,7 +297,7 @@ export function PortalPage() {
                   key={t.label}
                   type="button"
                   onClick={() => setTab(i)}
-                  className={`min-h-11 rounded-lg px-3 py-1.5 text-sm font-semibold ${tab === i ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-700'}`}
+                  className={`min-h-11 rounded-lg px-3 py-1.5 text-sm font-semibold ${tab === i ? 'bg-brand-600 text-white' : 'bg-slate-100 text-slate-700'}`}
                 >
                   {t.label}
                 </button>

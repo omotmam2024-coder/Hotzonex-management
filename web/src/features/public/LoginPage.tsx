@@ -5,6 +5,7 @@ import { supabase, supabaseConfigured } from '../../lib/supabase';
 import { friendlyError } from '../../lib/errors';
 import { homePathFor } from '../../lib/nav';
 import { FullScreenSpinner } from '../../components/FullScreen';
+import { Alert } from '../../components/ui';
 
 export function LoginPage() {
   const { status, profile, signIn } = useAuth();
@@ -72,17 +73,17 @@ export function LoginPage() {
         </div>
 
         {!supabaseConfigured && (
-          <div className="mb-4 rounded-xl bg-amber-50 p-3 text-sm text-amber-900">
-            The app is not connected to Supabase. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in web/.env.
+          <div className="mb-4">
+            <Alert tone="warning">The app is not connected to Supabase. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in web/.env.</Alert>
           </div>
         )}
 
         <form onSubmit={forgot ? handleReset : handleSubmit} className="space-y-4" noValidate>
           {forgot && !sentTo && <p className="text-sm text-slate-600">Type your login email. We will send you a link to choose a new password.</p>}
           {sentTo && (
-            <p role="status" className="rounded-xl bg-green-50 p-3 text-sm font-medium text-green-800">
+            <Alert tone="success">
               If {sentTo} has a Hotzonex login, a reset link is on its way. Check the inbox (and spam) and open the link on this device.
-            </p>
+            </Alert>
           )}
           <label className="block">
             <span className="mb-1 block text-sm font-medium text-slate-700">Email</span>
@@ -111,9 +112,9 @@ export function LoginPage() {
           )}
 
           {error && (
-            <p role="alert" className="rounded-xl bg-red-50 p-3 text-sm font-medium text-red-800">
+            <Alert tone="error">
               {error}
-            </p>
+            </Alert>
           )}
 
           <button
@@ -185,9 +186,9 @@ function TwoStepCode() {
           className="min-h-14 w-full rounded-xl border border-slate-300 text-center font-mono text-3xl tracking-[0.4em] focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100"
         />
         {error && (
-          <p role="alert" className="rounded-xl bg-red-50 p-3 text-sm font-medium text-red-800">
+          <Alert tone="error">
             {error}
-          </p>
+          </Alert>
         )}
         <button type="submit" disabled={busy || code.length !== 6} className="min-h-12 w-full rounded-xl bg-brand-600 text-lg font-semibold text-white disabled:opacity-50">
           {busy ? 'Checking…' : 'Continue'}

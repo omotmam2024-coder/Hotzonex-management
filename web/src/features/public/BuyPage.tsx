@@ -2,7 +2,8 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { useParams } from 'react-router-dom';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { friendlyError } from '../../lib/errors';
-import { formatDuration, formatNumber } from '../../lib/format';
+import { formatDuration, formatSSP } from '../../lib/format';
+import { Alert } from '../../components/ui';
 import { callPublicFunction } from '../../lib/functions';
 import { buyRequestSchema, validate } from '../../lib/validation';
 
@@ -229,7 +230,7 @@ export function BuyPage() {
                         <span className="block font-semibold text-slate-900">{p.name}</span>
                         <span className="block text-xs text-slate-500">{planLine(p)}</span>
                       </span>
-                      <span className="font-bold text-slate-900">{formatNumber(p.price_ssp)} SSP</span>
+                      <span className="font-bold text-slate-900">{formatSSP(p.price_ssp)}</span>
                     </button>
                   ))}
                 </div>
@@ -237,15 +238,17 @@ export function BuyPage() {
 
               <div>
                 <h2 className="mb-2 font-bold text-slate-900">2. Send the money</h2>
-                <p className="whitespace-pre-line rounded-xl bg-amber-50 p-3 text-sm text-amber-950">
-                  {s.instructions}
-                  {plan && (
-                    <>
-                      {'\n'}
-                      <b>Amount: {formatNumber(plan.price_ssp)} SSP</b>
-                    </>
-                  )}
-                </p>
+                <Alert tone="warning">
+                  <p className="whitespace-pre-line">
+                    {s.instructions}
+                    {plan && (
+                      <>
+                        {'\n'}
+                        <b>Amount: {formatSSP(plan.price_ssp)}</b>
+                      </>
+                    )}
+                  </p>
+                </Alert>
               </div>
 
               <div className="space-y-3">
@@ -279,9 +282,9 @@ export function BuyPage() {
               </div>
 
               {send.error && (
-                <p role="alert" className="rounded-xl bg-red-50 p-3 text-sm font-medium text-red-800">
+                <Alert tone="error">
                   {friendlyError(send.error)}
-                </p>
+                </Alert>
               )}
               <button
                 type="submit"
