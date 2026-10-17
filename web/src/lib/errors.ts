@@ -1,3 +1,5 @@
+import { translateMessage } from '../i18n/translate';
+
 const NETWORK_RE =
   /failed to fetch|networkerror|load failed|network request failed|timeout|aborted|failed to send a request to the edge function|relay error/i;
 
@@ -6,8 +8,12 @@ export function isNetworkError(message: string): boolean {
   return NETWORK_RE.test(message);
 }
 
-/** Turn any thrown value into a short, plain message suitable for staff. */
+/** Turn any thrown value into a short, plain message suitable for staff, in the chosen language. */
 export function friendlyError(err: unknown): string {
+  return translateMessage(englishError(err));
+}
+
+function englishError(err: unknown): string {
   const raw =
     err instanceof Error
       ? err.message

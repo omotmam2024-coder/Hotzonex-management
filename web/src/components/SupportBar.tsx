@@ -1,3 +1,4 @@
+import { translate } from '../i18n/translate';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthProvider';
@@ -20,10 +21,10 @@ export function SupportBar() {
   return (
     <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-xl bg-red-600 p-3 text-sm font-semibold text-white print:hidden">
       <span>
-        Support mode: you are managing <b>{support.name}</b> until {formatJubaTime(support.until)}. Everything you do is recorded in their account.
+        {translate('support.managing', { name: support.name, until: formatJubaTime(support.until) })}
       </span>
       <button type="button" onClick={() => void exit()} disabled={busy} className="min-h-11 rounded-lg bg-white px-3 py-1.5 text-red-700 disabled:opacity-60">
-        {busy ? 'Leaving…' : 'Exit support mode'}
+        {translate(busy ? 'support.leaving' : 'support.exit')}
       </button>
     </div>
   );

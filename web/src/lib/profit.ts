@@ -3,6 +3,8 @@ import { friendlyError } from './errors';
 import type { Period } from './period';
 import { fromJson, supabase } from './supabase';
 import { EXPENSE_CATEGORIES } from './validation';
+import { translate } from '../i18n/translate';
+import type { TKey } from '../i18n/dictionaries';
 
 export interface Money {
   revenue: number;
@@ -34,7 +36,9 @@ export interface ProfitReport {
   items: Expense[];
 }
 
-export const categoryLabel = (key: string) => EXPENSE_CATEGORIES.find((c) => c.key === key)?.label ?? key;
+/** An expense category in the chosen language. */
+export const categoryLabel = (key: string) =>
+  EXPENSE_CATEGORIES.some((c) => c.key === key) ? translate(`expense.${key}` as TKey) : key;
 
 /** Green for a profit, red for a loss. */
 export const profitTone = (n: number) => (n > 0 ? 'text-green-700' : n < 0 ? 'text-red-700' : 'text-slate-900');

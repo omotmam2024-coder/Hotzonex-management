@@ -1,6 +1,7 @@
+import { translate } from '../i18n';
 export function FullScreenSpinner() {
   return (
-    <div className="flex h-full items-center justify-center" role="status" aria-label="Loading">
+    <div className="flex h-full items-center justify-center" role="status" aria-label={translate('common.loading')}>
       <div className="h-10 w-10 animate-spin rounded-full border-4 border-brand-100 border-t-brand-600" />
     </div>
   );
@@ -24,7 +25,7 @@ export function FullScreenMessage({ title, message, onSignOut }: FullScreenMessa
             onClick={onSignOut}
             className="mt-6 min-h-12 w-full rounded-xl bg-brand-600 px-4 py-3 font-semibold text-white hover:bg-brand-700"
           >
-            Log out
+            {translate('common.logout')}
           </button>
         )}
       </div>

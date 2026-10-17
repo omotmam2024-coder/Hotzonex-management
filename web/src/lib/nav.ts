@@ -1,3 +1,4 @@
+import { translate } from '../i18n/translate';
 import type { Role } from './types';
 
 export type IconName =
@@ -39,24 +40,24 @@ const ADMIN: readonly Role[] = ['admin'];
 
 /** Menu order and who may open each page. Route guards use the same list. */
 export const NAV_ITEMS: readonly NavItem[] = [
-  { path: '/dashboard', label: 'Dashboard', icon: 'dashboard', roles: ADMIN_MANAGER, group: 'Overview' },
-  { path: '/reports', label: 'Reports', icon: 'reports', roles: ADMIN_MANAGER, group: 'Overview' },
-  { path: '/expenses', label: 'Expenses & profit', icon: 'expenses', roles: ADMIN_MANAGER, group: 'Overview' },
-  { path: '/alerts', label: 'Alerts', icon: 'alerts', roles: ADMIN_MANAGER, group: 'Overview' },
-  { path: '/sell', label: 'Sell', icon: 'sell', roles: ALL, group: 'Selling' },
-  { path: '/payments', label: 'Payments', icon: 'payments', roles: ALL, group: 'Selling' },
-  { path: '/sales', label: 'Sales', icon: 'sales', roles: ALL, group: 'Selling' },
-  { path: '/cash', label: 'Cash-up', icon: 'cash', roles: ALL, group: 'Selling' },
-  { path: '/vouchers', label: 'Vouchers', icon: 'vouchers', roles: ADMIN_MANAGER, group: 'Cards & WiFi' },
-  { path: '/plans', label: 'Plans', icon: 'plans', roles: ADMIN, group: 'Cards & WiFi' },
-  { path: '/routers', label: 'Routers', icon: 'routers', roles: ADMIN, group: 'Cards & WiFi' },
-  { path: '/active-users', label: 'Active Users', icon: 'active', roles: ADMIN_MANAGER, group: 'Cards & WiFi' },
-  { path: '/portal', label: 'Login Portal', icon: 'portal', roles: ADMIN, group: 'Cards & WiFi' },
-  { path: '/business', label: 'Business settings', icon: 'settings', roles: ADMIN, group: 'Business' },
-  { path: '/staff', label: 'Staff', icon: 'staff', roles: ADMIN, group: 'Business' },
-  { path: '/billing', label: 'Billing', icon: 'billing', roles: ADMIN, group: 'Business' },
-  { path: '/security', label: 'Security', icon: 'security', roles: ALL, group: 'Business' },
-  { path: '/businesses', label: 'Businesses', icon: 'businesses', roles: ADMIN, group: 'Business', platformOnly: true },
+  { path: '/dashboard', get label() { return translate('nav.dashboard'); }, icon: 'dashboard', roles: ADMIN_MANAGER, group: 'Overview' },
+  { path: '/reports', get label() { return translate('nav.reports'); }, icon: 'reports', roles: ADMIN_MANAGER, group: 'Overview' },
+  { path: '/expenses', get label() { return translate('nav.expenses'); }, icon: 'expenses', roles: ADMIN_MANAGER, group: 'Overview' },
+  { path: '/alerts', get label() { return translate('nav.alerts'); }, icon: 'alerts', roles: ADMIN_MANAGER, group: 'Overview' },
+  { path: '/sell', get label() { return translate('nav.sell'); }, icon: 'sell', roles: ALL, group: 'Selling' },
+  { path: '/payments', get label() { return translate('nav.payments'); }, icon: 'payments', roles: ALL, group: 'Selling' },
+  { path: '/sales', get label() { return translate('nav.sales'); }, icon: 'sales', roles: ALL, group: 'Selling' },
+  { path: '/cash', get label() { return translate('nav.cash'); }, icon: 'cash', roles: ALL, group: 'Selling' },
+  { path: '/vouchers', get label() { return translate('nav.vouchers'); }, icon: 'vouchers', roles: ADMIN_MANAGER, group: 'Cards & WiFi' },
+  { path: '/plans', get label() { return translate('nav.plans'); }, icon: 'plans', roles: ADMIN, group: 'Cards & WiFi' },
+  { path: '/routers', get label() { return translate('nav.routers'); }, icon: 'routers', roles: ADMIN, group: 'Cards & WiFi' },
+  { path: '/active-users', get label() { return translate('nav.activeUsers'); }, icon: 'active', roles: ADMIN_MANAGER, group: 'Cards & WiFi' },
+  { path: '/portal', get label() { return translate('nav.portal'); }, icon: 'portal', roles: ADMIN, group: 'Cards & WiFi' },
+  { path: '/business', get label() { return translate('nav.business'); }, icon: 'settings', roles: ADMIN, group: 'Business' },
+  { path: '/staff', get label() { return translate('nav.staff'); }, icon: 'staff', roles: ADMIN, group: 'Business' },
+  { path: '/billing', get label() { return translate('nav.billing'); }, icon: 'billing', roles: ADMIN, group: 'Business' },
+  { path: '/security', get label() { return translate('nav.security'); }, icon: 'security', roles: ALL, group: 'Business' },
+  { path: '/businesses', get label() { return translate('nav.businesses'); }, icon: 'businesses', roles: ADMIN, group: 'Business', platformOnly: true },
 ];
 
 /** The phone's bottom tab bar: the pages used most, by role (the menu has the rest). */
@@ -77,8 +78,20 @@ export function homePathFor(role: Role): string {
   return role === 'seller' ? '/sell' : '/dashboard';
 }
 
+/** Role names in the chosen language (database values stay admin / manager / seller). */
 export const ROLE_LABELS: Record<Role, string> = {
-  admin: 'Owner',
-  manager: 'Manager',
-  seller: 'Cashier / agent',
+  get admin() {
+    return translate('role.admin');
+  },
+  get manager() {
+    return translate('role.manager');
+  },
+  get seller() {
+    return translate('role.seller');
+  },
 };
+
+/** "Overview" etc. in the chosen language. */
+export function groupLabel(group: NavGroup): string {
+  return translate(({ Overview: 'nav.group.overview', Selling: 'nav.group.selling', 'Cards & WiFi': 'nav.group.cards', Business: 'nav.group.business' } as const)[group]);
+}

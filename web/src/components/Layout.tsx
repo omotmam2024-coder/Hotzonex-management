@@ -1,7 +1,9 @@
 import { Suspense, useEffect, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '../auth/AuthProvider';
-import { NAV_ITEMS, navForRole, ROLE_LABELS, tabsForRole, type NavGroup, type NavItem } from '../lib/nav';
+import { groupLabel, NAV_ITEMS, navForRole, ROLE_LABELS, tabsForRole, type NavGroup, type NavItem } from '../lib/nav';
+import { LanguageSwitch } from './LanguageSwitch';
+import { useT } from '../i18n';
 import { FullScreenSpinner } from './FullScreen';
 import { ErrorBoundary } from './ErrorBoundary';
 import { BillingBanner } from './BillingBanner';
@@ -37,7 +39,7 @@ function MenuLink({ item }: { item: NavItem }) {
     >
       {({ isActive }) => (
         <>
-          {isActive && <span className="absolute inset-y-2 left-0 w-1 rounded-r-full bg-brand-300" aria-hidden="true" />}
+          {isActive && <span className="absolute inset-y-2 start-0 w-1 rounded-e-full bg-brand-300" aria-hidden="true" />}
           <Icon name={item.icon} className={`h-5 w-5 shrink-0 ${isActive ? 'text-brand-200' : 'text-white/50 group-hover:text-white/80'}`} />
           {item.label}
         </>
@@ -46,30 +48,31 @@ function MenuLink({ item }: { item: NavItem }) {
   );
 }
 
-const THEMES: { key: ThemePref; label: string }[] = [
-  { key: 'light', label: 'Light' },
-  { key: 'dark', label: 'Dark' },
-  { key: 'system', label: 'Auto' },
-];
+const THEMES = [
+  { key: 'light', label: 'theme.light' },
+  { key: 'dark', label: 'theme.dark' },
+  { key: 'system', label: 'theme.auto' },
+] as const satisfies readonly { key: ThemePref; label: string }[];
 
 /** Light / Dark / Auto (follows the phone), saved on this device. */
 function ThemeSwitch() {
+  const { t } = useT();
   const [pref, setPref] = useState<ThemePref>(getThemePref);
   return (
-    <div className="grid grid-cols-3 gap-1 rounded-xl bg-white/[0.06] p-1" role="radiogroup" aria-label="Theme">
-      {THEMES.map((t) => (
+    <div className="grid grid-cols-3 gap-1 rounded-xl bg-white/[0.06] p-1" role="radiogroup" aria-label={t('theme.label')}>
+      {THEMES.map((theme) => (
         <button
-          key={t.key}
+          key={theme.key}
           type="button"
           role="radio"
-          aria-checked={pref === t.key}
+          aria-checked={pref === theme.key}
           onClick={() => {
-            setThemePref(t.key);
-            setPref(t.key);
+            setThemePref(theme.key);
+            setPref(theme.key);
           }}
-          className={`min-h-11 rounded-lg text-xs font-semibold ${pref === t.key ? 'bg-white/15 text-white' : 'text-white/60 hover:bg-white/10 hover:text-white'}`}
+          className={`min-h-11 rounded-lg text-xs font-semibold ${pref === theme.key ? 'bg-white/15 text-white' : 'text-white/60 hover:bg-white/10 hover:text-white'}`}
         >
-          {t.label}
+          {t(theme.label)}
         </button>
       ))}
     </div>
@@ -77,6 +80,7 @@ function ThemeSwitch() {
 }
 
 export function Layout() {
+  const { t } = useT();
   const { profile, siteName, business, isPlatformAdmin, signOut } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
   const location = useLocation();
@@ -91,14 +95,14 @@ export function Layout() {
   const tabs = tabsForRole(profile.role)
     .map((path) => items.find((i) => i.path === path))
     .filter((i): i is NavItem => Boolean(i));
-  const siteLabel = profile.site_id ? (siteName ?? 'Unknown site') : 'All sites';
+  const siteLabel = profile.site_id ? (siteName ?? t('common.unknownSite')) : t('common.allSites');
   const current = NAV_ITEMS.find((i) => location.pathname === i.path || location.pathname.startsWith(`${i.path}/`));
 
   const sidebar = (
     <nav className="flex h-full flex-col bg-gradient-to-b from-brand-900 to-brand-950 text-white">
       <div className="flex h-16 shrink-0 items-center justify-between px-4">
         <Brand />
-        <button type="button" className="inline-flex h-11 w-11 items-center justify-center rounded-lg text-white/70 hover:bg-white/10 lg:hidden" onClick={() => setMenuOpen(false)} aria-label="Close menu">
+        <button type="button" className="inline-flex h-11 w-11 items-center justify-center rounded-lg text-white/70 hover:bg-white/10 lg:hidden" onClick={() => setMenuOpen(false)} aria-label={t('nav.closeMenu')}>
           <Icon name="close" className="h-6 w-6" />
         </button>
       </div>
@@ -108,7 +112,7 @@ export function Layout() {
           if (!inGroup.length) return null;
           return (
             <div key={group}>
-              <p className="mb-1 px-3 text-[11px] font-semibold uppercase tracking-wider text-white/60">{group}</p>
+              <p className="mb-1 px-3 text-[11px] font-semibold uppercase tracking-wider text-white/60">{groupLabel(group)}</p>
               <ul className="space-y-0.5">
                 {inGroup.map((item) => (
                   <li key={item.path}>
@@ -121,6 +125,7 @@ export function Layout() {
         })}
       </div>
       <div className="shrink-0 space-y-2 border-t border-white/10 p-3">
+        <LanguageSwitch />
         <ThemeSwitch />
         <div className="flex items-center gap-3 rounded-xl bg-white/[0.06] p-2.5">
           <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-500 text-sm font-bold">{initials(profile.full_name)}</span>
@@ -135,8 +140,8 @@ export function Layout() {
             type="button"
             onClick={() => void signOut()}
             className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-white/60 hover:bg-white/10 hover:text-white"
-            aria-label="Log out"
-            title="Log out"
+            aria-label={t('common.logout')}
+            title={t('common.logout')}
           >
             <Icon name="logout" />
           </button>
@@ -154,17 +159,17 @@ export function Layout() {
       {menuOpen && (
         <div className="fixed inset-0 z-40 lg:hidden">
           <div className="absolute inset-0 bg-slate-950/50 backdrop-blur-[1px]" onClick={() => setMenuOpen(false)} aria-hidden="true" />
-          <aside className="absolute inset-y-0 left-0 w-72 max-w-[85vw] shadow-2xl">{sidebar}</aside>
+          <aside className="absolute inset-y-0 start-0 w-72 max-w-[85vw] shadow-2xl">{sidebar}</aside>
         </div>
       )}
 
       <div className="flex min-w-0 flex-1 flex-col print:block">
         <header className="flex h-14 shrink-0 items-center gap-2 bg-brand-900 px-2 text-white shadow-sm lg:hidden print:hidden">
-          <button type="button" className="inline-flex h-11 w-11 items-center justify-center rounded-lg hover:bg-white/10" onClick={() => setMenuOpen(true)} aria-label="Open menu">
+          <button type="button" className="inline-flex h-11 w-11 items-center justify-center rounded-lg hover:bg-white/10" onClick={() => setMenuOpen(true)} aria-label={t('nav.openMenu')}>
             <Icon name="menu" className="h-6 w-6" />
           </button>
           <Brand />
-          {business && <span className="ml-auto max-w-[40%] truncate pr-2 text-xs font-medium text-white/60">{business.name}</span>}
+          {business && <span className="ms-auto max-w-[40%] truncate pe-2 text-xs font-medium text-white/60">{business.name}</span>}
         </header>
         <main className="min-w-0 flex-1 overflow-y-auto px-4 pb-24 pt-4 sm:px-6 lg:px-10 lg:pb-10 lg:pt-8 print:overflow-visible print:p-0">
           <div className="mx-auto w-full max-w-6xl">
@@ -182,7 +187,7 @@ export function Layout() {
         <nav
           className="fixed inset-x-0 bottom-0 z-30 border-t border-slate-200 bg-white/95 backdrop-blur lg:hidden print:hidden"
           style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
-          aria-label="Main pages"
+          aria-label={t('nav.mainPages')}
         >
           <ul className="mx-auto grid max-w-md grid-cols-5">
             {tabs.map((t) => (
@@ -215,7 +220,7 @@ export function Layout() {
                 <span className="rounded-full px-4 py-1">
                   <Icon name="menu" className="h-5 w-5" />
                 </span>
-                More
+                {t('nav.more')}
               </button>
             </li>
           </ul>

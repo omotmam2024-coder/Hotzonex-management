@@ -1,3 +1,4 @@
+import { translate } from '../i18n/translate';
 import { Component, type ErrorInfo, type ReactNode } from 'react';
 
 interface Props {
@@ -51,16 +52,16 @@ export class ErrorBoundary extends Component<Props, State> {
     const update = isOldVersion(this.state.error);
     return (
       <div role="alert" className="mx-auto my-10 max-w-md rounded-2xl border border-slate-200 bg-white p-6 text-center shadow-sm">
-        <h2 className="text-lg font-bold text-slate-900">{update ? 'A new version is ready' : 'This page could not be shown'}</h2>
+        <h2 className="text-lg font-bold text-slate-900">{translate(update ? 'error.updateTitle' : 'error.title')}</h2>
         <p className="mt-2 text-slate-600">
-          {update ? 'Reload to get the latest Hotzonex Cloud.' : 'Please reload. If it happens again, tell Hotzonex Cloud what you were doing.'}
+          {translate(update ? 'error.updateText' : 'error.text')}
         </p>
         <button
           type="button"
           onClick={() => window.location.reload()}
           className="mt-4 min-h-12 w-full rounded-xl bg-brand-600 px-4 text-lg font-semibold text-white hover:bg-brand-700"
         >
-          Reload
+          {translate('common.reload')}
         </button>
       </div>
     );

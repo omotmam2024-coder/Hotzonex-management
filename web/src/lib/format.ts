@@ -1,43 +1,49 @@
+import { getLang, LOCALE } from '../i18n/core';
+import { translate } from '../i18n/translate';
+
 const TZ = 'Africa/Juba';
 
-const timeFmt = new Intl.DateTimeFormat('en-GB', { timeZone: TZ, hour: '2-digit', minute: '2-digit' });
-const dateTimeFmt = new Intl.DateTimeFormat('en-GB', {
-  timeZone: TZ,
-  day: 'numeric',
-  month: 'short',
-  hour: '2-digit',
-  minute: '2-digit',
-});
+/** Date formats in the chosen language (Latin digits), made once per language. */
+const cache = new Map<string, Intl.DateTimeFormat>();
+function fmt(name: string, opts: Intl.DateTimeFormatOptions): Intl.DateTimeFormat {
+  const lang = getLang();
+  const key = `${lang}:${name}`;
+  let f = cache.get(key);
+  if (!f) {
+    f = new Intl.DateTimeFormat(LOCALE[lang], { timeZone: TZ, ...opts });
+    cache.set(key, f);
+  }
+  return f;
+}
+const timeFmt = () => fmt('time', { hour: '2-digit', minute: '2-digit' });
+const dateTimeFmt = () => fmt('dateTime', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
 const dayFmt = new Intl.DateTimeFormat('en-CA', { timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit' });
-
-const longDateFmt = new Intl.DateTimeFormat('en-GB', { timeZone: TZ, day: 'numeric', month: 'short', year: 'numeric' });
-const stampFmt = new Intl.DateTimeFormat('en-GB', { timeZone: TZ, day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 
 /** "9 Oct 2026" (Juba time). Accepts a timestamp or a YYYY-MM-DD day. */
 export function formatJubaDate(value: string | null | undefined): string {
   if (!value) return '—';
-  return longDateFmt.format(new Date(/^\d{4}-\d{2}-\d{2}$/.test(value) ? `${value}T12:00:00Z` : value));
+  return fmt('longDate', { day: 'numeric', month: 'short', year: 'numeric' }).format(new Date(/^\d{4}-\d{2}-\d{2}$/.test(value) ? `${value}T12:00:00Z` : value));
 }
 
 /** "9 Oct 2026, 14:20" (Juba time), e.g. "Generated …" on printed reports and receipts. */
 export function formatJubaStamp(date: Date = new Date()): string {
-  return stampFmt.format(date);
+  return fmt('stamp', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }).format(date);
 }
 
 /** "14:20" if the moment is today in Juba, otherwise "9 Oct, 14:20". */
 export function formatJubaTime(iso: string | null | undefined): string {
-  if (!iso) return 'never';
+  if (!iso) return translate('common.never');
   const d = new Date(iso);
-  return dayFmt.format(d) === dayFmt.format(new Date()) ? timeFmt.format(d) : dateTimeFmt.format(d);
+  return dayFmt.format(d) === dayFmt.format(new Date()) ? timeFmt().format(d) : dateTimeFmt().format(d);
 }
 
 /** "just now", "5 min ago", "3 h ago", or a date. */
 export function timeAgo(iso: string | null | undefined): string {
-  if (!iso) return 'never';
+  if (!iso) return translate('common.never');
   const seconds = Math.round((Date.now() - new Date(iso).getTime()) / 1000);
-  if (seconds < 45) return 'just now';
-  if (seconds < 3600) return `${Math.round(seconds / 60)} min ago`;
-  if (seconds < 86400) return `${Math.round(seconds / 3600)} h ago`;
+  if (seconds < 45) return translate('common.justNow');
+  if (seconds < 3600) return translate('common.minAgo', { n: Math.round(seconds / 60) });
+  if (seconds < 86400) return translate('common.hAgo', { n: Math.round(seconds / 3600) });
   return formatJubaTime(iso);
 }
 

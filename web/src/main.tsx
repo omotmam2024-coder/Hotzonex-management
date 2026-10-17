@@ -7,6 +7,7 @@ import { createSyncStoragePersister } from '@tanstack/query-sync-storage-persist
 import { AuthProvider } from './auth/AuthProvider';
 import { App } from './App';
 import { ErrorBoundary } from './components/ErrorBoundary';
+import { I18nProvider, LangRoot } from './i18n';
 import './index.css';
 
 const DAY = 24 * 60 * 60 * 1000;
@@ -47,11 +48,15 @@ createRoot(root).render(
       }}
     >
       <BrowserRouter>
-        <ErrorBoundary>
-          <AuthProvider>
-            <App />
-          </AuthProvider>
-        </ErrorBoundary>
+        <I18nProvider>
+          <ErrorBoundary>
+            <AuthProvider>
+              <LangRoot>
+                <App />
+              </LangRoot>
+            </AuthProvider>
+          </ErrorBoundary>
+        </I18nProvider>
       </BrowserRouter>
     </PersistQueryClientProvider>
   </StrictMode>,
