@@ -98,7 +98,7 @@ export function Layout() {
     <nav className="flex h-full flex-col bg-gradient-to-b from-brand-900 to-brand-950 text-white">
       <div className="flex h-16 shrink-0 items-center justify-between px-4">
         <Brand />
-        <button type="button" className="rounded-lg p-2 text-white/70 hover:bg-white/10 lg:hidden" onClick={() => setMenuOpen(false)} aria-label="Close menu">
+        <button type="button" className="inline-flex h-11 w-11 items-center justify-center rounded-lg text-white/70 hover:bg-white/10 lg:hidden" onClick={() => setMenuOpen(false)} aria-label="Close menu">
           <Icon name="close" className="h-6 w-6" />
         </button>
       </div>
@@ -134,7 +134,7 @@ export function Layout() {
           <button
             type="button"
             onClick={() => void signOut()}
-            className="rounded-lg p-2 text-white/60 hover:bg-white/10 hover:text-white"
+            className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-white/60 hover:bg-white/10 hover:text-white"
             aria-label="Log out"
             title="Log out"
           >
@@ -160,7 +160,7 @@ export function Layout() {
 
       <div className="flex min-w-0 flex-1 flex-col print:block">
         <header className="flex h-14 shrink-0 items-center gap-2 bg-brand-900 px-2 text-white shadow-sm lg:hidden print:hidden">
-          <button type="button" className="rounded-lg p-2 hover:bg-white/10" onClick={() => setMenuOpen(true)} aria-label="Open menu">
+          <button type="button" className="inline-flex h-11 w-11 items-center justify-center rounded-lg hover:bg-white/10" onClick={() => setMenuOpen(true)} aria-label="Open menu">
             <Icon name="menu" className="h-6 w-6" />
           </button>
           <Brand />

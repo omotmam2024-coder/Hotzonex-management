@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { formatNumber, formatSSP } from '../lib/format';
+import { textButtonClass } from './ui';
 
 export interface DayRevenue {
   day: string; // YYYY-MM-DD (Juba)
@@ -37,7 +38,7 @@ export function RevenueChart({ days }: { days: DayRevenue[] }) {
     <div>
       <div className="mb-3 flex items-center justify-between gap-2">
         <h2 className="text-lg font-bold">Revenue, last 14 days</h2>
-        <button type="button" onClick={() => setAsTable((v) => !v)} className="inline-flex min-h-11 items-center text-sm font-semibold text-brand-700 hover:underline">
+        <button type="button" onClick={() => setAsTable((v) => !v)} className={`${textButtonClass} -mr-2 text-brand-700`}>
           {asTable ? 'Show chart' : 'Show as table'}
         </button>
       </div>

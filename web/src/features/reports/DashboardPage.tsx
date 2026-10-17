@@ -5,11 +5,12 @@ import { useAuth } from '../../auth/AuthProvider';
 import { PageHeader } from '../../components/PageHeader';
 import { RevenueChart, type DayRevenue } from '../../components/RevenueChart';
 import { Icon } from '../../components/Icon';
-import { Alert, Card, Select, Spinner } from '../../components/ui';
+import { Alert, Badge, Card, Select, Spinner, buttonClass } from '../../components/ui';
 import { friendlyError } from '../../lib/errors';
 import { useUsdRate } from '../../hooks/useBusinessSettings';
 import { formatJubaTime, formatNumber, formatSSP, formatUsd } from '../../lib/format';
 import { usePlans, useRouters, useSites } from '../../hooks/queries';
+import { LOW_STOCK } from '../../lib/labels';
 import type { IconName } from '../../lib/nav';
 import { readStored, writeStored } from '../../lib/storage';
 import { fromJson, supabase } from '../../lib/supabase';
@@ -36,15 +37,7 @@ interface Dashboard {
   stock: StockRow[];
 }
 
-interface ExpiringRow {
-  plan_id: string;
-  plan_name: string;
-  plan_color: string;
-  cards: number;
-}
-
 const SITE_KEY = 'hzc.dashboardSite';
-const LOW_STOCK = 20;
 
 const TONES = {
   blue: 'bg-brand-50 text-brand-600',
@@ -120,15 +113,14 @@ export function DashboardPage() {
     },
   });
 
-  // Cards whose validity ends in the next 24 hours (needs migration 20261016181000; hidden without it).
+  // Vouchers whose validity ends in the next 24 hours.
   const expiring = useQuery({
     queryKey: ['expiring', siteId],
     refetchInterval: 5 * 60_000,
-    queryFn: async (): Promise<ExpiringRow[] | null> => {
+    queryFn: async () => {
       const { data, error } = await supabase.rpc('expiring_soon', { p_site_id: siteId || null, p_hours: 24 });
-      if (error?.code === 'PGRST202') return null;
       if (error) throw new Error(friendlyError(error));
-      return (data ?? []) as ExpiringRow[];
+      return data ?? [];
     },
   });
   const routers = useRouters(60_000);
@@ -173,7 +165,7 @@ export function DashboardPage() {
       />
 
       {isAdmin && !routers.isLoading && !plans.isLoading && (!(routers.data ?? []).length || !(plans.data ?? []).some((p) => p.is_active)) && (
-        <Link to="/welcome" className="flex min-h-14 items-center justify-between gap-3 rounded-2xl bg-brand-600 p-4 font-semibold text-white shadow-sm hover:bg-brand-700">
+        <Link to="/welcome" className={buttonClass('primary', 'min-h-14 w-full !justify-between gap-3 !rounded-2xl py-4')}>
           <span>Finish setting up: {!(routers.data ?? []).length ? 'connect your router' : 'make your first plan'}</span>
           <span aria-hidden="true">→</span>
         </Link>
@@ -184,9 +176,9 @@ export function DashboardPage() {
       {d && (
         <>
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
-            <StatCard label="Today" value={formatSSP(d.today.revenue)} sub={`${formatNumber(d.today.sold)} vouchers${withUsd(d.today.revenue)}`} to="/reports?tab=day" icon="sales" highlight />
-            <StatCard label="This week" value={formatSSP(d.week.revenue)} sub={`${formatNumber(d.week.sold)} vouchers · from Mon${withUsd(d.week.revenue)}`} to="/reports?tab=week" icon="reports" tone="violet" />
-            <StatCard label="This month" value={formatSSP(d.month.revenue)} sub={`${formatNumber(d.month.sold)} vouchers${withUsd(d.month.revenue)}`} to="/reports?tab=month" icon="dashboard" tone="sky" />
+            <StatCard label="Today" value={formatSSP(d.today.revenue)} sub={`${formatNumber(d.today.sold)} voucher${d.today.sold === 1 ? '' : 's'}${withUsd(d.today.revenue)}`} to="/reports?tab=day" icon="sales" highlight />
+            <StatCard label="This week" value={formatSSP(d.week.revenue)} sub={`${formatNumber(d.week.sold)} voucher${d.week.sold === 1 ? '' : 's'} · from Mon${withUsd(d.week.revenue)}`} to="/reports?tab=week" icon="reports" tone="violet" />
+            <StatCard label="This month" value={formatSSP(d.month.revenue)} sub={`${formatNumber(d.month.sold)} voucher${d.month.sold === 1 ? '' : 's'}${withUsd(d.month.revenue)}`} to="/reports?tab=month" icon="dashboard" tone="sky" />
             <StatCard label="Online now" value={formatNumber(d.online_now)} sub="users connected" to="/active-users" icon="active" tone="green" />
             <StatCard label="Logged in today" value={formatNumber(d.logins_today)} sub="hotspot users seen on the router" to="/reports?tab=day" icon="vouchers" tone="amber" />
             <StatCard
@@ -217,10 +209,12 @@ export function DashboardPage() {
                     <li key={r.id} className="flex items-center justify-between gap-3 py-2">
                       <span className="min-w-0 truncate font-medium text-slate-900">{r.name}</span>
                       {r.status === 'online' ? (
-                        <span className="shrink-0 rounded-full bg-emerald-50 px-2.5 py-0.5 text-sm font-semibold text-emerald-700">● Online</span>
+                        <span className="shrink-0">
+                          <Badge color="green">Online</Badge>
+                        </span>
                       ) : (
-                        <span className="shrink-0 text-right text-sm">
-                          <span className="rounded-full bg-red-50 px-2.5 py-0.5 font-semibold text-red-700">● {r.status === 'pending' ? 'Not connected yet' : 'Offline'}</span>
+                        <span className="shrink-0 text-right">
+                          {r.status === 'pending' ? <Badge color="gray">Waiting for router</Badge> : <Badge color="red">Offline</Badge>}
                           {r.last_seen_at && <span className="block text-xs text-slate-600">last seen {formatJubaTime(r.last_seen_at)}</span>}
                         </span>
                       )}
@@ -229,11 +223,13 @@ export function DashboardPage() {
                 </ul>
               )}
             </Card>
-            {expiring.data && (
+            {(expiring.data || expiring.error) && (
               <Card>
                 <h2 className="mb-2 text-lg font-bold">Expiring in the next 24 hours</h2>
-                {expiring.data.length === 0 ? (
-                  <p className="text-slate-600">No customer's card runs out in the next 24 hours.</p>
+                {!expiring.data ? (
+                  <p className="text-sm text-slate-500">Could not load: {friendlyError(expiring.error)}</p>
+                ) : expiring.data.length === 0 ? (
+                  <p className="text-slate-600">No customer's voucher runs out in the next 24 hours.</p>
                 ) : (
                   <ul className="divide-y divide-slate-100">
                     {expiring.data.map((e) => (
@@ -243,13 +239,13 @@ export function DashboardPage() {
                           {e.plan_name}
                         </span>
                         <span className="font-semibold tabular-nums">
-                          {formatNumber(e.cards)} card{e.cards === 1 ? '' : 's'}
+                          {formatNumber(e.cards)} voucher{e.cards === 1 ? '' : 's'}
                         </span>
                       </li>
                     ))}
                   </ul>
                 )}
-                <p className="mt-2 text-sm text-slate-600">These customers may want a new card soon.</p>
+                {expiring.data && <p className="mt-2 text-sm text-slate-600">These customers may want a new voucher soon.</p>}
               </Card>
             )}
           </div>

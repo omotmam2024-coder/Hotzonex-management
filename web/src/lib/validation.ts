@@ -100,6 +100,21 @@ export const cashHandoverSchema = z.object({
   note: z.string().trim().max(200, 'The note is too long (max 200 characters).'),
 });
 
+const TERMS_PCT = 'Commission must be a number from 0 to 100.';
+const TERMS_LIMIT = 'Credit limit must be a whole number of SSP (0 or more), or empty for no limit.';
+
+/** A cashier's or agent's commission (%) and cash credit limit (SSP, empty = no limit). */
+export const sellerTermsSchema = z.object({
+  pct: z
+    .string()
+    .transform((v) => (v.trim() === '' ? 0 : Number(v)))
+    .refine((n) => Number.isFinite(n) && n >= 0 && n <= 100, TERMS_PCT),
+  limit: z
+    .string()
+    .transform((v) => (v.trim() === '' ? null : Number(v)))
+    .refine((n) => n === null || (Number.isInteger(n) && n >= 0), TERMS_LIMIT),
+});
+
 export const paymentRefSchema = z
   .string()
   .transform((v) => v.trim().replace(/\s+/g, '').toUpperCase())

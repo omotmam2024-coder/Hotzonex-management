@@ -1,18 +1,19 @@
 import { useMemo, useState, type ReactNode } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { useAuth } from '../../auth/AuthProvider';
-import { Alert, Button, Card, Field, Select, Spinner } from '../../components/ui';
+import { Alert, Button, Card, Field, ReportPrintStyle, ReportSection, Select, Spinner, reportTd as td, reportTh as th } from '../../components/ui';
+import { PageHeader } from '../../components/PageHeader';
 import { downloadText, toCsv } from '../../lib/csv';
 import { friendlyError } from '../../lib/errors';
 import { useUsdRate } from '../../hooks/useBusinessSettings';
-import { formatJubaTime, formatNumber, formatSSP, formatUsd, jubaToday } from '../../lib/format';
+import { formatJubaStamp, formatJubaTime, formatNumber, formatSSP, formatUsd, jubaToday } from '../../lib/format';
 import { profileLabel } from '../../lib/mikroticket';
 import { usePlans, useSites } from '../../hooks/queries';
 import { fromJson, supabase } from '../../lib/supabase';
-import { PERIODS, currentPeriodName, parsePeriod, periodLabel, shortDay, utc, type Period } from '../../lib/period';
+import { PERIODS, currentPeriodName, periodLabel, shortDay, usePeriodParams, utc, type Period } from '../../lib/period';
+import { profitTone, useProfit } from '../../lib/profit';
 import { PeriodPicker } from '../../components/PeriodPicker';
-import { fetchProfit } from '../expenses/ExpensesPage';
 
 interface Row {
   sold: number;
@@ -35,22 +36,8 @@ interface Report {
   router_logins: { router_id: string; username: string; plan: string | null; price_ssp: number | null; first_login_at: string | null; last_seen_at: string | null; new: boolean }[];
 }
 
-const generatedFmt = new Intl.DateTimeFormat('en-GB', { timeZone: 'Africa/Juba', day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-
 function hourLabel(h: number): string {
   return `${String(h).padStart(2, '0')}:00–${String(h).padStart(2, '0')}:59`;
-}
-
-function Section({ title, aside, children, className = '' }: { title: string; aside?: ReactNode; children: ReactNode; className?: string }) {
-  return (
-    <section className={`report-section rounded-2xl bg-white shadow-card ring-1 ring-slate-200/70 ${className}`}>
-      <div className="flex items-baseline justify-between gap-2 border-b border-slate-100 px-4 py-2.5">
-        <h2 className="text-sm font-bold text-slate-900">{title}</h2>
-        {aside && <span className="text-xs text-slate-500">{aside}</span>}
-      </div>
-      <div className="overflow-x-auto px-4 pb-2">{children}</div>
-    </section>
-  );
 }
 
 /** A plain name / sold / revenue table with a total line. */
@@ -77,7 +64,7 @@ function SalesTable({ head, rows, total }: { head: string; rows: { key: string; 
         ))}
         {rows.length === 0 && (
           <tr>
-            <td colSpan={3} className="py-3 text-slate-500">
+            <td colSpan={hasExtra ? 4 : 3} className="py-3 text-slate-500">
               No sales.
             </td>
           </tr>
@@ -95,30 +82,17 @@ function SalesTable({ head, rows, total }: { head: string; rows: { key: string; 
   );
 }
 
-const th = 'py-2 pr-3 text-[11px] font-semibold uppercase tracking-wide text-slate-500 last:pr-0';
-const td = 'py-1.5 pr-3 last:pr-0';
-
 export function ReportsPage() {
-  const { profile, siteName: mySite } = useAuth();
+  const { profile, siteName: mySite, business } = useAuth();
   const isAdmin = profile?.role === 'admin';
   const sites = useSites();
   const usdRate = useUsdRate();
   const plans = usePlans();
-  const [params, setParams] = useSearchParams();
-  const tab = parsePeriod(params.get('tab'));
-  const date = /^\d{4}-\d{2}-\d{2}$/.test(params.get('date') ?? '') ? (params.get('date') as string) : jubaToday();
-  const siteId = isAdmin ? (params.get('site') ?? '') : '';
+  const { params, tab, date, siteId, set } = usePeriodParams(isAdmin);
   const planId = params.get('plan') ?? '';
   const sellerId = params.get('seller') ?? '';
   const [showFilters, setShowFilters] = useState(false);
   const [showMore, setShowMore] = useState(false);
-
-  function set(key: string, value: string) {
-    const next = new URLSearchParams(params);
-    if (value) next.set(key, value);
-    else next.delete(key);
-    setParams(next, { replace: true });
-  }
 
   const staff = useQuery({
     queryKey: ['staff-options'],
@@ -146,11 +120,9 @@ export function ReportsPage() {
   });
 
   // Profit needs the whole period's sales, so it is shown only without a plan or seller filter.
-  const profit = useQuery({
-    queryKey: ['profit', tab, date, siteId],
-    enabled: !planId && !sellerId,
-    queryFn: () => fetchProfit(tab, date, siteId),
-  });
+  const showProfit = !planId && !sellerId;
+  const profit = useProfit(tab, date, siteId, showProfit);
+  const businessName = business?.name ?? 'Hotzonex Cloud';
 
   const r = report.data;
   const scope = isAdmin ? (siteId ? (sites.data?.find((s) => s.id === siteId)?.name ?? '') : 'All sites') : (mySite ?? '');
@@ -191,12 +163,12 @@ export function ReportsPage() {
     if (!r) return;
     const s = r.summary;
     const rows: (string | number | null)[][] = [
-      ['Hotzonex WiFi', `${noun} sales report`],
+      [businessName, `${noun} sales report`],
       ['Period', label],
       ['Site', scope],
       ['Plan', planName],
       ['Cashier / agent', sellerName],
-      ['Generated', generatedFmt.format(new Date())],
+      ['Generated', formatJubaStamp()],
       ['Note', 'Africa/Juba time. Voided sales are excluded.'],
       [],
       ['Summary'],
@@ -246,39 +218,46 @@ export function ReportsPage() {
     : [];
 
   return (
-    <div className="space-y-3">
-      <style>{`@page { size: A4 portrait; margin: 12mm; } @media print { .report-section { break-inside: avoid; box-shadow: none; border: 1px solid #e2e8f0; } }`}</style>
+    <div className="space-y-4">
+      <ReportPrintStyle />
 
       {/* Print header */}
       <div className="hidden print:block">
-        <div className="text-lg font-extrabold">Hotzonex WiFi — {noun} sales report</div>
+        <div className="text-lg font-extrabold">
+          {businessName} — {noun} sales report
+        </div>
         <div className="text-sm">
           {label} · {scope} · {planName} · {sellerName}
         </div>
-        <div className="text-xs text-slate-600">Generated {generatedFmt.format(new Date())} (Juba time). Voided sales are excluded.</div>
+        <div className="text-xs text-slate-600">Generated {formatJubaStamp()} (Juba time). Voided sales are excluded.</div>
       </div>
 
-      <div className="no-print flex items-center justify-between gap-2">
-        <h1 className="text-xl font-bold text-slate-900">Reports</h1>
-        <div className="flex gap-2">
-          <Button variant="secondary" className="px-3 text-sm" onClick={() => window.print()} disabled={!r}>
-            Print
-          </Button>
-          <Button variant="secondary" className="px-3 text-sm" onClick={exportCsv} disabled={!r}>
-            CSV
-          </Button>
-        </div>
+      <div className="no-print">
+        <PageHeader
+          title="Reports"
+          subtitle="Sales by day, week or month"
+          actions={
+            <div className="no-print flex gap-2">
+              <Button variant="secondary" className="px-3 text-sm" onClick={() => window.print()} disabled={!r}>
+                Print
+              </Button>
+              <Button variant="secondary" className="px-3 text-sm" onClick={exportCsv} disabled={!r}>
+                Download CSV
+              </Button>
+            </div>
+          }
+        />
       </div>
 
       <PeriodPicker period={tab} date={date} onPeriod={(p) => set('tab', p)} onDate={(d) => set('date', d)}>
-        <button
-          type="button"
+        <Button
+          variant="secondary"
           aria-expanded={showFilters}
           onClick={() => setShowFilters((v) => !v)}
-          className={`min-h-11 rounded-xl px-3 text-sm font-semibold ring-1 ${filterCount ? 'bg-brand-50 text-brand-800 ring-brand-300' : 'text-slate-700 ring-slate-300'}`}
+          className={`px-3 text-sm ${filterCount ? '!bg-brand-50 !text-brand-800 !ring-brand-200' : ''}`}
         >
           Filters{filterCount ? ` (${filterCount})` : ''}
-        </button>
+        </Button>
         {report.isFetching && <Spinner className="h-4 w-4 text-brand-600" />}
       </PeriodPicker>
 
@@ -353,13 +332,16 @@ export function ReportsPage() {
                 </div>
               ))}
             </dl>
-            {!planId && !sellerId && profit.data && (
+            {showProfit && profit.error && !profit.data && (
+              <p className="mt-3 border-t border-slate-100 pt-3 text-xs text-slate-500">Profit could not be loaded: {friendlyError(profit.error)}</p>
+            )}
+            {showProfit && profit.data && (
               <div className="mt-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-t border-slate-100 pt-3 text-sm">
                 <span className="text-slate-600">
                   Commission <span className="font-semibold tabular-nums text-slate-900">{formatSSP(profit.data.summary.commission)}</span>
                   {' · '}Expenses <span className="font-semibold tabular-nums text-slate-900">{formatSSP(profit.data.summary.expenses)}</span>
                   {' · '}Profit{' '}
-                  <span className={`font-bold tabular-nums ${profit.data.summary.profit < 0 ? 'text-red-700' : 'text-green-700'}`}>{formatSSP(profit.data.summary.profit)}</span>
+                  <span className={`font-bold tabular-nums ${profitTone(profit.data.summary.profit)}`}>{formatSSP(profit.data.summary.profit)}</span>
                 </span>
                 <Link to={`/expenses?${params.toString()}`} className="no-print inline-flex min-h-11 items-center font-semibold text-brand-700 hover:underline">
                   Expenses &amp; profit ›
@@ -369,7 +351,7 @@ export function ReportsPage() {
           </section>
 
           <div className="grid gap-3 lg:grid-cols-2">
-            <Section title="By plan">
+            <ReportSection title="By plan">
               <SalesTable
                 head="Plan"
                 total={r.summary}
@@ -386,14 +368,14 @@ export function ReportsPage() {
                   ),
                 }))}
               />
-            </Section>
-            <Section title="By cashier / agent">
+            </ReportSection>
+            <ReportSection title="By cashier / agent">
               <SalesTable head="Name" total={r.summary} rows={r.by_seller.map((p) => ({ key: p.seller_id ?? p.name, name: p.name, sold: p.sold, revenue: p.revenue }))} />
-            </Section>
+            </ReportSection>
             {!r.site_id && r.by_site.length > 1 && (
-              <Section title="By site">
+              <ReportSection title="By site">
                 <SalesTable head="Site" total={r.summary} rows={r.by_site.map((p) => ({ key: p.site_id, name: p.name, sold: p.sold, revenue: p.revenue }))} />
-              </Section>
+              </ReportSection>
             )}
           </div>
 
@@ -403,11 +385,11 @@ export function ReportsPage() {
             onClick={() => setShowMore((v) => !v)}
             className="no-print min-h-11 w-full rounded-xl text-sm font-semibold text-brand-700 ring-1 ring-slate-200 hover:bg-slate-50"
           >
-            {showMore ? 'Hide details' : `Show details (${r.period === 'day' ? 'hours' : 'days'}, voucher status, router cards)`}
+            {showMore ? 'Hide details' : `Show details (${r.period === 'day' ? 'hours' : 'days'}, voucher status, router vouchers)`}
           </button>
 
           <div className={`space-y-3 ${showMore ? '' : 'hidden print:block'}`}>
-            <Section title={r.period === 'day' ? 'Sales per hour' : 'Sales per day'} aside={r.period === 'day' ? 'hours with no sales hidden' : 'days with no sales hidden'}>
+            <ReportSection title={r.period === 'day' ? 'Sales per hour' : 'Sales per day'} aside={r.period === 'day' ? 'hours with no sales hidden' : 'days with no sales hidden'}>
               <table className="w-full text-left text-sm">
                 <thead>
                   <tr>
@@ -433,9 +415,9 @@ export function ReportsPage() {
                   )}
                 </tbody>
               </table>
-            </Section>
+            </ReportSection>
 
-            <Section title="Vouchers created in this period" aside="status now">
+            <ReportSection title="Vouchers created in this period" aside="status now">
               <div className="flex flex-wrap gap-x-5 gap-y-1 py-2 text-sm">
                 {(
                   [
@@ -452,10 +434,10 @@ export function ReportsPage() {
                   </span>
                 ))}
               </div>
-            </Section>
+            </ReportSection>
 
-            <Section title="Router cards used" aside={r.router_logins.length >= 500 ? 'latest 500' : `${formatNumber(r.router_logins.length)}`} className="print:hidden">
-              <p className="pt-2 text-xs text-slate-500">MikroTicket and other router cards. Each counts as a sale at its plan's price when first used.</p>
+            <ReportSection title="Router vouchers used" aside={r.router_logins.length >= 500 ? 'latest 500' : `${formatNumber(r.router_logins.length)}`} className="print:hidden">
+              <p className="pt-2 text-xs text-slate-500">MikroTicket and other router vouchers. Each counts as a sale at its plan's price when first used.</p>
               <table className="w-full text-left text-sm">
                 <thead>
                   <tr>
@@ -485,7 +467,7 @@ export function ReportsPage() {
                   )}
                 </tbody>
               </table>
-            </Section>
+            </ReportSection>
           </div>
 
           <p className="no-print text-xs text-slate-500">Juba time. Voided sales are not counted.</p>

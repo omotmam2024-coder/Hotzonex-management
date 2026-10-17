@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { buyRequestSchema, cashHandoverSchema, expenseSchema, EXPENSE_CATEGORIES, generateVouchersSchema, planSchema, signupSchema, staffSchema, validate } from '../src/lib/validation.ts';
+import { buyRequestSchema, cashHandoverSchema, expenseSchema, EXPENSE_CATEGORIES, generateVouchersSchema, planSchema, sellerTermsSchema, signupSchema, staffSchema, validate } from '../src/lib/validation.ts';
 
 const ID = '3f2b2a4e-0000-4000-8000-000000000000';
 
@@ -64,4 +64,12 @@ test('expense categories match the database', async () => {
   assert.ok(list, 'category check not found in the migrations');
   const inDb = [...list.matchAll(/'([a-z]+)'/g)].map((m) => m[1]);
   assert.deepEqual(EXPENSE_CATEGORIES.map((c) => c.key), inDb);
+});
+
+test('seller terms: commission 0–100, credit limit whole or empty', () => {
+  assert.deepEqual(validate(sellerTermsSchema, { pct: '10', limit: '' }), { pct: 10, limit: null });
+  assert.deepEqual(validate(sellerTermsSchema, { pct: '', limit: '20000' }), { pct: 0, limit: 20000 });
+  assert.throws(() => validate(sellerTermsSchema, { pct: '1.2.3', limit: '' }), /Commission/);
+  assert.throws(() => validate(sellerTermsSchema, { pct: '120', limit: '' }), /Commission/);
+  assert.throws(() => validate(sellerTermsSchema, { pct: '5', limit: '10.5' }), /Credit limit/);
 });

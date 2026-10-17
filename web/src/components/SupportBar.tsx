@@ -22,7 +22,7 @@ export function SupportBar() {
       <span>
         Support mode: you are managing <b>{support.name}</b> until {formatJubaTime(support.until)}. Everything you do is recorded in their account.
       </span>
-      <button type="button" onClick={() => void exit()} disabled={busy} className="rounded-lg bg-white px-3 py-1.5 text-red-700 disabled:opacity-60">
+      <button type="button" onClick={() => void exit()} disabled={busy} className="min-h-11 rounded-lg bg-white px-3 py-1.5 text-red-700 disabled:opacity-60">
         {busy ? 'Leaving…' : 'Exit support mode'}
       </button>
     </div>

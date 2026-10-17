@@ -1,79 +1,18 @@
-import { useRef, useState, type ReactNode } from 'react';
-import { useSearchParams } from 'react-router-dom';
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useRef, useState } from 'react';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../../auth/AuthProvider';
-import { Alert, Button, Field, Select, Spinner, TextInput } from '../../components/ui';
+import { Alert, Button, Field, ReportPrintStyle, ReportSection, Select, Spinner, TextInput, reportTd as td, reportTh as th, textButtonClass } from '../../components/ui';
+import { PageHeader } from '../../components/PageHeader';
 import { PeriodPicker } from '../../components/PeriodPicker';
 import { useSites } from '../../hooks/queries';
 import { useUsdRate } from '../../hooks/useBusinessSettings';
 import { downloadText, toCsv } from '../../lib/csv';
 import { friendlyError } from '../../lib/errors';
-import { formatNumber, formatSSP, formatUsd, jubaToday } from '../../lib/format';
-import { currentPeriodName, parsePeriod, periodLabel, shortDay, utc, type Period } from '../../lib/period';
-import { fromJson, supabase } from '../../lib/supabase';
+import { formatJubaStamp, formatNumber, formatSSP, formatUsd, jubaToday } from '../../lib/format';
+import { currentPeriodName, periodLabel, shortDay, usePeriodParams, utc } from '../../lib/period';
+import { categoryLabel, profitTone, useProfit, type Expense } from '../../lib/profit';
+import { supabase } from '../../lib/supabase';
 import { EXPENSE_CATEGORIES, expenseSchema, validate } from '../../lib/validation';
-
-interface Money {
-  revenue: number;
-  commission: number;
-  expenses: number;
-  profit: number;
-}
-
-interface Expense {
-  id: string;
-  spent_on: string;
-  category: string;
-  amount_ssp: number;
-  note: string | null;
-  site_id: string | null;
-  site_name: string | null;
-  created_by: string | null;
-}
-
-export interface ProfitReport {
-  period: Period;
-  start: string;
-  end: string;
-  site_id: string | null;
-  summary: Money;
-  previous: Omit<Money, 'commission'>;
-  days: (Money & { day: string })[];
-  by_category: { category: string; amount: number }[];
-  items: Expense[];
-}
-
-const MIGRATION_MISSING = 'Expenses need the database update of 16 October (migration 20261016210000_expenses.sql).';
-
-export const categoryLabel = (key: string) => EXPENSE_CATEGORIES.find((c) => c.key === key)?.label ?? key;
-
-/** profit_report for a period; null when the expenses migration is not applied yet. */
-export async function fetchProfit(period: Period, date: string, siteId: string): Promise<ProfitReport | null> {
-  const { data, error } = await supabase.rpc('profit_report', {
-    p_period: period,
-    p_date: date,
-    p_site_id: siteId || null,
-  });
-  if (error?.code === 'PGRST202') return null;
-  if (error) throw new Error(friendlyError(error));
-  return fromJson<ProfitReport>(data);
-}
-
-const th = 'py-2 pr-3 text-[11px] font-semibold uppercase tracking-wide text-slate-500 last:pr-0';
-const td = 'py-1.5 pr-3 last:pr-0';
-const profitTone = (n: number) => (n > 0 ? 'text-green-700' : n < 0 ? 'text-red-700' : 'text-slate-900');
-
-function Section({ title, aside, children }: { title: string; aside?: ReactNode; children: ReactNode }) {
-  return (
-    <section className="report-section rounded-2xl bg-white shadow-card ring-1 ring-slate-200/70">
-      <div className="flex items-baseline justify-between gap-2 border-b border-slate-100 px-4 py-2.5">
-        <h2 className="text-sm font-bold text-slate-900">{title}</h2>
-        {aside && <span className="text-xs text-slate-500">{aside}</span>}
-      </div>
-      <div className="overflow-x-auto px-4 pb-2">{children}</div>
-    </section>
-  );
-}
 
 function ExpenseForm({
   expense,
@@ -114,7 +53,6 @@ function ExpenseForm({
         p_note: v.note || null,
         p_site_id: v.site_id || null,
       });
-      if (error?.code === 'PGRST202') throw new Error(MIGRATION_MISSING);
       if (error) throw new Error(friendlyError(error));
     },
     onSuccess: onDone,
@@ -129,7 +67,7 @@ function ExpenseForm({
   };
 
   return (
-    <form onSubmit={submit} className="no-print rounded-2xl bg-white p-4 shadow-card ring-1 ring-brand-200">
+    <form onSubmit={submit} className="no-print rounded-2xl bg-white p-4 shadow-card ring-1 ring-brand-200 sm:p-5">
       <h2 className="mb-3 text-sm font-bold text-slate-900">{expense ? 'Change expense' : 'Add expense'}</h2>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Field label="Day">
@@ -190,29 +128,16 @@ function ExpenseForm({
 }
 
 export function ExpensesPage() {
-  const { profile } = useAuth();
+  const { profile, business } = useAuth();
   const isAdmin = profile?.role === 'admin';
   const sites = useSites();
   const usdRate = useUsdRate();
   const queryClient = useQueryClient();
-  const [params, setParams] = useSearchParams();
-  const tab = parsePeriod(params.get('tab'));
-  const date = /^\d{4}-\d{2}-\d{2}$/.test(params.get('date') ?? '') ? (params.get('date') as string) : jubaToday();
-  const siteId = isAdmin ? (params.get('site') ?? '') : '';
+  const { tab, date, siteId, set } = usePeriodParams(isAdmin);
   const [editing, setEditing] = useState<Expense | 'new' | null>(null);
 
-  function set(key: string, value: string) {
-    const next = new URLSearchParams(params);
-    if (value) next.set(key, value);
-    else next.delete(key);
-    setParams(next, { replace: true });
-  }
-
-  const report = useQuery({
-    queryKey: ['profit', tab, date, siteId],
-    placeholderData: keepPreviousData,
-    queryFn: () => fetchProfit(tab, date, siteId),
-  });
+  const report = useProfit(tab, date, siteId);
+  const businessName = business?.name ?? 'Hotzonex Cloud';
 
   const remove = useMutation({
     mutationFn: async (id: string) => {
@@ -235,17 +160,18 @@ export function ExpensesPage() {
     if (!r) return;
     const scope = siteId ? (sites.data?.find((x) => x.id === siteId)?.name ?? '') : 'All sites';
     const rows: (string | number | null)[][] = [
-      ['Hotzonex WiFi', 'Profit report'],
+      [businessName, 'Profit report'],
       ['Period', label],
       ['Site', scope],
+      ['Generated', formatJubaStamp()],
       [],
-      ['Sales (SSP)', r.summary.revenue],
+      ['Revenue (SSP)', r.summary.revenue],
       ['Agent commission (SSP)', r.summary.commission],
       ['Expenses (SSP)', r.summary.expenses],
       ['Profit (SSP)', r.summary.profit],
     ];
     if (r.days.length) {
-      rows.push([], ['Day', 'Sales (SSP)', 'Commission (SSP)', 'Expenses (SSP)', 'Profit (SSP)']);
+      rows.push([], ['Day', 'Revenue (SSP)', 'Commission (SSP)', 'Expenses (SSP)', 'Profit (SSP)']);
       for (const d of r.days) rows.push([d.day, d.revenue, d.commission, d.expenses, d.profit]);
     }
     rows.push([], ['Day', 'Category', 'For', 'Note', 'Amount (SSP)', 'Recorded by']);
@@ -256,7 +182,7 @@ export function ExpensesPage() {
   const stats: { label: string; value: string; sub?: string; tone?: string }[] = s
     ? [
         {
-          label: 'Sales',
+          label: 'Revenue',
           value: formatSSP(s.revenue),
           sub: formatUsd(s.revenue, usdRate) || undefined,
         },
@@ -271,30 +197,36 @@ export function ExpensesPage() {
         {
           label: 'Profit',
           value: formatSSP(s.profit),
-          sub: [margin !== null ? `${margin}% of sales` : '', formatUsd(s.profit, usdRate)].filter(Boolean).join(' · ') || undefined,
+          sub: [margin !== null ? `${margin}% of revenue` : '', formatUsd(s.profit, usdRate)].filter(Boolean).join(' · ') || undefined,
           tone: profitTone(s.profit),
         },
       ]
     : [];
 
   return (
-    <div className="space-y-3">
-      <style>{`@page { size: A4 portrait; margin: 12mm; } @media print { .report-section { break-inside: avoid; box-shadow: none; border: 1px solid #e2e8f0; } }`}</style>
+    <div className="space-y-4">
+      <ReportPrintStyle />
       <div className="hidden print:block">
-        <div className="text-lg font-extrabold">Hotzonex WiFi — profit report</div>
+        <div className="text-lg font-extrabold">{businessName} — profit report</div>
         <div className="text-sm">{label}</div>
+        <div className="text-xs text-slate-600">Generated {formatJubaStamp()} (Juba time).</div>
       </div>
 
-      <div className="no-print flex items-center justify-between gap-2">
-        <h1 className="text-xl font-bold text-slate-900">Expenses &amp; profit</h1>
-        <div className="flex gap-2">
-          <Button variant="secondary" className="px-3 text-sm" onClick={() => window.print()} disabled={!r}>
-            Print
-          </Button>
-          <Button variant="secondary" className="px-3 text-sm" onClick={exportCsv} disabled={!r}>
-            CSV
-          </Button>
-        </div>
+      <div className="no-print">
+        <PageHeader
+          title="Expenses & profit"
+          subtitle="What you spend and what you keep"
+          actions={
+            <div className="no-print flex gap-2">
+              <Button variant="secondary" className="px-3 text-sm" onClick={() => window.print()} disabled={!r}>
+                Print
+              </Button>
+              <Button variant="secondary" className="px-3 text-sm" onClick={exportCsv} disabled={!r}>
+                Download CSV
+              </Button>
+            </div>
+          }
+        />
       </div>
 
       <PeriodPicker period={tab} date={date} onPeriod={(p) => set('tab', p)} onDate={(d) => set('date', d)}>
@@ -313,61 +245,62 @@ export function ExpensesPage() {
 
       {report.error && <Alert tone="error">{friendlyError(report.error)}</Alert>}
       {report.isLoading && <Spinner className="h-8 w-8 text-brand-600" />}
-      {report.data === null && <Alert tone="info">{MIGRATION_MISSING}</Alert>}
+
+      {r && (
+        <section className="report-section rounded-2xl bg-white p-4 shadow-card ring-1 ring-slate-200/70">
+          <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+            <div className="text-sm font-semibold text-slate-900">{label}</div>
+            <div className="flex items-center gap-3 text-xs text-slate-500">
+              {change !== null && (
+                <span>
+                  Profit {change > 0 ? '+' : ''}
+                  {change}% vs previous {tab}
+                </span>
+              )}
+              {!isCurrent && (
+                <button type="button" onClick={() => set('date', '')} className="no-print min-h-11 font-semibold text-brand-700 hover:underline">
+                  {currentPeriodName(tab)}
+                </button>
+              )}
+            </div>
+          </div>
+          <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-4">
+            {stats.map((x, i) => (
+              <div key={x.label} className={i > 0 ? 'sm:border-l sm:border-slate-100 sm:pl-4' : ''}>
+                <dt className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{x.label}</dt>
+                <dd className={`whitespace-nowrap text-base font-bold tabular-nums sm:text-xl ${x.tone ?? 'text-slate-900'}`}>{x.value}</dd>
+                {x.sub && <dd className="text-xs text-slate-500">{x.sub}</dd>}
+              </div>
+            ))}
+          </dl>
+        </section>
+      )}
+
+      {editing ? (
+        <ExpenseForm
+          key={editing === 'new' ? 'new' : editing.id}
+          expense={editing === 'new' ? null : editing}
+          isAdmin={isAdmin}
+          mySiteId={profile?.site_id ?? null}
+          defaultSiteId={siteId}
+          sites={sites.data ?? []}
+          onCancel={() => setEditing(null)}
+          onDone={() => {
+            setEditing(null);
+            void queryClient.invalidateQueries({ queryKey: ['profit'] });
+          }}
+        />
+      ) : (
+        <Button className="no-print w-full sm:w-auto" onClick={() => setEditing('new')}>
+          + Add expense
+        </Button>
+      )}
 
       {r && (
         <>
-          <section className="report-section rounded-2xl bg-white p-4 shadow-card ring-1 ring-slate-200/70">
-            <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-              <div className="text-sm font-semibold text-slate-900">{label}</div>
-              <div className="flex items-center gap-3 text-xs text-slate-500">
-                {change !== null && (
-                  <span>
-                    Profit {change > 0 ? '+' : ''}
-                    {change}% vs previous {tab}
-                  </span>
-                )}
-                {!isCurrent && (
-                  <button type="button" onClick={() => set('date', '')} className="no-print min-h-11 font-semibold text-brand-700 hover:underline">
-                    {currentPeriodName(tab)}
-                  </button>
-                )}
-              </div>
-            </div>
-            <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-4">
-              {stats.map((x, i) => (
-                <div key={x.label} className={i > 0 ? 'sm:border-l sm:border-slate-100 sm:pl-4' : ''}>
-                  <dt className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{x.label}</dt>
-                  <dd className={`whitespace-nowrap text-base font-bold tabular-nums sm:text-xl ${x.tone ?? 'text-slate-900'}`}>{x.value}</dd>
-                  {x.sub && <dd className="text-xs text-slate-500">{x.sub}</dd>}
-                </div>
-              ))}
-            </dl>
-          </section>
-
-          {editing ? (
-            <ExpenseForm
-              key={editing === 'new' ? 'new' : editing.id}
-              expense={editing === 'new' ? null : editing}
-              isAdmin={isAdmin}
-              mySiteId={profile?.site_id ?? null}
-              defaultSiteId={siteId}
-              sites={sites.data ?? []}
-              onCancel={() => setEditing(null)}
-              onDone={() => {
-                setEditing(null);
-                void queryClient.invalidateQueries({ queryKey: ['profit'] });
-              }}
-            />
-          ) : (
-            <Button className="no-print w-full sm:w-auto" onClick={() => setEditing('new')}>
-              + Add expense
-            </Button>
-          )}
-
           {remove.error && <Alert tone="error">{friendlyError(remove.error)}</Alert>}
 
-          <Section title="Expenses" aside={`${formatNumber(r.items.length)} · ${formatSSP(r.summary.expenses)}`}>
+          <ReportSection title="Expenses" aside={`${formatNumber(r.items.length)} · ${formatSSP(r.summary.expenses)}`}>
             <table className="w-full text-left text-sm">
               <thead>
                 <tr>
@@ -384,15 +317,16 @@ export function ExpensesPage() {
                       <div className="font-medium text-slate-900">{categoryLabel(e.category)}</div>
                       <div className="text-xs text-slate-500">{[e.note, e.site_name ?? (isAdmin ? 'Whole business' : null)].filter(Boolean).join(' · ')}</div>
                       <div className="no-print -ml-2 flex">
-                        <button type="button" className="min-h-11 px-2 text-xs font-semibold text-brand-700 hover:underline" onClick={() => setEditing(e)}>
+                        <button type="button" className={`${textButtonClass} text-brand-700`} onClick={() => setEditing(e)}>
                           Edit
                         </button>
                         <button
                           type="button"
-                          className="min-h-11 px-2 text-xs font-semibold text-red-700 hover:underline disabled:opacity-50"
+                          className={`${textButtonClass} text-red-700`}
                           disabled={remove.isPending}
                           onClick={() =>
-                            window.confirm(`Remove ${categoryLabel(e.category)} ${formatSSP(e.amount_ssp)} of ${e.spent_on}?`) && remove.mutate(e.id)
+                            window.confirm(`Remove ${categoryLabel(e.category)} ${formatSSP(e.amount_ssp)} of ${shortDay.format(utc(e.spent_on))}?`) &&
+                            remove.mutate(e.id)
                           }
                         >
                           Remove
@@ -411,16 +345,16 @@ export function ExpensesPage() {
                 )}
               </tbody>
             </table>
-          </Section>
+          </ReportSection>
 
           <div className="grid gap-3 lg:grid-cols-2">
             {r.days.length > 0 && (
-              <Section title="Day by day" aside="days with nothing hidden">
+              <ReportSection title="Day by day" aside="days with nothing hidden">
                 <table className="w-full text-left text-sm">
                   <thead>
                     <tr>
                       <th className={th}>Day</th>
-                      <th className={`${th} text-right`}>Sales</th>
+                      <th className={`${th} text-right`}>Revenue</th>
                       <th className={`${th} text-right`}>Costs</th>
                       <th className={`${th} text-right`}>Profit</th>
                     </tr>
@@ -449,11 +383,11 @@ export function ExpensesPage() {
                     </tr>
                   </tbody>
                 </table>
-              </Section>
+              </ReportSection>
             )}
 
             {r.by_category.length > 0 && (
-              <Section title="Expenses by category">
+              <ReportSection title="Expenses by category">
                 <table className="w-full text-left text-sm">
                   <tbody>
                     {r.by_category.map((c) => (
@@ -467,12 +401,12 @@ export function ExpensesPage() {
                     ))}
                   </tbody>
                 </table>
-              </Section>
+              </ReportSection>
             )}
           </div>
 
           <p className="no-print text-xs text-slate-500">
-            Profit = sales − agent commission − expenses. Sales are counted as on Reports (voided sales left out).
+            Profit = revenue − agent commission − expenses. Revenue is counted as on Reports (voided sales left out).
             {siteId ? ' With one site chosen, whole-business expenses are not included.' : ''}
           </p>
         </>

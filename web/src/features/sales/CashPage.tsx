@@ -7,7 +7,7 @@ import { friendlyError } from '../../lib/errors';
 import { formatSSP, jubaToday } from '../../lib/format';
 import { useSites } from '../../hooks/queries';
 import { fromJson, supabase } from '../../lib/supabase';
-import { cashHandoverSchema, validate } from '../../lib/validation';
+import { cashHandoverSchema, sellerTermsSchema, validate } from '../../lib/validation';
 
 interface CashRow {
   seller_id: string;
@@ -28,16 +28,6 @@ interface CashRow {
 }
 
 /** Checks the commission and credit limit typed in (validation.ts has no schema for seller terms). */
-function parseTerms(pct: string, limit: string): { pct: number; limit: number | null } {
-  const p = pct.trim() === '' ? 0 : Number(pct);
-  if (!Number.isFinite(p) || p < 0 || p > 100) throw new Error('Commission must be a number from 0 to 100.');
-  const l = limit.trim();
-  if (l === '') return { pct: p, limit: null };
-  const n = Number(l);
-  if (!Number.isInteger(n) || n < 0) throw new Error('Credit limit must be a whole number of SSP (0 or more), or empty for no limit.');
-  return { pct: p, limit: n };
-}
-
 function ReceiveCash({ row, onDone }: { row: CashRow; onDone: () => void }) {
   const [amount, setAmount] = useState(row.held_now > 0 ? String(row.held_now) : '');
   const [note, setNote] = useState('');
@@ -82,7 +72,7 @@ function Terms({ row, onDone }: { row: CashRow; onDone: () => void }) {
   const [limit, setLimit] = useState(row.credit_limit_ssp === null ? '' : String(row.credit_limit_ssp));
   const save = useMutation({
     mutationFn: async () => {
-      const v = parseTerms(pct, limit);
+      const v = validate(sellerTermsSchema, { pct, limit });
       const { error } = await supabase.rpc('set_seller_terms', {
         p_profile_id: row.seller_id,
         p_commission_pct: v.pct,
