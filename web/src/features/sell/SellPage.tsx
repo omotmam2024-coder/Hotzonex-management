@@ -3,7 +3,10 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../../auth/AuthProvider';
 import { Alert, Button, Select, Spinner } from '../../components/ui';
-import { friendlyError } from '../../lib/errors';
+import { friendlyError, isNetworkError } from '../../lib/errors';
+import { LOW_STOCK } from '../../lib/labels';
+import { rolesFor } from '../../lib/nav';
+import { PageHeader } from '../../components/PageHeader';
 import { codeGroups, formatDuration, formatJubaTime, formatSSP, formatUsd } from '../../lib/format';
 import { useUsdRate } from '../../hooks/useBusinessSettings';
 import { invalidateSalesData, usePlans, useRouters, useSites } from '../../hooks/queries';
@@ -14,17 +17,8 @@ import type { ReceiptData } from '../../print/Receipt';
 import { loginAddress } from '../../print/voucherLinks';
 import { hotspotAddress } from '../../lib/routers';
 
-const LOW_STOCK = 20;
 const LAST_SALE_KEY = 'hzc.lastSale';
 const SITE_KEY = 'hzc.sellSite';
-
-interface SaleRow {
-  sale_id: string;
-  voucher_id: string;
-  code: string;
-  amount_ssp: number;
-  sold_at: string;
-}
 
 interface LastSale {
   receipt: ReceiptData;
@@ -81,10 +75,10 @@ function SaleResult({ sale, onPrint, onNext }: { sale: LastSale; onPrint: () => 
       </div>
       <div className="grid grid-cols-2 gap-3 p-4 sm:grid-cols-3">
         <Button variant="secondary" onClick={onPrint} className="min-h-16 text-xl">
-          🖨 Print
+          Print
         </Button>
         <Button variant="secondary" onClick={() => void shareCode(r)} className="min-h-16 text-xl">
-          ↗ Share
+          Share
         </Button>
         <Button onClick={onNext} className="col-span-2 min-h-16 text-xl sm:col-span-1">
           Sell another
@@ -94,7 +88,7 @@ function SaleResult({ sale, onPrint, onNext }: { sale: LastSale; onPrint: () => 
   );
 }
 
-function PlanButton({ plan, stock, busy, onSell }: { plan: Plan; stock: number | undefined; busy: boolean; onSell: () => void }) {
+function PlanButton({ plan, stock, busy, canGenerate, onSell }: { plan: Plan; stock: number | undefined; busy: boolean; canGenerate: boolean; onSell: () => void }) {
   const count = stock ?? 0;
   const empty = stock !== undefined && count === 0;
   const low = !empty && count < LOW_STOCK;
@@ -115,7 +109,7 @@ function PlanButton({ plan, stock, busy, onSell }: { plan: Plan; stock: number |
         {stock === undefined ? (
           <span className="text-base opacity-90">Counting…</span>
         ) : empty ? (
-          <span className="block rounded-lg bg-white/90 px-3 py-2 text-base font-bold text-slate-800">Out of stock — generate vouchers</span>
+          <span className="block rounded-lg bg-white/90 px-3 py-2 text-base font-bold text-slate-800">{canGenerate ? 'Out of stock — generate vouchers' : 'Out of stock — tell your manager'}</span>
         ) : low ? (
           <span className="inline-block rounded-lg bg-amber-300 px-3 py-1 text-lg font-bold text-amber-950">⚠ Only {count} left</span>
         ) : (
@@ -143,10 +137,6 @@ function newRequestId(): string {
   b[8] = (b[8]! & 0x3f) | 0x80;
   const h = [...b].map((x) => x.toString(16).padStart(2, '0')).join('');
   return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
-}
-
-function isNetworkError(message: string): boolean {
-  return /failed to fetch|networkerror|load failed|network request failed|timeout|aborted/i.test(message);
 }
 
 export function SellPage() {
@@ -180,7 +170,7 @@ export function SellPage() {
     queryFn: async (): Promise<Map<string, number>> => {
       const { data, error } = await supabase.rpc('voucher_stock', { p_router_id: routerId });
       if (error) throw new Error(friendlyError(error));
-      return new Map(((data ?? []) as { plan_id: string; available: number }[]).map((r) => [r.plan_id, Number(r.available)]));
+      return new Map((data ?? []).map((r) => [r.plan_id, Number(r.available)]));
     },
   });
 
@@ -200,12 +190,9 @@ export function SellPage() {
   const sell = useMutation({
     mutationFn: async (plan: Plan): Promise<LastSale> => {
       if (!router) throw new Error('Choose a router first.');
-      const args = { p_router_id: router.id, p_plan_id: plan.id };
-      let { data, error } = await supabase.rpc('sell_voucher', { ...args, p_request_id: attempt.current?.id ?? null });
-      // A database without the retry-safe sell yet (migration 20261016171000 not applied): sell as before.
-      if (error?.code === 'PGRST202') ({ data, error } = await supabase.rpc('sell_voucher', args));
+      const { data, error } = await supabase.rpc('sell_voucher', { p_router_id: router.id, p_plan_id: plan.id, p_request_id: attempt.current?.id ?? null });
       if (error) throw new SellError(friendlyError(error), isNetworkError(error.message));
-      const row = (data as SaleRow[] | null)?.[0];
+      const row = data?.[0];
       if (!row) throw new Error('The sale did not return a code. Please try again.');
       return {
         receipt: {
@@ -252,37 +239,37 @@ export function SellPage() {
 
   // Only plans ticked for this router (Plans page).
   const activePlans = (plans.data ?? []).filter((p) => p.is_active && (!routerId || planOnRouter(p, routerId)));
-  const canGenerate = profile?.role === 'admin' || profile?.role === 'manager';
+  const canGenerate = Boolean(profile && rolesFor('/vouchers').includes(profile.role));
 
   return (
     <div className="mx-auto max-w-5xl">
       {lastSale && <SaleResult sale={lastSale} onPrint={printReceipt} onNext={sellAnother} />}
 
-      <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900">Sell</h1>
-          <p className="text-slate-600">Cash only · tap a plan to sell one voucher</p>
-        </div>
-        {!fixedSite && (
-          <div className="w-full sm:w-64">
-            <Select
-              value={siteId}
-              aria-label="Site"
-              onChange={(e) => {
-                setSiteId(e.target.value);
-                writeStored('local', SITE_KEY, e.target.value);
-              }}
-            >
-              <option value="">Choose a site…</option>
-              {(sites.data ?? []).map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name}
-                </option>
-              ))}
-            </Select>
-          </div>
-        )}
-      </div>
+      <PageHeader
+        title="Sell"
+        subtitle="Cash only · tap a plan to sell one voucher"
+        actions={
+          !fixedSite && (
+            <div className="w-full sm:w-64">
+              <Select
+                value={siteId}
+                aria-label="Site"
+                onChange={(e) => {
+                  setSiteId(e.target.value);
+                  writeStored('local', SITE_KEY, e.target.value);
+                }}
+              >
+                <option value="">Choose a site…</option>
+                {(sites.data ?? []).map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}
+                  </option>
+                ))}
+              </Select>
+            </div>
+          )
+        }
+      />
 
       {siteRouters.length > 1 && (
         <div className="mb-4 flex flex-wrap gap-2">
@@ -291,7 +278,7 @@ export function SellPage() {
               key={r.id}
               type="button"
               onClick={() => setRouterId(r.id)}
-              className={`min-h-12 rounded-xl px-4 font-semibold ring-1 ${r.id === routerId ? 'bg-brand-600 text-white ring-brand-600' : 'bg-white text-slate-700 ring-slate-300'}`}
+              className={`min-h-11 rounded-xl px-4 font-semibold ring-1 ${r.id === routerId ? 'bg-brand-600 text-white ring-brand-600' : 'bg-white text-slate-700 ring-slate-300'}`}
             >
               {r.name}
             </button>
@@ -301,7 +288,7 @@ export function SellPage() {
 
       <div className="space-y-3">
         {!siteId && <Alert tone="info">Choose a site to start selling.</Alert>}
-        {siteId && routers.data && siteRouters.length === 0 && <Alert tone="warning">This site has no router yet. An admin must add one on the Routers page.</Alert>}
+        {siteId && routers.data && siteRouters.length === 0 && <Alert tone="warning">This site has no router yet. Ask the owner to add one on the Routers page.</Alert>}
         {router?.status === 'offline' && (
           <Alert tone="warning">
             Router {router.name} is offline{router.last_seen_at ? ` since ${formatJubaTime(router.last_seen_at)}` : ''}. You can still sell, but customers cannot log in until it is back.
@@ -315,7 +302,7 @@ export function SellPage() {
         <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {plans.isLoading && <Spinner className="h-8 w-8 text-brand-600" />}
           {activePlans.map((plan) => (
-            <PlanButton key={plan.id} plan={plan} stock={stock.data?.get(plan.id) ?? (stock.data ? 0 : undefined)} busy={sell.isPending} onSell={() => sellPlan(plan)} />
+            <PlanButton key={plan.id} plan={plan} stock={stock.data?.get(plan.id) ?? (stock.data ? 0 : undefined)} busy={sell.isPending} canGenerate={canGenerate} onSell={() => sellPlan(plan)} />
           ))}
         </div>
       )}
@@ -329,7 +316,7 @@ export function SellPage() {
       {canGenerate && router && (
         <p className="mt-6 text-sm text-slate-600">
           Running low? <Link to="/vouchers/generate" className="font-semibold text-brand-700 underline">Generate vouchers</Link>. Pre-printed cards are not sold here — record them with{' '}
-          <Link to="/sales/mark-sold" className="font-semibold text-brand-700 underline">Mark as sold</Link>.
+          <Link to="/sales/mark-sold" className="font-semibold text-brand-700 underline">Mark printed cards as sold</Link>.
         </p>
       )}
     </div>

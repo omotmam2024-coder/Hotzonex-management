@@ -1,14 +1,16 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../../auth/AuthProvider';
 import { PageHeader } from '../../components/PageHeader';
-import { Alert, Badge, Button, Card, Field, Select, Spinner } from '../../components/ui';
+import { Alert, Badge, Button, Card, Field, Select, Spinner, TextArea, textButtonClass } from '../../components/ui';
 import { friendlyError } from '../../lib/errors';
 import { formatJubaTime, formatNumber, formatSSP } from '../../lib/format';
 import { invalidateSalesData, usePlans, useRouters } from '../../hooks/queries';
 import { fromJson, supabase } from '../../lib/supabase';
-import type { VoucherStatus } from '../../lib/types';
+import { VOUCHER_STATUS } from '../../lib/labels';
+import { ROLE_LABELS } from '../../lib/nav';
+import type { Role, VoucherStatus } from '../../lib/types';
 
 type Mode = 'batch' | 'codes';
 
@@ -34,6 +36,11 @@ interface StaffOption {
   is_active: boolean;
 }
 
+/** Only printed, unused cards can be recorded as sold (sold or active ones would be counted twice). */
+function isEligible(c: Candidate): boolean {
+  return c.status === 'unused' && Boolean(c.printed_at);
+}
+
 /** Pulls 6–10 digit codes out of whatever was typed or pasted. */
 function parseCodes(text: string): string[] {
   return [...new Set(text.match(/\d{6,10}/g) ?? [])];
@@ -52,7 +59,7 @@ export function MarkSoldPage() {
   const [sellerId, setSellerId] = useState('');
   const [result, setResult] = useState<MarkResult | null>(null);
 
-  const usableRouters = (routers.data ?? []).filter((r) => r.status !== 'pending');
+  const usableRouters = useMemo(() => (routers.data ?? []).filter((r) => r.status !== 'pending'), [routers.data]);
   useEffect(() => {
     if (!routerId && usableRouters.length === 1) setRouterId(usableRouters[0]?.id ?? '');
   }, [routerId, usableRouters]);
@@ -69,7 +76,7 @@ export function MarkSoldPage() {
         .eq('router_id', routerId)
         .order('created_at', { ascending: false })
         .limit(100);
-      if (error) throw new Error(error.message);
+      if (error) throw new Error(friendlyError(error));
       return (data ?? []) as { id: string; created_at: string; quantity: number; plan_name: string }[];
     },
   });
@@ -83,7 +90,7 @@ export function MarkSoldPage() {
       let q = supabase.from('vouchers').select('id, code, plan_id, status, printed_at').eq('router_id', routerId).eq('on_router', true);
       q = mode === 'batch' ? q.eq('batch_id', batchId).eq('status', 'unused').not('printed_at', 'is', null) : q.in('code', typedCodes.slice(0, 1000));
       const { data, error } = await q.order('code').limit(1000);
-      if (error) throw new Error(error.message);
+      if (error) throw new Error(friendlyError(error));
       return (data ?? []) as Candidate[];
     },
   });
@@ -91,30 +98,31 @@ export function MarkSoldPage() {
   // Select every eligible card whenever the list changes.
   useEffect(() => {
     const list = candidates.data ?? [];
-    setSelected(new Set(list.filter((c) => c.status !== 'disabled' && c.printed_at).map((c) => c.id)));
+    setSelected(new Set(list.filter(isEligible).map((c) => c.id)));
   }, [candidates.data]);
 
   const staff = useQuery({
     queryKey: ['staff-options-full'],
     queryFn: async (): Promise<StaffOption[]> => {
       const { data, error } = await supabase.from('profiles').select('id, full_name, role, site_id, is_active').eq('is_active', true).order('full_name');
-      if (error) throw new Error(error.message);
+      if (error) throw new Error(friendlyError(error));
       return data ?? [];
     },
   });
-  const sellers = (staff.data ?? []).filter((s) => s.site_id === router?.site_id || s.id === profile?.id);
+  const routerSiteId = router?.site_id;
+  const sellers = useMemo(() => (staff.data ?? []).filter((s) => s.site_id === routerSiteId || s.id === profile?.id), [staff.data, routerSiteId, profile?.id]);
   useEffect(() => {
     if (sellerId && !sellers.some((s) => s.id === sellerId)) setSellerId('');
   }, [sellers, sellerId]);
 
   const list = candidates.data ?? [];
   const notFound = mode === 'codes' && candidates.data ? typedCodes.filter((c) => !list.some((v) => v.code === c)) : [];
-  const chosen = list.filter((c) => selected.has(c.id));
+  const chosen = list.filter((c) => selected.has(c.id) && isEligible(c));
   const total = chosen.reduce((sum, c) => sum + (planById.get(c.plan_id)?.price_ssp ?? 0), 0);
 
   const mark = useMutation({
     mutationFn: async (): Promise<MarkResult> => {
-      if (!sellerId) throw new Error('Choose the seller who handed out these cards.');
+      if (!sellerId) throw new Error('Choose the cashier or agent who handed out these cards.');
       if (chosen.length === 0) throw new Error('Select at least one card.');
       const { data, error } = await supabase.rpc('mark_vouchers_sold', { p_voucher_ids: chosen.map((c) => c.id), p_seller_id: sellerId });
       if (error) throw new Error(friendlyError(error));
@@ -126,6 +134,14 @@ export function MarkSoldPage() {
       invalidateSalesData(queryClient);
     },
   });
+
+  // A double tap must not record the cards twice: the second tap comes before isPending re-renders.
+  const inFlight = useRef(false);
+  function recordSales() {
+    if (inFlight.current) return;
+    inFlight.current = true;
+    mark.mutate(undefined, { onSettled: () => (inFlight.current = false) });
+  }
 
   function toggle(id: string) {
     setSelected((prev) => {
@@ -143,7 +159,14 @@ export function MarkSoldPage() {
       <Card>
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Router">
-            <Select value={routerId} onChange={(e) => setRouterId(e.target.value)}>
+            <Select
+              value={routerId}
+              onChange={(e) => {
+                setRouterId(e.target.value);
+                setBatchId('');
+                setResult(null);
+              }}
+            >
               <option value="">Choose a router…</option>
               {usableRouters.map((r) => (
                 <option key={r.id} value={r.id}>
@@ -154,10 +177,10 @@ export function MarkSoldPage() {
           </Field>
           <Field label="Cashier or agent who handed out the cards">
             <Select value={sellerId} onChange={(e) => setSellerId(e.target.value)} disabled={!router}>
-              <option value="">Choose a seller…</option>
+              <option value="">Choose a cashier or agent…</option>
               {sellers.map((s) => (
                 <option key={s.id} value={s.id}>
-                  {s.full_name} ({s.role})
+                  {s.full_name} ({ROLE_LABELS[s.role as Role] ?? s.role})
                 </option>
               ))}
             </Select>
@@ -173,7 +196,7 @@ export function MarkSoldPage() {
                 setMode(m);
                 setResult(null);
               }}
-              className={`min-h-12 rounded-xl px-3 font-semibold ring-1 ${mode === m ? 'bg-brand-600 text-white ring-brand-600' : 'bg-white text-slate-700 ring-slate-300'}`}
+              className={`min-h-11 rounded-xl px-3 font-semibold ring-1 ${mode === m ? 'bg-brand-600 text-white ring-brand-600' : 'bg-white text-slate-700 ring-slate-300'}`}
             >
               {m === 'batch' ? 'From a printed batch' : 'Type codes'}
             </button>
@@ -194,13 +217,13 @@ export function MarkSoldPage() {
             </Field>
           ) : (
             <Field label="Codes" hint="One per line, or separated by spaces or commas">
-              <textarea
+              <TextArea
                 value={codesText}
                 onChange={(e) => setCodesText(e.target.value)}
                 rows={4}
                 inputMode="numeric"
                 disabled={!router}
-                className="w-full rounded-xl border border-slate-300 p-3 font-mono text-lg focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100"
+                className="font-mono text-lg"
                 placeholder={'48213570\n48221489'}
               />
             </Field>
@@ -245,11 +268,11 @@ export function MarkSoldPage() {
             <span className="font-semibold">
               {formatNumber(chosen.length)} of {formatNumber(list.length)} selected · {formatSSP(total)}
             </span>
-            <div className="flex gap-3 text-sm font-semibold text-brand-700">
-              <button type="button" onClick={() => setSelected(new Set(list.filter((c) => c.status !== 'disabled' && c.printed_at).map((c) => c.id)))}>
+            <div className="flex gap-1">
+              <button type="button" className={`${textButtonClass} text-brand-700`} onClick={() => setSelected(new Set(list.filter(isEligible).map((c) => c.id)))}>
                 Select all
               </button>
-              <button type="button" onClick={() => setSelected(new Set())}>
+              <button type="button" className={`${textButtonClass} text-brand-700`} onClick={() => setSelected(new Set())}>
                 Select none
               </button>
             </div>
@@ -257,7 +280,8 @@ export function MarkSoldPage() {
           <ul className="max-h-96 divide-y divide-slate-100 overflow-y-auto border-t border-slate-100">
             {list.map((c) => {
               const plan = planById.get(c.plan_id);
-              const blocked = c.status === 'disabled' ? 'Disabled' : !c.printed_at ? 'Not printed — sell on the Sell screen' : null;
+              const status = VOUCHER_STATUS[c.status];
+              const blocked = c.status !== 'unused' ? `Already ${status.label.toLowerCase()}` : !c.printed_at ? 'Not printed — sell on the Sell screen' : null;
               return (
                 <li key={c.id}>
                   <label className={`flex min-h-12 items-center gap-3 px-4 py-2 ${blocked ? 'opacity-60' : 'cursor-pointer'}`}>
@@ -267,7 +291,10 @@ export function MarkSoldPage() {
                     <span className="text-sm text-slate-600">
                       {plan?.name} · {plan ? formatSSP(plan.price_ssp) : ''}
                     </span>
-                    <span className="ml-auto">{blocked ? <span className="text-xs text-slate-500">{blocked}</span> : c.status !== 'unused' && <Badge color="blue">{c.status}</Badge>}</span>
+                    <span className="ml-auto flex items-center gap-2">
+                      {blocked && <span className="text-xs text-slate-500">{blocked}</span>}
+                      {c.status !== 'unused' && <Badge color={status.color}>{status.label}</Badge>}
+                    </span>
                   </label>
                 </li>
               );
@@ -278,7 +305,7 @@ export function MarkSoldPage() {
       {mode === 'batch' && batchId && candidates.data && list.length === 0 && <Alert tone="info">No printed, unsold cards left in this batch.</Alert>}
 
       {mark.error && <Alert tone="error">{mark.error.message}</Alert>}
-      <Button className="min-h-12 px-6 text-lg" disabled={mark.isPending || chosen.length === 0 || !sellerId} onClick={() => mark.mutate()}>
+      <Button className="min-h-12 px-6 text-lg" disabled={mark.isPending || chosen.length === 0 || !sellerId} onClick={recordSales}>
         {mark.isPending && <Spinner />} Record {formatNumber(chosen.length)} cash sale{chosen.length === 1 ? '' : 's'} · {formatSSP(total)}
       </Button>
     </div>

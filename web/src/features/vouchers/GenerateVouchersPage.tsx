@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../../auth/AuthProvider';
 import { PageHeader } from '../../components/PageHeader';
-import { Alert, Badge, Button, Card, Field, Select, Spinner, TextInput } from '../../components/ui';
+import { Alert, Badge, Button, buttonClass, Card, Field, Select, Spinner, TextInput } from '../../components/ui';
 import { friendlyError } from '../../lib/errors';
 import { formatDuration, formatJubaTime, formatNumber, formatSSP } from '../../lib/format';
 import { invalidateSalesData, usePlans, useRouters, useSites } from '../../hooks/queries';
@@ -80,7 +80,7 @@ function BatchRow({ batch }: { batch: BatchStatus }) {
           {batch.push_status === 'done' && !(batch.push_warnings ?? []).length && batch.pushed_count > 0 && (
             <p className="mt-1 text-xs text-green-700">Checked on the router ✓</p>
           )}
-          {retry.error && <p className="mt-1 text-sm text-red-700">{retry.error.message}</p>}
+          {retry.error && <p className="mt-1 text-sm text-red-700">{friendlyError(retry.error)}</p>}
         </div>
       </div>
       <div className="flex shrink-0 gap-2">
@@ -92,14 +92,14 @@ function BatchRow({ batch }: { batch: BatchStatus }) {
         {batch.pushed_count > 0 && (
           <Link
             to={`/vouchers/print?batch=${batch.id}`}
-            className="inline-flex min-h-11 items-center rounded-xl px-4 font-semibold text-slate-700 ring-1 ring-slate-300 hover:bg-slate-50"
+            className={buttonClass('secondary')}
           >
             Print
           </Link>
         )}
         <Link
           to={`/vouchers?batch=${batch.id}`}
-          className="inline-flex min-h-11 items-center rounded-xl px-4 font-semibold text-slate-700 ring-1 ring-slate-300 hover:bg-slate-50"
+          className={buttonClass('secondary')}
         >
           View codes
         </Link>
@@ -142,10 +142,10 @@ export function GenerateVouchersPage() {
     staleTime: 10 * 60_000,
     queryFn: async (): Promise<number | null> => {
       const { data, error } = await supabase.from('router_logins').select('username').eq('router_id', routerId).limit(500);
-      if (error) throw new Error(error.message);
+      if (error) throw new Error(friendlyError(error));
       const counts = new Map<number, number>();
       for (const { username } of data ?? []) {
-        if (/^[0-9]{6,10}$/.test(username as string)) counts.set((username as string).length, (counts.get((username as string).length) ?? 0) + 1);
+        if (/^[0-9]{6,10}$/.test(username)) counts.set(username.length, (counts.get(username.length) ?? 0) + 1);
       }
       const best = [...counts].sort((a, b) => b[1] - a[1])[0];
       return best && best[1] >= 5 ? best[0] : null;
@@ -156,7 +156,7 @@ export function GenerateVouchersPage() {
     if (ownLength) setCodeLength(String(ownLength));
   }, [ownLength, routerId]);
   // Only plans ticked for this router (Plans page): its vouchers use the router's own profile for the plan.
-  const activePlans = (plans.data ?? []).filter((p) => p.is_active && (!routerId || planOnRouter(p, routerId)));
+  const activePlans = useMemo(() => (plans.data ?? []).filter((p) => p.is_active && (!routerId || planOnRouter(p, routerId))), [plans.data, routerId]);
   useEffect(() => {
     if (planId && !activePlans.some((p) => p.id === planId)) setPlanId('');
   }, [activePlans, planId]);
@@ -165,7 +165,7 @@ export function GenerateVouchersPage() {
     queryKey: ['batches'],
     queryFn: async (): Promise<BatchStatus[]> => {
       const { data, error } = await supabase.from('voucher_batch_status').select(BATCH_COLUMNS).order('created_at', { ascending: false }).limit(20);
-      if (error) throw new Error(error.message);
+      if (error) throw new Error(friendlyError(error));
       return (data ?? []) as BatchStatus[];
     },
     refetchInterval: (query) => ((query.state.data ?? []).some(isPushing) ? 2000 : 15_000),
@@ -206,7 +206,7 @@ export function GenerateVouchersPage() {
         title="Generate vouchers"
         subtitle="Codes are numbers only. Customers type just the code to log in."
         actions={
-          <Link to="/vouchers" className="inline-flex min-h-11 items-center rounded-xl px-4 font-semibold text-slate-700 ring-1 ring-slate-300 hover:bg-white">
+          <Link to="/vouchers" className={buttonClass('secondary')}>
             All vouchers
           </Link>
         }

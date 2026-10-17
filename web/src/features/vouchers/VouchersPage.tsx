@@ -3,24 +3,17 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../../auth/AuthProvider';
 import { PageHeader } from '../../components/PageHeader';
-import { Alert, Badge, Button, Card, Field, Select, Spinner, TextInput } from '../../components/ui';
+import { Alert, Badge, Button, buttonClass, Card, Field, Select, Spinner, TextInput, textButtonClass } from '../../components/ui';
 import { friendlyError } from '../../lib/errors';
 import { formatJubaTime, formatNumber } from '../../lib/format';
 import { invokeFunction } from '../../lib/functions';
-import { usePlans, useRouters } from '../../hooks/queries';
+import { invalidateSalesData, usePlans, useRouters } from '../../hooks/queries';
+import { VOUCHER_STATUS } from '../../lib/labels';
 import { supabase } from '../../lib/supabase';
 import type { Voucher, VoucherStatus } from '../../lib/types';
 
 const PAGE_SIZE = 50;
 const VOUCHER_COLUMNS = 'id, created_at, batch_id, router_id, site_id, plan_id, code, status, on_router, printed_at, sold_at, first_used_at, expires_at';
-
-const STATUS_BADGE: Record<VoucherStatus, { color: 'green' | 'red' | 'gray' | 'blue'; label: string }> = {
-  unused: { color: 'gray', label: 'Unused' },
-  sold: { color: 'blue', label: 'Sold' },
-  active: { color: 'green', label: 'Active' },
-  expired: { color: 'red', label: 'Expired' },
-  disabled: { color: 'red', label: 'Disabled' },
-};
 
 /** Sold and in-use vouchers have sales, so they stay; the rest can be deleted (from the router too). */
 const DELETABLE: VoucherStatus[] = ['unused', 'disabled', 'expired'];
@@ -92,7 +85,7 @@ export function VouchersPage() {
         .select('id, created_at, quantity, plan_name, router_name')
         .order('created_at', { ascending: false })
         .limit(100);
-      if (error) throw new Error(error.message);
+      if (error) throw new Error(friendlyError(error));
       return (data ?? []) as BatchOption[];
     },
   });
@@ -111,7 +104,7 @@ export function VouchersPage() {
         .order('created_at', { ascending: false })
         .order('code')
         .range(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE - 1);
-      if (error) throw new Error(error.message);
+      if (error) throw new Error(friendlyError(error));
       return { rows: (data ?? []) as Voucher[], total: count ?? 0 };
     },
   });
@@ -120,17 +113,18 @@ export function VouchersPage() {
   useEffect(() => setSelected(new Set()), [routerId, planId, status, batchId, code, page]);
 
   const remove = useMutation({
-    mutationFn: async (ids: string[]) => {
-      if (!window.confirm(`Delete ${ids.length} voucher${ids.length === 1 ? '' : 's'}? They are deleted from the router too and cannot be sold or used any more.`)) return null;
-      return invokeFunction<DeleteResult>('delete-items', { action: 'delete_vouchers', ids });
-    },
-    onSuccess: (r) => {
-      if (!r) return;
+    mutationFn: (ids: string[]) => invokeFunction<DeleteResult>('delete-items', { action: 'delete_vouchers', ids }),
+    onSuccess: () => {
       setSelected(new Set());
-      void queryClient.invalidateQueries({ queryKey: ['vouchers'] });
+      invalidateSalesData(queryClient);
       void queryClient.invalidateQueries({ queryKey: ['batch-options'] });
     },
   });
+  function deleteSelected() {
+    const ids = [...selected];
+    if (!window.confirm(`Delete ${ids.length} voucher${ids.length === 1 ? '' : 's'}? They are deleted from the router too and cannot be sold or used any more.`)) return;
+    remove.mutate(ids);
+  }
 
   const planById = new Map((plans.data ?? []).map((p) => [p.id, p]));
   const routerById = new Map((routers.data ?? []).map((r) => [r.id, r]));
@@ -152,15 +146,16 @@ export function VouchersPage() {
     <div className="space-y-4">
       <PageHeader
         title="Vouchers"
+        subtitle="Every voucher code on your routers"
         actions={
           <div className="flex flex-wrap gap-2">
             <Link
               to={batchId ? `/vouchers/print?batch=${batchId}` : '/vouchers/print'}
-              className="inline-flex min-h-11 items-center rounded-xl bg-white px-4 font-semibold text-slate-800 ring-1 ring-slate-300 hover:bg-slate-50"
+              className={buttonClass('secondary')}
             >
               Print cards
             </Link>
-            <Link to="/vouchers/generate" className="inline-flex min-h-11 items-center rounded-xl bg-brand-600 px-4 font-semibold text-white hover:bg-brand-700">
+            <Link to="/vouchers/generate" className={buttonClass('primary')}>
               + Generate vouchers
             </Link>
           </div>
@@ -195,9 +190,9 @@ export function VouchersPage() {
           <Field label="Status">
             <Select value={status} onChange={(e) => setFilter('status', e.target.value)}>
               <option value="">All statuses</option>
-              {(Object.keys(STATUS_BADGE) as VoucherStatus[]).map((s) => (
+              {(Object.keys(VOUCHER_STATUS) as VoucherStatus[]).map((s) => (
                 <option key={s} value={s}>
-                  {STATUS_BADGE[s].label}
+                  {VOUCHER_STATUS[s].label}
                 </option>
               ))}
             </Select>
@@ -214,7 +209,7 @@ export function VouchersPage() {
           </Field>
         </div>
         {hasFilters && (
-          <button type="button" className="mt-3 text-sm font-semibold text-brand-700 hover:underline" onClick={() => setParams({}, { replace: true })}>
+          <button type="button" className={`${textButtonClass} mt-1 text-brand-700`} onClick={() => setParams({}, { replace: true })}>
             Clear filters
           </button>
         )}
@@ -232,7 +227,7 @@ export function VouchersPage() {
           </span>
           <span className="flex items-center gap-3">
             {isAdmin && selected.size > 0 && (
-              <Button variant="danger" disabled={remove.isPending} onClick={() => remove.mutate([...selected])}>
+              <Button variant="danger" disabled={remove.isPending} onClick={deleteSelected}>
                 {remove.isPending ? <Spinner /> : null} Delete {selected.size}
               </Button>
             )}
@@ -270,7 +265,7 @@ export function VouchersPage() {
             <tbody>
               {rows.map((v) => {
                 const plan = planById.get(v.plan_id);
-                const badge = STATUS_BADGE[v.status];
+                const badge = VOUCHER_STATUS[v.status];
                 return (
                   <tr key={v.id} className="border-b border-slate-100 last:border-0">
                     {isAdmin && (
@@ -302,7 +297,7 @@ export function VouchersPage() {
                     <td className="px-4 py-2">{v.sold_at ? formatJubaTime(v.sold_at) : '—'}</td>
                     <td className="px-4 py-2 text-right">
                       {v.on_router && v.status !== 'disabled' && (
-                        <Link to={`/print/receipt/${v.id}`} className="font-semibold text-brand-700 hover:underline">
+                        <Link to={`/print/receipt/${v.id}`} className={`${textButtonClass} text-brand-700`}>
                           Receipt
                         </Link>
                       )}

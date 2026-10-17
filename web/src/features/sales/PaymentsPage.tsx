@@ -1,13 +1,14 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import qrcode from 'qrcode-generator';
 import { useAuth } from '../../auth/AuthProvider';
 import { PageHeader } from '../../components/PageHeader';
-import { Alert, Badge, Button, Card, Checkbox, Field, Spinner, TextInput } from '../../components/ui';
+import { Alert, Badge, Button, Card, Checkbox, Field, Spinner, TextArea, TextInput, textButtonClass } from '../../components/ui';
 import { friendlyError } from '../../lib/errors';
-import { formatJubaTime, formatNumber } from '../../lib/format';
+import { formatJubaTime, formatSSP } from '../../lib/format';
+import { PAYMENT_STATUS } from '../../lib/labels';
 import { invalidateSalesData, usePlans, useSites } from '../../hooks/queries';
-import { supabase, supabaseUrl } from '../../lib/supabase';
+import { fromJson, supabase, supabaseUrl } from '../../lib/supabase';
 import type { SiteRow } from '../../lib/types';
 import { readStored, writeStored } from '../../lib/storage';
 
@@ -23,6 +24,11 @@ interface PaymentRow {
   reject_reason: string | null;
   created_at: string;
   decided_at: string | null;
+}
+
+interface ConfirmResult {
+  code: string;
+  on_router: boolean;
 }
 
 const PROVIDER: Record<string, string> = { mtn_momo: 'MTN MoMo', mgurush: 'm-Gurush', digicash: 'Digicash', other: 'Other' };
@@ -129,12 +135,7 @@ function BuySettings({ site }: { site: SiteRow }) {
             <TextInput value={slug} onChange={(e) => setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '').slice(0, 40))} />
           </Field>
           <Field label="Where to send the money" hint="Shown to customers. For example: MTN MoMo 092 123 4567 (Hotzonex WiFi)">
-            <textarea
-              value={instructions}
-              onChange={(e) => setInstructions(e.target.value.slice(0, 500))}
-              rows={3}
-              className="w-full rounded-xl border border-slate-300 p-3 text-base focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100"
-            />
+            <TextArea value={instructions} onChange={(e) => setInstructions(e.target.value.slice(0, 500))} rows={3} />
           </Field>
         </>
       )}
@@ -167,19 +168,42 @@ function BuySettings({ site }: { site: SiteRow }) {
   );
 }
 
-function PaymentItem({ p, siteName, planName }: { p: PaymentRow; siteName: string; planName: string }) {
+function PaymentItem({
+  p,
+  siteName,
+  planName,
+  onAction,
+  onConfirmed,
+}: {
+  p: PaymentRow;
+  siteName: string;
+  planName: string;
+  onAction: () => void;
+  onConfirmed: (result: ConfirmResult) => void;
+}) {
   const queryClient = useQueryClient();
+  // A double tap must not confirm twice: the second tap comes before isPending re-renders.
+  const inFlight = useRef(false);
   const confirm = useMutation({
     mutationFn: async () => {
       const { data, error } = await supabase.rpc('confirm_payment_request', { p_id: p.id });
       if (error) throw new Error(friendlyError(error));
-      return data as { code: string; on_router: boolean };
+      return fromJson<ConfirmResult>(data);
     },
-    onSuccess: () => {
+    // Reported to the page: the row moves to "Recent" and remounts, which would lose its own state.
+    onSuccess: (result) => {
+      onConfirmed(result);
       void queryClient.invalidateQueries({ queryKey: ['payments'] });
       invalidateSalesData(queryClient);
     },
   });
+  function confirmPayment() {
+    if (inFlight.current) return;
+    if (!window.confirm(`Did ${formatSSP(p.amount_ssp)} arrive from ${p.phone} with ref ${p.txn_ref}?`)) return;
+    inFlight.current = true;
+    onAction();
+    confirm.mutate(undefined, { onSettled: () => (inFlight.current = false) });
+  }
   const reject = useMutation({
     mutationFn: async (reason: string) => {
       const { error } = await supabase.rpc('reject_payment_request', { p_id: p.id, p_reason: reason });
@@ -193,7 +217,7 @@ function PaymentItem({ p, siteName, planName }: { p: PaymentRow; siteName: strin
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <p className="font-semibold text-slate-900">
-            {planName} · {formatNumber(p.amount_ssp)} SSP
+            {planName} · {formatSSP(p.amount_ssp)}
           </p>
           <p className="text-sm text-slate-700">
             {PROVIDER[p.provider] ?? p.provider} · {p.phone} · ref <b className="font-mono">{p.txn_ref}</b>
@@ -206,7 +230,7 @@ function PaymentItem({ p, siteName, planName }: { p: PaymentRow; siteName: strin
         {p.status === 'pending' ? (
           <div className="flex gap-2">
             <Button
-              onClick={() => window.confirm(`Did ${formatNumber(p.amount_ssp)} SSP arrive from ${p.phone} with ref ${p.txn_ref}?`) && confirm.mutate()}
+              onClick={confirmPayment}
               disabled={confirm.isPending || reject.isPending}
             >
               {confirm.isPending && <Spinner />} Confirm
@@ -215,7 +239,9 @@ function PaymentItem({ p, siteName, planName }: { p: PaymentRow; siteName: strin
               variant="danger"
               onClick={() => {
                 const reason = window.prompt('Why? The customer sees this.', 'Payment not received');
-                if (reason) reject.mutate(reason);
+                if (!reason) return;
+                onAction();
+                reject.mutate(reason);
               }}
               disabled={confirm.isPending || reject.isPending}
             >
@@ -223,15 +249,9 @@ function PaymentItem({ p, siteName, planName }: { p: PaymentRow; siteName: strin
             </Button>
           </div>
         ) : (
-          <Badge color={p.status === 'confirmed' ? 'green' : p.status === 'rejected' ? 'red' : 'gray'}>{p.status}</Badge>
+          <Badge color={PAYMENT_STATUS[p.status].color}>{PAYMENT_STATUS[p.status].label}</Badge>
         )}
       </div>
-      {confirm.data && (
-        <Alert tone="success">
-          Card <b className="font-mono">{confirm.data.code}</b> given — the customer sees it on their page
-          {confirm.data.on_router ? '.' : ' (it is being added to the router, about a minute).'}
-        </Alert>
-      )}
       {(confirm.error ?? reject.error) && <Alert tone="error">{friendlyError(confirm.error ?? reject.error)}</Alert>}
     </li>
   );
@@ -241,6 +261,9 @@ export function PaymentsPage() {
   const { profile } = useAuth();
   const sites = useSites();
   const plans = usePlans();
+  // The last confirmed card, kept here: the confirmed row moves to "Recent" and remounts.
+  const [confirmed, setConfirmed] = useState<ConfirmResult | null>(null);
+  const clearConfirmed = () => setConfirmed(null);
   const payments = useQuery({
     queryKey: ['payments'],
     refetchInterval: 10_000,
@@ -263,6 +286,19 @@ export function PaymentsPage() {
   return (
     <div className="space-y-4">
       <PageHeader title="Payments" subtitle="Customers who bought a card by mobile money. Check the money arrived, then Confirm." />
+      {confirmed && (
+        <Alert tone="success">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <span>
+              Card <b className="font-mono">{confirmed.code}</b> given — the customer sees it on their page
+              {confirmed.on_router ? '.' : ' (it is being added to the router, about a minute).'}
+            </span>
+            <button type="button" className={`${textButtonClass} text-green-800`} onClick={clearConfirmed}>
+              Dismiss
+            </button>
+          </div>
+        </Alert>
+      )}
       <Card>
         <h2 className="mb-2 text-lg font-bold">To confirm {pending.length > 0 && <Badge color="blue">{pending.length}</Badge>}</h2>
         {payments.isLoading ? (
@@ -270,7 +306,7 @@ export function PaymentsPage() {
         ) : pending.length ? (
           <ul className="divide-y divide-slate-100">
             {pending.map((p) => (
-              <PaymentItem key={p.id} p={p} siteName={siteName(p.site_id)} planName={planName(p.plan_id)} />
+              <PaymentItem key={p.id} p={p} siteName={siteName(p.site_id)} planName={planName(p.plan_id)} onAction={clearConfirmed} onConfirmed={setConfirmed} />
             ))}
           </ul>
         ) : (
@@ -284,7 +320,7 @@ export function PaymentsPage() {
           <h2 className="mb-2 text-lg font-bold">Recent</h2>
           <ul className="divide-y divide-slate-100">
             {done.map((p) => (
-              <PaymentItem key={p.id} p={p} siteName={siteName(p.site_id)} planName={planName(p.plan_id)} />
+              <PaymentItem key={p.id} p={p} siteName={siteName(p.site_id)} planName={planName(p.plan_id)} onAction={clearConfirmed} onConfirmed={setConfirmed} />
             ))}
           </ul>
         </Card>

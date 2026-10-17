@@ -1,9 +1,9 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../../auth/AuthProvider';
 import { PageHeader } from '../../components/PageHeader';
-import { Alert, Badge, Button, Card, Field, Select, Spinner, TextInput } from '../../components/ui';
+import { Alert, Badge, Button, buttonClass, Card, Field, Select, Spinner, TextInput, textButtonClass } from '../../components/ui';
 import { friendlyError } from '../../lib/errors';
 import { formatJubaTime, formatNumber, formatSSP, jubaToday } from '../../lib/format';
 import { invalidateSalesData, usePlans, useRouters, useSites } from '../../hooks/queries';
@@ -46,6 +46,8 @@ interface StaffOption {
 function VoidDialog({ sale, onClose }: { sale: SaleListRow; onClose: () => void }) {
   const queryClient = useQueryClient();
   const [reason, setReason] = useState('');
+  // A double tap must not send the void twice.
+  const inFlight = useRef(false);
   const voidSale = useMutation({
     mutationFn: async () => {
       const { error } = await supabase.rpc('void_sale', { p_sale_id: sale.sale_id, p_reason: reason.trim() });
@@ -56,8 +58,13 @@ function VoidDialog({ sale, onClose }: { sale: SaleListRow; onClose: () => void 
       onClose();
     },
   });
+  function confirmVoid() {
+    if (inFlight.current) return;
+    inFlight.current = true;
+    voidSale.mutate(undefined, { onSettled: () => (inFlight.current = false) });
+  }
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-4 sm:items-center" role="dialog" aria-label="Void sale">
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/50 p-4 sm:items-center" role="dialog" aria-label="Void sale">
       <Card className="w-full max-w-md">
         <h2 className="text-lg font-bold">Void sale</h2>
         <p className="mt-1 text-slate-600">
@@ -75,7 +82,7 @@ function VoidDialog({ sale, onClose }: { sale: SaleListRow; onClose: () => void 
           </div>
         )}
         <div className="mt-4 flex flex-wrap gap-2">
-          <Button variant="danger" disabled={reason.trim().length < 3 || voidSale.isPending} onClick={() => voidSale.mutate()}>
+          <Button variant="danger" disabled={reason.trim().length < 3 || voidSale.isPending} onClick={confirmVoid}>
             {voidSale.isPending && <Spinner />} Void sale
           </Button>
           <Button variant="ghost" onClick={onClose}>
@@ -95,6 +102,7 @@ export function SalesPage() {
   const sites = useSites();
   const plans = usePlans();
   const routers = useRouters();
+  // Worked out on every render so "My sales today" rolls over at midnight (the list refetches every 30 s).
   const today = jubaToday();
   const [from, setFrom] = useState(today);
   const [to, setTo] = useState(today);
@@ -109,19 +117,22 @@ export function SalesPage() {
     enabled: !isSeller,
     queryFn: async (): Promise<StaffOption[]> => {
       const { data, error } = await supabase.from('profiles').select('id, full_name, site_id').order('full_name');
-      if (error) throw new Error(error.message);
+      if (error) throw new Error(friendlyError(error));
       return data ?? [];
     },
   });
 
+  // A cashier always sees today; others see the chosen period.
+  const dateFrom = isSeller ? today : from;
+  const dateTo = isSeller ? today : to;
   const sales = useQuery({
-    queryKey: ['sales', from, to, siteId, planId, sellerId, page],
+    queryKey: ['sales', dateFrom, dateTo, siteId, planId, sellerId, page],
     placeholderData: keepPreviousData,
     refetchInterval: 30_000,
     queryFn: async (): Promise<SaleListRow[]> => {
       const { data, error } = await supabase.rpc('list_sales', {
-        p_date_from: from,
-        p_date_to: to,
+        p_date_from: dateFrom,
+        p_date_to: dateTo,
         p_site_id: siteId || null,
         p_plan_id: planId || null,
         p_seller_id: sellerId || null,
@@ -129,7 +140,7 @@ export function SalesPage() {
         p_offset: page * PAGE_SIZE,
       });
       if (error) throw new Error(friendlyError(error));
-      return (data ?? []) as SaleListRow[];
+      return data ?? [];
     },
   });
 
@@ -166,9 +177,10 @@ export function SalesPage() {
     <div className="space-y-4">
       <PageHeader
         title={isSeller ? 'My sales today' : 'Sales'}
+        subtitle={isSeller ? undefined : 'Every sale and router activation'}
         actions={
           !isSeller && (
-            <Link to="/sales/mark-sold" className="inline-flex min-h-11 items-center rounded-xl bg-white px-4 font-semibold text-slate-800 ring-1 ring-slate-300 hover:bg-slate-50">
+            <Link to="/sales/mark-sold" className={buttonClass('secondary')}>
               Mark printed cards as sold
             </Link>
           )
@@ -206,7 +218,7 @@ export function SalesPage() {
                 ))}
               </Select>
             </Field>
-            <Field label="Seller">
+            <Field label="Cashier / agent">
               <Select value={sellerId} onChange={(e) => resetPage(setSellerId)(e.target.value)}>
                 <option value="">All cashiers and agents</option>
                 {(staff.data ?? []).map((s) => (
@@ -223,16 +235,16 @@ export function SalesPage() {
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
         <Card>
           <div className="text-sm text-slate-500">Vouchers sold / activated</div>
-          <div className="text-3xl font-extrabold tabular-nums">{formatNumber(first?.total_sold ?? 0)}</div>
+          <div className="text-xl font-bold tabular-nums sm:text-3xl">{formatNumber(first?.total_sold ?? 0)}</div>
         </Card>
         <Card>
-          <div className="text-sm text-slate-500">Cash taken</div>
-          <div className="text-3xl font-extrabold tabular-nums">{formatSSP(first?.total_ssp ?? 0)}</div>
+          <div className="text-sm text-slate-500">Revenue</div>
+          <div className="text-xl font-bold tabular-nums sm:text-3xl">{formatSSP(first?.total_ssp ?? 0)}</div>
         </Card>
         {voidedCount > 0 && (
           <Card>
             <div className="text-sm text-slate-500">Voided</div>
-            <div className="text-3xl font-extrabold tabular-nums text-red-700">{formatNumber(voidedCount)}</div>
+            <div className="text-xl font-bold tabular-nums sm:text-3xl text-red-700">{formatNumber(voidedCount)}</div>
           </Card>
         )}
       </div>
@@ -250,13 +262,13 @@ export function SalesPage() {
           <table className="w-full min-w-[760px] text-left text-sm">
             <thead className="border-b border-slate-200 bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
               <tr>
-                <th className="px-4 py-3">Time</th>
-                <th className="px-4 py-3">Code</th>
-                <th className="px-4 py-3">Plan</th>
-                <th className="px-4 py-3 text-right">Amount</th>
-                <th className="px-4 py-3">Cashier / agent</th>
-                <th className="px-4 py-3">Site</th>
-                <th className="px-4 py-3">
+                <th className="px-4 py-2">Time</th>
+                <th className="px-4 py-2">Code</th>
+                <th className="px-4 py-2">Plan</th>
+                <th className="px-4 py-2 text-right">Amount</th>
+                <th className="px-4 py-2">Cashier / agent</th>
+                <th className="px-4 py-2">Site</th>
+                <th className="px-4 py-2">
                   <span className="sr-only">Actions</span>
                 </th>
               </tr>
@@ -278,19 +290,19 @@ export function SalesPage() {
                     <td className="px-4 py-2">{s.seller_name}</td>
                     <td className="px-4 py-2">{s.site_name}</td>
                     <td className="px-4 py-2">
-                      <div className="flex items-center justify-end gap-3">
+                      <div className="flex items-center justify-end gap-1">
                         {s.voided_at ? (
                           <span title={`${s.void_reason ?? ''} — ${s.voided_by_name ?? ''}`}>
                             <Badge color="red">Voided</Badge>
                             <span className="ml-2 text-xs text-slate-500">{s.void_reason}</span>
                           </span>
                         ) : s.voucher_id !== null ? (
-                          <button type="button" onClick={() => reprint(s)} className="font-semibold text-brand-700 hover:underline">
+                          <button type="button" onClick={() => reprint(s)} className={`${textButtonClass} text-brand-700`}>
                             Receipt
                           </button>
                         ) : null}
                         {canVoid && (
-                          <button type="button" onClick={() => setVoiding(s)} className="font-semibold text-red-700 hover:underline">
+                          <button type="button" onClick={() => setVoiding(s)} className={`${textButtonClass} text-red-700`}>
                             Void
                           </button>
                         )}

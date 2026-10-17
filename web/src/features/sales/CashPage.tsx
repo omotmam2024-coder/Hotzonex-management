@@ -4,7 +4,7 @@ import { useAuth } from '../../auth/AuthProvider';
 import { PageHeader } from '../../components/PageHeader';
 import { Alert, Badge, Button, Card, Field, Select, Spinner, TextInput } from '../../components/ui';
 import { friendlyError } from '../../lib/errors';
-import { formatNumber } from '../../lib/format';
+import { formatSSP, jubaToday } from '../../lib/format';
 import { useSites } from '../../hooks/queries';
 import { fromJson, supabase } from '../../lib/supabase';
 import { cashHandoverSchema, validate } from '../../lib/validation';
@@ -27,11 +27,16 @@ interface CashRow {
   held_now: number;
 }
 
-function todayInJuba(): string {
-  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Juba' }).format(new Date());
+/** Checks the commission and credit limit typed in (validation.ts has no schema for seller terms). */
+function parseTerms(pct: string, limit: string): { pct: number; limit: number | null } {
+  const p = pct.trim() === '' ? 0 : Number(pct);
+  if (!Number.isFinite(p) || p < 0 || p > 100) throw new Error('Commission must be a number from 0 to 100.');
+  const l = limit.trim();
+  if (l === '') return { pct: p, limit: null };
+  const n = Number(l);
+  if (!Number.isInteger(n) || n < 0) throw new Error('Credit limit must be a whole number of SSP (0 or more), or empty for no limit.');
+  return { pct: p, limit: n };
 }
-
-const ssp = (n: number) => `${formatNumber(n)} SSP`;
 
 function ReceiveCash({ row, onDone }: { row: CashRow; onDone: () => void }) {
   const [amount, setAmount] = useState(row.held_now > 0 ? String(row.held_now) : '');
@@ -72,19 +77,33 @@ function ReceiveCash({ row, onDone }: { row: CashRow; onDone: () => void }) {
 }
 
 function Terms({ row, onDone }: { row: CashRow; onDone: () => void }) {
+  const queryClient = useQueryClient();
   const [pct, setPct] = useState(String(row.commission_pct));
   const [limit, setLimit] = useState(row.credit_limit_ssp === null ? '' : String(row.credit_limit_ssp));
   const save = useMutation({
     mutationFn: async () => {
+      const v = parseTerms(pct, limit);
       const { error } = await supabase.rpc('set_seller_terms', {
         p_profile_id: row.seller_id,
-        p_commission_pct: Number(pct || 0),
-        p_credit_limit_ssp: limit.trim() === '' ? null : Number(limit),
+        p_commission_pct: v.pct,
+        p_credit_limit_ssp: v.limit,
       });
       if (error) throw new Error(friendlyError(error));
     },
-    onSuccess: onDone,
+    onSuccess: () => {
+      // Commission changes profit and the cash-up.
+      void queryClient.invalidateQueries({ queryKey: ['profit'] });
+      void queryClient.invalidateQueries({ queryKey: ['cash-up'] });
+      onDone();
+    },
   });
+  // A double tap must not save twice.
+  const inFlight = useRef(false);
+  const submit = () => {
+    if (inFlight.current) return;
+    inFlight.current = true;
+    save.mutate(undefined, { onSettled: () => (inFlight.current = false) });
+  };
   return (
     <div className="mt-2 grid gap-2 rounded-xl bg-slate-50 p-3 sm:grid-cols-[10rem_12rem_auto] sm:items-end">
       <Field label="Commission %" hint="Of each cash sale">
@@ -93,7 +112,7 @@ function Terms({ row, onDone }: { row: CashRow; onDone: () => void }) {
       <Field label="Credit limit (SSP)" hint="Most cash they may hold. Empty: no limit">
         <TextInput inputMode="numeric" value={limit} onChange={(e) => setLimit(e.target.value.replace(/\D/g, '').slice(0, 10))} />
       </Field>
-      <Button onClick={() => save.mutate()} disabled={save.isPending}>
+      <Button onClick={submit} disabled={save.isPending}>
         {save.isPending && <Spinner />} Save
       </Button>
       {save.error && (
@@ -110,7 +129,7 @@ export function CashPage() {
   const role = profile?.role;
   const sites = useSites();
   const queryClient = useQueryClient();
-  const [date, setDate] = useState(todayInJuba);
+  const [date, setDate] = useState(jubaToday);
   const [siteId, setSiteId] = useState('');
   const [open, setOpen] = useState<{ id: string; kind: 'receive' | 'terms' } | null>(null);
 
@@ -137,11 +156,11 @@ export function CashPage() {
     <div className="space-y-4">
       <PageHeader
         title={role === 'seller' ? 'My cash' : 'Cash-up'}
-        subtitle={role === 'seller' ? 'Cash you sold, your commission, and what you still hold' : 'Each seller’s cash for the day: sold, commission, handed in, difference'}
+        subtitle={role === 'seller' ? 'Cash you sold, your commission, and what you still hold' : 'Each cashier’s and agent’s cash for the day: sold, commission, handed in, difference'}
       />
       <Card className="grid gap-3 sm:grid-cols-3">
         <Field label="Day">
-          <TextInput type="date" value={date} max={todayInJuba()} onChange={(e) => setDate(e.target.value || todayInJuba())} />
+          <TextInput type="date" value={date} max={jubaToday()} onChange={(e) => setDate(e.target.value || jubaToday())} />
         </Field>
         {role === 'admin' && (
           <Field label="Site">
@@ -161,19 +180,19 @@ export function CashPage() {
         <div className="grid gap-3 sm:grid-cols-4">
           <Card>
             <p className="text-sm text-slate-500">Cash sales</p>
-            <p className="text-xl font-bold">{ssp(total.cash)}</p>
+            <p className="text-xl font-bold tabular-nums sm:text-3xl">{formatSSP(total.cash)}</p>
           </Card>
           <Card>
             <p className="text-sm text-slate-500">To hand in (after commission)</p>
-            <p className="text-xl font-bold">{ssp(total.toHand)}</p>
+            <p className="text-xl font-bold tabular-nums sm:text-3xl">{formatSSP(total.toHand)}</p>
           </Card>
           <Card>
             <p className="text-sm text-slate-500">Handed in</p>
-            <p className="text-xl font-bold">{ssp(total.handed)}</p>
+            <p className="text-xl font-bold tabular-nums sm:text-3xl">{formatSSP(total.handed)}</p>
           </Card>
           <Card>
             <p className="text-sm text-slate-500">Mobile money (to your number)</p>
-            <p className="text-xl font-bold">{ssp(total.momo)}</p>
+            <p className="text-xl font-bold tabular-nums sm:text-3xl">{formatSSP(total.momo)}</p>
           </Card>
         </div>
       )}
@@ -193,21 +212,21 @@ export function CashPage() {
                       {r.name} <span className="text-sm font-normal text-slate-500">{r.site_name ?? 'All sites'}</span>
                     </p>
                     <p className="text-sm text-slate-700">
-                      {r.cash_count} cash card{r.cash_count === 1 ? '' : 's'} · {ssp(r.cash_amount)}
-                      {r.commission > 0 && ` · commission ${ssp(r.commission)} (${r.commission_pct}%)`}
-                      {r.momo_count > 0 && ` · ${r.momo_count} mobile money (${ssp(r.momo_amount)})`}
+                      {r.cash_count} cash voucher{r.cash_count === 1 ? '' : 's'} · {formatSSP(r.cash_amount)}
+                      {r.commission > 0 && ` · commission ${formatSSP(r.commission)} (${r.commission_pct}%)`}
+                      {r.momo_count > 0 && ` · ${r.momo_count} mobile money (${formatSSP(r.momo_amount)})`}
                     </p>
                     <p className="text-sm text-slate-700">
-                      To hand in {ssp(r.to_hand_in)} · handed in {ssp(r.handed_in)} ·{' '}
+                      To hand in {formatSSP(r.to_hand_in)} · handed in {formatSSP(r.handed_in)} ·{' '}
                       <b className={r.difference < 0 ? 'text-red-700' : r.difference > 0 ? 'text-green-700' : 'text-slate-800'}>
-                        {r.difference === 0 ? 'balanced' : r.difference < 0 ? `short ${ssp(-r.difference)}` : `over ${ssp(r.difference)}`}
+                        {r.difference === 0 ? 'balanced' : r.difference < 0 ? `short ${formatSSP(-r.difference)}` : `over ${formatSSP(r.difference)}`}
                       </b>
                     </p>
                   </div>
                   <div className="text-right">
                     <p className="text-xs text-slate-500">Holds now</p>
-                    <p className={`text-lg font-bold ${over ? 'text-red-700' : 'text-slate-900'}`}>{ssp(r.held_now)}</p>
-                    {r.credit_limit_ssp !== null && <Badge color={over ? 'red' : 'gray'}>limit {ssp(r.credit_limit_ssp)}</Badge>}
+                    <p className={`text-lg font-bold ${over ? 'text-red-700' : 'text-slate-900'}`}>{formatSSP(r.held_now)}</p>
+                    {r.credit_limit_ssp !== null && <Badge color={over ? 'red' : 'gray'}>limit {formatSSP(r.credit_limit_ssp)}</Badge>}
                   </div>
                 </div>
                 {role !== 'seller' && (

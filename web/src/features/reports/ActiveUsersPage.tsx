@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../../auth/AuthProvider';
 import { PageHeader } from '../../components/PageHeader';
-import { Alert, Badge, Card, Spinner } from '../../components/ui';
+import { Alert, Badge, Button, Card, Spinner } from '../../components/ui';
 import { friendlyError } from '../../lib/errors';
 import { bareIp, formatBytes, formatDuration, formatJubaTime, formatNumber, timeAgo } from '../../lib/format';
 import { waitForJob } from '../../lib/jobs';
@@ -45,20 +45,27 @@ export function ActiveUsersPage() {
         .from('active_sessions')
         .select('id, router_id, voucher_id, code, mac_address, ip_address, uptime_seconds, bytes_in, bytes_out, updated_at, vouchers(plan_id, status, uptime_used_seconds, bytes_used, expires_at)')
         .order('uptime_seconds', { ascending: false });
-      if (error) throw new Error(error.message);
+      if (error) throw new Error(friendlyError(error));
       return data ?? [];
     },
   });
 
-  // Live updates: each router reports its users every minute.
+  // Live updates: each router reports its users every minute, one row change at a time, so a
+  // burst of changes is gathered into one refetch 2 s after the first.
   useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | null = null;
     const channel = supabase
       .channel('active-sessions')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'active_sessions' }, () => {
-        void queryClient.invalidateQueries({ queryKey: ['active-sessions'] });
+        if (timer) return;
+        timer = setTimeout(() => {
+          timer = null;
+          void queryClient.invalidateQueries({ queryKey: ['active-sessions'] });
+        }, 2000);
       })
       .subscribe();
     return () => {
+      if (timer) clearTimeout(timer);
       void supabase.removeChannel(channel);
     };
   }, [queryClient]);
@@ -99,7 +106,7 @@ export function ActiveUsersPage() {
       <div className="flex flex-wrap items-center gap-2">
         <Card className="!py-3">
           <span className="text-sm text-slate-500">Online now</span>{' '}
-          <span className="text-2xl font-extrabold tabular-nums">{formatNumber(list.length)}</span>
+          <span className="text-xl font-bold tabular-nums sm:text-3xl">{formatNumber(list.length)}</span>
         </Card>
         {routerList.filter((r) => r.status !== 'pending').length > 1 &&
           [{ id: '', name: 'All routers' }, ...routerList.filter((r) => r.status !== 'pending')].map((r) => (
@@ -171,14 +178,14 @@ export function ActiveUsersPage() {
                         (dc?.phase === 'done' && !dc.ok ? (
                           <p className="mt-2 text-sm text-red-700">{dc.message}</p>
                         ) : (
-                          <button
-                            type="button"
+                          <Button
+                            variant="danger"
                             disabled={dc?.phase === 'running' || router.status !== 'online'}
                             onClick={() => void disconnect(s)}
-                            className="mt-2 inline-flex min-h-11 items-center gap-2 rounded-lg px-3 font-semibold text-red-700 ring-1 ring-red-200 disabled:opacity-50"
+                            className="mt-2 px-3 text-sm"
                           >
                             {dc?.phase === 'running' && <Spinner className="h-4 w-4" />} Disconnect
-                          </button>
+                          </Button>
                         ))}
                     </li>
                   );
@@ -236,14 +243,14 @@ export function ActiveUsersPage() {
                               {dc?.phase === 'done' ? (
                                 <span className={`text-sm ${dc.ok ? 'text-green-700' : 'text-red-700'}`}>{dc.message}</span>
                               ) : (
-                                <button
-                                  type="button"
+                                <Button
+                                  variant="danger"
                                   disabled={dc?.phase === 'running' || router.status !== 'online'}
                                   onClick={() => void disconnect(s)}
-                                  className="inline-flex min-h-10 items-center gap-2 rounded-lg px-3 font-semibold text-red-700 ring-1 ring-red-200 hover:bg-red-50 disabled:opacity-50"
+                                  className="px-3 text-sm"
                                 >
                                   {dc?.phase === 'running' && <Spinner className="h-4 w-4" />} Disconnect
-                                </button>
+                                </Button>
                               )}
                             </td>
                           )}
