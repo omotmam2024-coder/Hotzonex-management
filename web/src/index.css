@@ -204,6 +204,9 @@ body {
   html.dark .border-slate-300 {
     border-color: var(--d-line-strong);
   }
+  html.dark .border-slate-800 {
+    border-color: var(--d-line-strong);
+  }
   html.dark .border-slate-900 {
     border-color: var(--d-text-3);
   }
@@ -231,12 +234,16 @@ body {
   }
   html.dark .ring-brand-100,
   html.dark .ring-brand-200,
+  html.dark .ring-brand-300,
   html.dark .focus\:ring-brand-100:focus {
     --tw-ring-color: rgb(31 111 235 / 0.4);
   }
   html.dark .shadow-card,
   html.dark .shadow-sm {
     --tw-shadow: 0 1px 2px rgb(0 0 0 / 0.4);
+  }
+  html.dark .ring-offset-2 {
+    --tw-ring-offset-color: var(--d-surface);
   }
   html.dark :focus-visible {
     --tw-ring-offset-color: var(--d-page);

@@ -10,6 +10,20 @@ const dateTimeFmt = new Intl.DateTimeFormat('en-GB', {
 });
 const dayFmt = new Intl.DateTimeFormat('en-CA', { timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit' });
 
+const longDateFmt = new Intl.DateTimeFormat('en-GB', { timeZone: TZ, day: 'numeric', month: 'short', year: 'numeric' });
+const stampFmt = new Intl.DateTimeFormat('en-GB', { timeZone: TZ, day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+
+/** "9 Oct 2026" (Juba time). Accepts a timestamp or a YYYY-MM-DD day. */
+export function formatJubaDate(value: string | null | undefined): string {
+  if (!value) return '—';
+  return longDateFmt.format(new Date(/^\d{4}-\d{2}-\d{2}$/.test(value) ? `${value}T12:00:00Z` : value));
+}
+
+/** "9 Oct 2026, 14:20" (Juba time), e.g. "Generated …" on printed reports and receipts. */
+export function formatJubaStamp(date: Date = new Date()): string {
+  return stampFmt.format(date);
+}
+
 /** "14:20" if the moment is today in Juba, otherwise "9 Oct, 14:20". */
 export function formatJubaTime(iso: string | null | undefined): string {
   if (!iso) return 'never';

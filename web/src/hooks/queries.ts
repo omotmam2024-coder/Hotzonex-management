@@ -2,9 +2,9 @@ import { useQuery, type QueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { PLAN_COLUMNS, ROUTER_COLUMNS, type Plan, type RouterInfo, type SiteRow } from '../lib/types';
 
-/** After a sale, a void or new vouchers: every screen that counts sales or stock reloads. */
+/** After a sale, a void, a confirmed payment or new vouchers: every screen that counts sales, cash or stock reloads. */
 export function invalidateSalesData(queryClient: QueryClient): void {
-  for (const key of ['sales', 'dashboard', 'report', 'stock', 'vouchers', 'batches', 'mark-candidates']) {
+  for (const key of ['sales', 'dashboard', 'report', 'profit', 'cash-up', 'stock', 'expiring', 'vouchers', 'batches', 'mark-batches', 'print-batches', 'mark-candidates', 'billing-usage']) {
     void queryClient.invalidateQueries({ queryKey: [key] });
   }
 }

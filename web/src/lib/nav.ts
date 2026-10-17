@@ -80,5 +80,5 @@ export function homePathFor(role: Role): string {
 export const ROLE_LABELS: Record<Role, string> = {
   admin: 'Owner',
   manager: 'Manager',
-  seller: 'Cashier / Agent',
+  seller: 'Cashier / agent',
 };
