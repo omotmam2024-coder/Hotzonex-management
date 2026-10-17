@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { Fragment, useEffect, useState, type ReactNode } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../../auth/AuthProvider';
 import { PageHeader } from '../../components/PageHeader';
@@ -8,6 +8,7 @@ import { formatJubaTime } from '../../lib/format';
 import { invokeFunction } from '../../lib/functions';
 import { fromJson, supabase } from '../../lib/supabase';
 import { formatWhatsAppNumber, type WhatsAppStatus } from '../../lib/whatsapp';
+import { translate, useT, type TKey } from '../../i18n';
 
 interface AlertSettings {
   telegram_connected: boolean;
@@ -23,7 +24,12 @@ interface AlertSettings {
 
 const LANGUAGES: { key: AlertSettings['lang']; label: string }[] = [
   { key: 'en', label: 'English' },
-  { key: 'ar', label: 'العربية (Arabic)' },
+  {
+    key: 'ar',
+    get label() {
+      return translate('reports.alerts.langArabic');
+    },
+  },
   { key: 'sw', label: 'Kiswahili' },
 ];
 
@@ -48,18 +54,20 @@ const KIND_COLOR: Record<string, 'red' | 'green' | 'gray' | 'blue'> = {
   billing: 'blue',
 };
 
-const KIND_LABEL: Record<string, string> = {
-  router_offline: 'Offline',
-  router_online: 'Back online',
-  push_failed: 'Cards failed',
-  push_warning: 'Check cards',
-  low_stock: 'Low stock',
-  payment_request: 'Payment',
-  billing: 'Billing',
-  test: 'Test',
-};
+const KINDS = ['router_offline', 'router_online', 'push_failed', 'push_warning', 'low_stock', 'payment_request', 'billing', 'test'];
+/** The badge text of an alert kind in the chosen language; unknown kinds show as they are. */
+const kindLabel = (kind: string) => (KINDS.includes(kind) ? translate(`reports.alerts.kind.${kind}` as TKey) : kind);
+
+/** Puts React nodes where a translated text has {name} placeholders (for bold words inside a sentence). */
+function rich(text: string, parts: Record<string, ReactNode>): ReactNode {
+  return text.split(/(\{[a-zA-Z_]+\})/).map((piece, i) => {
+    const name = /^\{([a-zA-Z_]+)\}$/.exec(piece)?.[1];
+    return <Fragment key={i}>{name && name in parts ? parts[name] : piece}</Fragment>;
+  });
+}
 
 function TelegramCard({ settings }: { settings: AlertSettings }) {
+  const { t } = useT();
   const queryClient = useQueryClient();
   const [link, setLink] = useState<{ url: string; bot: string } | null>(null);
 
@@ -89,38 +97,33 @@ function TelegramCard({ settings }: { settings: AlertSettings }) {
       <h2 className="text-lg font-bold">Telegram</h2>
       {settings.telegram_connected ? (
         <>
-          <p className="text-slate-700">
-            Alerts go to <b>{settings.telegram_chat_title ?? 'your Telegram chat'}</b>.
-          </p>
+          <p className="text-slate-700">{rich(t('reports.alerts.tgGoesTo'), { chat: <b>{settings.telegram_chat_title ?? t('reports.alerts.tgYourChat')}</b> })}</p>
           <div className="flex flex-wrap gap-2">
             <Button variant="secondary" onClick={() => test.mutate()} disabled={test.isPending}>
-              {test.isPending && <Spinner />} Send a test alert
+              {test.isPending && <Spinner />} {t('reports.alerts.tgSendTest')}
             </Button>
             <Button variant="secondary" onClick={() => connect.mutate()} disabled={connect.isPending}>
-              Use another chat
+              {t('reports.alerts.tgUseAnother')}
             </Button>
-            <Button variant="danger" onClick={() => window.confirm('Stop sending alerts to Telegram?') && unlink.mutate()} disabled={unlink.isPending}>
-              Disconnect
+            <Button variant="danger" onClick={() => window.confirm(t('reports.alerts.tgConfirmStop')) && unlink.mutate()} disabled={unlink.isPending}>
+              {t('reports.alerts.tgDisconnect')}
             </Button>
           </div>
-          {test.isSuccess && <Alert tone="success">Test alert sent. Check Telegram.</Alert>}
+          {test.isSuccess && <Alert tone="success">{t('reports.alerts.tgTestSent')}</Alert>}
         </>
       ) : (
         <>
-          <p className="text-slate-700">
-            Get alerts on your phone at once: tap Connect, then press <b>Start</b> in Telegram. To alert a group (for example you and your
-            managers), add the bot to the group and send it the link's <b>/start</b> message there.
-          </p>
+          <p className="text-slate-700">{rich(t('reports.alerts.tgIntro'), { start: <b>{t('reports.alerts.tgStartBtn')}</b>, cmd: <b>/start</b> })}</p>
           <Button onClick={() => connect.mutate()} disabled={connect.isPending}>
-            {connect.isPending && <Spinner />} Connect Telegram
+            {connect.isPending && <Spinner />} {t('reports.alerts.tgConnect')}
           </Button>
           {link && (
             <Alert tone="info">
-              Telegram did not open?{' '}
+              {t('reports.alerts.tgNotOpen')}{' '}
               <a href={link.url} target="_blank" rel="noopener" className="font-semibold underline">
-                Open @{link.bot}
+                {t('reports.alerts.tgOpenBot', { bot: link.bot })}
               </a>{' '}
-              and press Start. This page updates by itself once it is connected (the link works for 30 minutes).
+              {t('reports.alerts.tgNotOpenAfter')}
             </Alert>
           )}
         </>
@@ -131,6 +134,7 @@ function TelegramCard({ settings }: { settings: AlertSettings }) {
 }
 
 function WhatsAppCard({ settings }: { settings: AlertSettings }) {
+  const { t } = useT();
   const queryClient = useQueryClient();
   const saved = settings.whatsapp_numbers.map(formatWhatsAppNumber).join('\n');
   const [text, setText] = useState(saved);
@@ -142,7 +146,7 @@ function WhatsAppCard({ settings }: { settings: AlertSettings }) {
   const save = useMutation({
     mutationFn: async () => {
       const list = text.split(/[\n,;]+/).map((n) => n.trim()).filter(Boolean);
-      if (list.length > 5) throw new Error('Up to 5 WhatsApp numbers.');
+      if (list.length > 5) throw new Error(t('msg.upTo5'));
       const { data, error } = await supabase.rpc('save_alert_whatsapp', { p_numbers: list });
       if (error) throw new Error(friendlyError(error));
       return fromJson<AlertSettings>(data);
@@ -169,27 +173,27 @@ function WhatsAppCard({ settings }: { settings: AlertSettings }) {
     <Card className="space-y-3">
       <h2 className="text-lg font-bold">WhatsApp</h2>
       <p className="text-slate-700">
-        Alerts come as normal WhatsApp messages
-        {s?.connected && s.sender ? (
-          <>
-            {' '}
-            from Hotzonex Cloud's number <b>{s.sender}</b>. Save that number in your phone so the messages are not hidden.
-          </>
-        ) : (
-          '.'
-        )}
+        {s?.connected && s.sender
+          ? rich(t('reports.alerts.waIntroFrom'), {
+              sender: (
+                <b dir="ltr" className="inline-block">
+                  {s.sender}
+                </b>
+              ),
+            })
+          : t('reports.alerts.waIntroPlain')}
       </p>
       {s && !s.connected && (
         <Alert tone="info">
           {s.installed
-            ? 'Hotzonex Cloud’s WhatsApp sender is offline right now. Your alerts are sent as soon as it is back.'
-            : 'WhatsApp sending is being set up by Hotzonex Cloud. Save your numbers now; alerts start once it is ready.'}
+            ? t('reports.alerts.waOffline')
+            : t('reports.alerts.waSetup')}
         </Alert>
       )}
-      <Field label="WhatsApp numbers (up to 5, one per line)" hint="For example 0924904216 or +211924904216. Numbers starting with 0 are South Sudan numbers.">
-        <TextArea rows={3} inputMode="tel" value={text} onChange={(e) => setText(e.target.value.slice(0, 200))} placeholder="0924904216" />
+      <Field label={t('reports.alerts.waNumbers')} hint={t('reports.alerts.waNumbersHint')}>
+        <TextArea rows={3} inputMode="tel" dir="ltr" value={text} onChange={(e) => setText(e.target.value.slice(0, 200))} placeholder="0924904216" />
       </Field>
-      <Field label="Language of Hotzonex messages" hint="Billing reminders (free trial or paid month ending, invoices) come in this language.">
+      <Field label={t('reports.alerts.msgLang')} hint={t('reports.alerts.msgLangHint')}>
         <Select value={settings.lang} onChange={(e) => language.mutate(e.target.value as AlertSettings['lang'])} disabled={language.isPending}>
           {LANGUAGES.map((l) => (
             <option key={l.key} value={l.key}>
@@ -200,17 +204,17 @@ function WhatsAppCard({ settings }: { settings: AlertSettings }) {
       </Field>
       <div className="flex flex-wrap gap-2">
         <Button onClick={() => save.mutate()} disabled={save.isPending || text.trim() === saved.trim()}>
-          {save.isPending && <Spinner />} Save numbers
+          {save.isPending && <Spinner />} {t('reports.alerts.saveNumbers')}
         </Button>
         <Button variant="secondary" onClick={() => test.mutate()} disabled={test.isPending || !hasNumbers || !s?.connected}>
-          {test.isPending && <Spinner />} Send a test message
+          {test.isPending && <Spinner />} {t('reports.alerts.sendTestMsg')}
         </Button>
       </div>
-      {save.isSuccess && <Alert tone="success">Saved.</Alert>}
+      {save.isSuccess && <Alert tone="success">{t('reports.alerts.saved')}</Alert>}
       {test.data && (
         <Alert tone={test.data.failed.length ? 'warning' : 'success'}>
-          {test.data.sent.length > 0 && <>Test sent to {test.data.sent.join(', ')}. </>}
-          {test.data.failed.length > 0 && <>Not sent: {test.data.failed.join('; ')}</>}
+          {test.data.sent.length > 0 && <>{t('reports.alerts.testSentTo', { list: test.data.sent.join(', ') })}</>}
+          {test.data.failed.length > 0 && <>{t('reports.alerts.notSent', { list: test.data.failed.join('; ') })}</>}
         </Alert>
       )}
       {error && <Alert tone="error">{friendlyError(error)}</Alert>}
@@ -219,6 +223,7 @@ function WhatsAppCard({ settings }: { settings: AlertSettings }) {
 }
 
 function SettingsCard({ settings }: { settings: AlertSettings }) {
+  const { t } = useT();
   const queryClient = useQueryClient();
   const [form, setForm] = useState(settings);
   useEffect(() => setForm(settings), [settings]);
@@ -239,14 +244,14 @@ function SettingsCard({ settings }: { settings: AlertSettings }) {
   const set = <K extends keyof AlertSettings>(k: K, v: AlertSettings[K]) => setForm((f) => ({ ...f, [k]: v }));
   return (
     <Card className="space-y-2">
-      <h2 className="text-lg font-bold">What to send</h2>
-      <Checkbox label="A router goes offline (after 5 minutes) and comes back" checked={form.notify_offline} onChange={(v) => set('notify_offline', v)} />
-      <Checkbox label="New cards failed or need checking on the router" checked={form.notify_push} onChange={(v) => set('notify_push', v)} />
-      <Checkbox label="Customers' mobile-money payments to confirm" checked={form.notify_payments} onChange={(v) => set('notify_payments', v)} />
-      <Checkbox label="Cards are running low" checked={form.notify_low_stock} onChange={(v) => set('notify_low_stock', v)} />
+      <h2 className="text-lg font-bold">{t('reports.alerts.whatToSend')}</h2>
+      <Checkbox label={t('reports.alerts.cbOffline')} checked={form.notify_offline} onChange={(v) => set('notify_offline', v)} />
+      <Checkbox label={t('reports.alerts.cbPush')} checked={form.notify_push} onChange={(v) => set('notify_push', v)} />
+      <Checkbox label={t('reports.alerts.cbPayments')} checked={form.notify_payments} onChange={(v) => set('notify_payments', v)} />
+      <Checkbox label={t('reports.alerts.cbLow')} checked={form.notify_low_stock} onChange={(v) => set('notify_low_stock', v)} />
       {form.notify_low_stock && (
         <div className="max-w-xs">
-          <Field label="Low when fewer than" hint="Unsold, unprinted cards of a plan at a site">
+          <Field label={t('reports.alerts.lowWhen')} hint={t('reports.alerts.lowHint')}>
             <TextInput
               inputMode="numeric"
               value={String(form.low_stock_threshold)}
@@ -257,10 +262,10 @@ function SettingsCard({ settings }: { settings: AlertSettings }) {
       )}
       <div className="pt-2">
         <Button onClick={() => save.mutate()} disabled={save.isPending}>
-          {save.isPending && <Spinner />} Save
+          {save.isPending && <Spinner />} {t('common.save')}
         </Button>
       </div>
-      {save.isSuccess && <Alert tone="success">Saved.</Alert>}
+      {save.isSuccess && <Alert tone="success">{t('reports.alerts.saved')}</Alert>}
       {save.error && <Alert tone="error">{friendlyError(save.error)}</Alert>}
     </Card>
   );
@@ -268,6 +273,7 @@ function SettingsCard({ settings }: { settings: AlertSettings }) {
 
 export function AlertsPage() {
   const { profile } = useAuth();
+  const { t } = useT();
   const isAdmin = profile?.role === 'admin';
 
   const settings = useQuery({
@@ -299,7 +305,7 @@ export function AlertsPage() {
 
   return (
     <div className="space-y-4">
-      <PageHeader title="Alerts" subtitle="Routers offline, cards that failed, low stock, payments to confirm" />
+      <PageHeader title={t('nav.alerts')} subtitle={t('reports.alerts.subtitle')} />
       {isAdmin && settings.data && (
         <div className="grid gap-4 lg:grid-cols-2">
           <WhatsAppCard settings={settings.data} />
@@ -310,18 +316,18 @@ export function AlertsPage() {
       {settings.error && <Alert tone="error">{friendlyError(settings.error)}</Alert>}
 
       <Card>
-        <h2 className="mb-3 text-lg font-bold">Needs attention</h2>
+        <h2 className="mb-3 text-lg font-bold">{t('reports.alerts.needsAttention')}</h2>
         {alerts.isLoading ? (
           <Spinner />
         ) : open.length ? (
           <AlertList rows={open} />
         ) : (
-          <p className="text-slate-600">Nothing right now.</p>
+          <p className="text-slate-600">{t('reports.alerts.nothingNow')}</p>
         )}
       </Card>
       {history.length > 0 && (
         <Card>
-          <h2 className="mb-3 text-lg font-bold">Recent</h2>
+          <h2 className="mb-3 text-lg font-bold">{t('reports.alerts.recent')}</h2>
           <AlertList rows={history} />
         </Card>
       )}
@@ -330,18 +336,19 @@ export function AlertsPage() {
 }
 
 function AlertList({ rows }: { rows: AlertRow[] }) {
+  const { t } = useT();
   return (
     <ul className="divide-y divide-slate-100">
       {rows.map((a) => (
         <li key={a.id} className="py-3">
           <div className="flex flex-wrap items-center gap-2">
-            <Badge color={KIND_COLOR[a.kind] ?? 'gray'}>{KIND_LABEL[a.kind] ?? a.kind}</Badge>
+            <Badge color={KIND_COLOR[a.kind] ?? 'gray'}>{kindLabel(a.kind)}</Badge>
             <span className="font-semibold text-slate-900">{a.title}</span>
           </div>
           {a.body && <p className="mt-1 whitespace-pre-line text-sm text-slate-600">{a.body}</p>}
           <p className="mt-1 text-xs text-slate-500">
             {formatJubaTime(a.created_at)}
-            {a.sent_at && !a.send_error && ' · sent to Telegram'}
+            {a.sent_at && !a.send_error && t('reports.alerts.sentTelegram')}
           </p>
         </li>
       ))}

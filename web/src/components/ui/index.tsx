@@ -98,8 +98,8 @@ export function ReportSection({ title, aside, children, className = '' }: { titl
 }
 
 /** Table cells on report pages. */
-export const reportTh = 'py-2 pr-3 text-[11px] font-semibold uppercase tracking-wide text-slate-500 last:pr-0';
-export const reportTd = 'py-1.5 pr-3 last:pr-0';
+export const reportTh = 'py-2 pe-3 text-[11px] font-semibold uppercase tracking-wide text-slate-500 last:pe-0';
+export const reportTd = 'py-1.5 pe-3 last:pe-0';
 
 /** A4 print rules for report pages. */
 export function ReportPrintStyle() {

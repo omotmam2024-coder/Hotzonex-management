@@ -14,6 +14,7 @@ import { LOW_STOCK } from '../../lib/labels';
 import type { IconName } from '../../lib/nav';
 import { readStored, writeStored } from '../../lib/storage';
 import { fromJson, supabase } from '../../lib/supabase';
+import { useT } from '../../i18n';
 
 interface StockRow {
   site_id: string;
@@ -99,6 +100,8 @@ function StatCard({
 
 export function DashboardPage() {
   const { profile, siteName } = useAuth();
+  const { t, dir } = useT();
+  const vouchers = (n: number) => t(n === 1 ? 'reports.nVoucher' : 'reports.nVouchers', { n: formatNumber(n) });
   const sites = useSites();
   const isAdmin = profile?.role === 'admin';
   const [siteId, setSiteId] = useState<string>(() => (isAdmin ? (readStored<string>('local', SITE_KEY) ?? '') : ''));
@@ -133,26 +136,26 @@ export function DashboardPage() {
   const siteRouters = (routers.data ?? []).filter((r) => !siteId || r.site_id === siteId);
 
   const d = dashboard.data;
-  const scope = isAdmin ? (sites.data?.find((s) => s.id === siteId)?.name ?? 'All sites') : (siteName ?? '');
+  const scope = isAdmin ? (sites.data?.find((s) => s.id === siteId)?.name ?? t('common.allSites')) : (siteName ?? '');
   const showSiteColumn = !siteId && isAdmin && new Set((d?.stock ?? []).map((s) => s.site_id)).size > 1;
 
   return (
     <div className="space-y-4">
       <PageHeader
-        title="Dashboard"
+        title={t('nav.dashboard')}
         subtitle={scope}
         actions={
           isAdmin && (
             <div className="w-full sm:w-56">
               <Select
-                aria-label="Site"
+                aria-label={t('common.site')}
                 value={siteId}
                 onChange={(e) => {
                   setSiteId(e.target.value);
                   writeStored('local', SITE_KEY, e.target.value);
                 }}
               >
-                <option value="">All sites</option>
+                <option value="">{t('common.allSites')}</option>
                 {(sites.data ?? []).map((s) => (
                   <option key={s.id} value={s.id}>
                     {s.name}
@@ -166,8 +169,8 @@ export function DashboardPage() {
 
       {isAdmin && !routers.isLoading && !plans.isLoading && (!(routers.data ?? []).length || !(plans.data ?? []).some((p) => p.is_active)) && (
         <Link to="/welcome" className={buttonClass('primary', 'min-h-14 w-full !justify-between gap-3 !rounded-2xl py-4')}>
-          <span>Finish setting up: {!(routers.data ?? []).length ? 'connect your router' : 'make your first plan'}</span>
-          <span aria-hidden="true">→</span>
+          <span>{t('reports.dash.finishSetup', { what: !(routers.data ?? []).length ? t('reports.dash.connectRouter') : t('reports.dash.makePlan') })}</span>
+          <span aria-hidden="true">{dir === 'rtl' ? '←' : '→'}</span>
         </Link>
       )}
       {dashboard.error && <Alert tone="error">{friendlyError(dashboard.error)}</Alert>}
@@ -176,17 +179,17 @@ export function DashboardPage() {
       {d && (
         <>
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
-            <StatCard label="Today" value={formatSSP(d.today.revenue)} sub={`${formatNumber(d.today.sold)} voucher${d.today.sold === 1 ? '' : 's'}${withUsd(d.today.revenue)}`} to="/reports?tab=day" icon="sales" highlight />
-            <StatCard label="This week" value={formatSSP(d.week.revenue)} sub={`${formatNumber(d.week.sold)} voucher${d.week.sold === 1 ? '' : 's'} · from Mon${withUsd(d.week.revenue)}`} to="/reports?tab=week" icon="reports" tone="violet" />
-            <StatCard label="This month" value={formatSSP(d.month.revenue)} sub={`${formatNumber(d.month.sold)} voucher${d.month.sold === 1 ? '' : 's'}${withUsd(d.month.revenue)}`} to="/reports?tab=month" icon="dashboard" tone="sky" />
-            <StatCard label="Online now" value={formatNumber(d.online_now)} sub="users connected" to="/active-users" icon="active" tone="green" />
-            <StatCard label="Logged in today" value={formatNumber(d.logins_today)} sub="hotspot users seen on the router" to="/reports?tab=day" icon="vouchers" tone="amber" />
+            <StatCard label={t('period.today')} value={formatSSP(d.today.revenue)} sub={`${vouchers(d.today.sold)}${withUsd(d.today.revenue)}`} to="/reports?tab=day" icon="sales" highlight />
+            <StatCard label={t('period.thisWeek')} value={formatSSP(d.week.revenue)} sub={`${vouchers(d.week.sold)} · ${t('reports.dash.fromMon')}${withUsd(d.week.revenue)}`} to="/reports?tab=week" icon="reports" tone="violet" />
+            <StatCard label={t('period.thisMonth')} value={formatSSP(d.month.revenue)} sub={`${vouchers(d.month.sold)}${withUsd(d.month.revenue)}`} to="/reports?tab=month" icon="dashboard" tone="sky" />
+            <StatCard label={t('reports.dash.onlineNow')} value={formatNumber(d.online_now)} sub={t('reports.dash.usersConnected')} to="/active-users" icon="active" tone="green" />
+            <StatCard label={t('reports.dash.loggedInToday')} value={formatNumber(d.logins_today)} sub={t('reports.dash.seenOnRouter')} to="/reports?tab=day" icon="vouchers" tone="amber" />
             <StatCard
               icon="routers"
               tone="slate"
-              label="Hotspot users on router"
+              label={t('reports.dash.hotspotOnRouter')}
               value={formatNumber(d.router_users.total)}
-              sub={`${formatNumber(d.router_users.unused)} unused · ${formatNumber(d.router_users.used)} used`}
+              sub={t('reports.dash.unusedUsed', { unused: formatNumber(d.router_users.unused), used: formatNumber(d.router_users.used) })}
               to={isAdmin ? '/routers' : '/reports?tab=day'}
             />
           </div>
@@ -194,15 +197,15 @@ export function DashboardPage() {
           <div className="grid gap-3 lg:grid-cols-2">
             <Card>
               <div className="mb-2 flex items-center justify-between gap-2">
-                <h2 className="text-lg font-bold">Routers</h2>
+                <h2 className="text-lg font-bold">{t('nav.routers')}</h2>
                 {isAdmin && (
                   <Link to="/routers" className="inline-flex min-h-11 items-center text-sm font-semibold text-brand-700 hover:underline">
-                    Manage
+                    {t('reports.dash.manage')}
                   </Link>
                 )}
               </div>
               {siteRouters.length === 0 ? (
-                <p className="text-slate-600">No router yet. {isAdmin ? 'Add your MikroTik router on the Routers page.' : 'Ask the owner to add one.'}</p>
+                <p className="text-slate-600">{isAdmin ? t('reports.dash.noRouterAdmin') : t('reports.dash.noRouterStaff')}</p>
               ) : (
                 <ul className="divide-y divide-slate-100">
                   {siteRouters.map((r) => (
@@ -210,12 +213,12 @@ export function DashboardPage() {
                       <span className="min-w-0 truncate font-medium text-slate-900">{r.name}</span>
                       {r.status === 'online' ? (
                         <span className="shrink-0">
-                          <Badge color="green">Online</Badge>
+                          <Badge color="green">{t('common.online')}</Badge>
                         </span>
                       ) : (
-                        <span className="shrink-0 text-right">
-                          {r.status === 'pending' ? <Badge color="gray">Waiting for router</Badge> : <Badge color="red">Offline</Badge>}
-                          {r.last_seen_at && <span className="block text-xs text-slate-600">last seen {formatJubaTime(r.last_seen_at)}</span>}
+                        <span className="shrink-0 text-end">
+                          {r.status === 'pending' ? <Badge color="gray">{t('common.waitingRouter')}</Badge> : <Badge color="red">{t('common.offline')}</Badge>}
+                          {r.last_seen_at && <span className="block text-xs text-slate-600">{t('reports.dash.lastSeen', { time: formatJubaTime(r.last_seen_at) })}</span>}
                         </span>
                       )}
                     </li>
@@ -225,11 +228,11 @@ export function DashboardPage() {
             </Card>
             {(expiring.data || expiring.error) && (
               <Card>
-                <h2 className="mb-2 text-lg font-bold">Expiring in the next 24 hours</h2>
+                <h2 className="mb-2 text-lg font-bold">{t('reports.dash.expiringTitle')}</h2>
                 {!expiring.data ? (
-                  <p className="text-sm text-slate-500">Could not load: {friendlyError(expiring.error)}</p>
+                  <p className="text-sm text-slate-500">{t('reports.dash.couldNotLoad', { error: friendlyError(expiring.error) })}</p>
                 ) : expiring.data.length === 0 ? (
-                  <p className="text-slate-600">No customer's voucher runs out in the next 24 hours.</p>
+                  <p className="text-slate-600">{t('reports.dash.noneExpiring')}</p>
                 ) : (
                   <ul className="divide-y divide-slate-100">
                     {expiring.data.map((e) => (
@@ -239,13 +242,13 @@ export function DashboardPage() {
                           {e.plan_name}
                         </span>
                         <span className="font-semibold tabular-nums">
-                          {formatNumber(e.cards)} voucher{e.cards === 1 ? '' : 's'}
+                          {vouchers(e.cards)}
                         </span>
                       </li>
                     ))}
                   </ul>
                 )}
-                {expiring.data && <p className="mt-2 text-sm text-slate-600">These customers may want a new voucher soon.</p>}
+                {expiring.data && <p className="mt-2 text-sm text-slate-600">{t('reports.dash.expiringHint')}</p>}
               </Card>
             )}
           </div>
@@ -256,19 +259,19 @@ export function DashboardPage() {
 
           <Card className="!p-0">
             <div className="flex flex-wrap items-center justify-between gap-2 px-4 pt-4">
-              <h2 className="text-lg font-bold">Stock left</h2>
+              <h2 className="text-lg font-bold">{t('reports.dash.stockLeft')}</h2>
               <Link to="/vouchers/generate" className="inline-flex min-h-11 items-center text-sm font-semibold text-brand-700 hover:underline">
-                Generate vouchers
+                {t('reports.dash.generate')}
               </Link>
             </div>
             <div className="overflow-x-auto">
-              <table className="mt-2 w-full text-left text-sm">
+              <table className="mt-2 w-full text-start text-sm">
                 <thead className="border-y border-slate-200 bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
                   <tr>
-                    {showSiteColumn && <th className="px-4 py-2">Site</th>}
-                    <th className="px-4 py-2">Plan</th>
-                    <th className="px-4 py-2 text-right">For the Sell screen</th>
-                    <th className="px-4 py-2 text-right">Printed, not sold</th>
+                    {showSiteColumn && <th className="px-4 py-2">{t('common.site')}</th>}
+                    <th className="px-4 py-2">{t('common.plan')}</th>
+                    <th className="px-4 py-2 text-end">{t('reports.dash.forSell')}</th>
+                    <th className="px-4 py-2 text-end">{t('reports.dash.printedNotSold')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -281,22 +284,22 @@ export function DashboardPage() {
                           {s.plan_name} <span className="text-slate-500">· {formatSSP(s.price_ssp)}</span>
                         </span>
                       </td>
-                      <td className="px-4 py-2 text-right font-semibold tabular-nums">
+                      <td className="px-4 py-2 text-end font-semibold tabular-nums">
                         {s.available === 0 ? (
-                          <span className="text-red-700">0 — out</span>
+                          <span className="text-red-700">{t('reports.dash.out')}</span>
                         ) : s.available < LOW_STOCK ? (
                           <span className="text-amber-700">⚠ {formatNumber(s.available)}</span>
                         ) : (
                           formatNumber(s.available)
                         )}
                       </td>
-                      <td className="px-4 py-2 text-right tabular-nums text-slate-600">{formatNumber(s.printed_unsold)}</td>
+                      <td className="px-4 py-2 text-end tabular-nums text-slate-600">{formatNumber(s.printed_unsold)}</td>
                     </tr>
                   ))}
                   {d.stock.length === 0 && (
                     <tr>
                       <td colSpan={showSiteColumn ? 4 : 3} className="px-4 py-6 text-center text-slate-500">
-                        No unused vouchers on any router. Generate vouchers to start selling.
+                        {t('reports.dash.noStock')}
                       </td>
                     </tr>
                   )}

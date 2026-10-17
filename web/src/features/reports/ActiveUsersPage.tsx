@@ -9,6 +9,7 @@ import { waitForJob } from '../../lib/jobs';
 import { usePlans, useRouters } from '../../hooks/queries';
 import { routerStatus } from '../../lib/routers';
 import { supabase } from '../../lib/supabase';
+import { useT } from '../../i18n';
 
 interface SessionRow {
   id: string;
@@ -28,6 +29,7 @@ type DisconnectState = { phase: 'running' } | { phase: 'done'; ok: boolean; mess
 
 export function ActiveUsersPage() {
   const { profile } = useAuth();
+  const { t } = useT();
   const isAdmin = profile?.role === 'admin';
   const queryClient = useQueryClient();
   const routers = useRouters(30_000);
@@ -71,7 +73,7 @@ export function ActiveUsersPage() {
   }, [queryClient]);
 
   async function disconnect(s: SessionRow) {
-    if (!window.confirm(`Disconnect ${s.code} (${s.mac_address || 'all devices'})?`)) return;
+    if (!window.confirm(t('reports.active.confirm', { code: s.code, device: s.mac_address || t('reports.active.allDevices') }))) return;
     setDisconnects((d) => ({ ...d, [s.id]: { phase: 'running' } }));
     try {
       const { data, error } = await supabase
@@ -82,10 +84,10 @@ export function ActiveUsersPage() {
       if (error) throw new Error(friendlyError(error));
       const job = await waitForJob(data.id, 75_000);
       const ok = job.status === 'done';
-      if (ok) setNotice(`${s.code} was disconnected.`);
+      if (ok) setNotice(t('reports.active.wasDisconnected', { code: s.code }));
       setDisconnects((d) => ({
         ...d,
-        [s.id]: { phase: 'done', ok, message: ok ? 'Disconnected.' : String((job.result as { error?: string } | null)?.error ?? 'Could not disconnect.') },
+        [s.id]: { phase: 'done', ok, message: ok ? t('reports.active.disconnected') : String((job.result as { error?: string } | null)?.error ?? t('reports.active.couldNot')) },
       }));
       void queryClient.invalidateQueries({ queryKey: ['active-sessions'] });
     } catch (err) {
@@ -101,15 +103,15 @@ export function ActiveUsersPage() {
 
   return (
     <div className="space-y-4">
-      <PageHeader title="Active users" subtitle="Who is online now. Each router reports every minute." />
+      <PageHeader title={t('reports.active.title')} subtitle={t('reports.active.subtitle')} />
 
       <div className="flex flex-wrap items-center gap-2">
         <Card className="!py-3">
-          <span className="text-sm text-slate-500">Online now</span>{' '}
+          <span className="text-sm text-slate-500">{t('reports.dash.onlineNow')}</span>{' '}
           <span className="text-xl font-bold tabular-nums sm:text-3xl">{formatNumber(list.length)}</span>
         </Card>
         {routerList.filter((r) => r.status !== 'pending').length > 1 &&
-          [{ id: '', name: 'All routers' }, ...routerList.filter((r) => r.status !== 'pending')].map((r) => (
+          [{ id: '', name: t('reports.active.allRouters') }, ...routerList.filter((r) => r.status !== 'pending')].map((r) => (
             <button
               key={r.id}
               type="button"
@@ -133,19 +135,21 @@ export function ActiveUsersPage() {
             <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3">
               <div className="flex items-center gap-2">
                 <h2 className="text-lg font-bold">{router.name}</h2>
-                <Badge color={router.status === 'online' ? 'green' : 'red'}>{router.status === 'online' ? 'Online' : 'Offline'}</Badge>
-                <span className="text-sm text-slate-500">{formatNumber(rows.length)} online</span>
+                <Badge color={router.status === 'online' ? 'green' : 'red'}>{router.status === 'online' ? t('common.online') : t('common.offline')}</Badge>
+                <span className="text-sm text-slate-500">{t('reports.active.nOnline', { n: formatNumber(rows.length) })}</span>
               </div>
               <span className="text-xs text-slate-500">
                 {router.status === 'offline'
-                  ? `Router offline${router.last_seen_at ? ` since ${formatJubaTime(router.last_seen_at)}` : ''} — live users unknown`
+                  ? router.last_seen_at
+                    ? t('reports.active.offlineSince', { time: formatJubaTime(router.last_seen_at) })
+                    : t('reports.active.offline')
                   : lastUpdate
-                    ? `Updated ${timeAgo(lastUpdate)}`
+                    ? t('reports.active.updated', { ago: timeAgo(lastUpdate) })
                     : ''}
               </span>
             </div>
             {rows.length === 0 ? (
-              <p className="border-t border-slate-100 px-4 py-4 text-slate-500">{router.status === 'online' ? 'Nobody is online.' : '—'}</p>
+              <p className="border-t border-slate-100 px-4 py-4 text-slate-500">{router.status === 'online' ? t('reports.active.nobody') : '—'}</p>
             ) : (
               <>
               {/* Phones: one card per user */}
@@ -157,22 +161,26 @@ export function ActiveUsersPage() {
                   return (
                     <li key={s.id} className="px-4 py-3">
                       <div className="flex items-center justify-between gap-2">
-                        <span className="font-mono text-lg font-semibold tracking-wider">{s.code}</span>
+                        <span className="font-mono text-lg font-semibold tracking-wider" dir="ltr">
+                          {s.code}
+                        </span>
                         <span className="flex items-center gap-2 text-sm">
                           <span className="h-3 w-3 rounded-full" style={{ backgroundColor: plan?.color ?? '#94a3b8' }} />
-                          {plan?.name ?? 'Not a Hotzonex voucher'}
+                          {plan?.name ?? t('reports.active.notHz')}
                         </span>
                       </div>
                       <div className="mt-1 grid grid-cols-2 gap-x-3 text-sm text-slate-600">
                         <span>
-                          Used <strong className="text-slate-900">{formatDuration(used)}</strong>
+                          {t('reports.active.used')} <strong className="text-slate-900">{formatDuration(used)}</strong>
                           {plan ? ` / ${formatDuration(plan.uptime_seconds)}` : ''}
                         </span>
                         <span>
-                          Data <strong className="text-slate-900">{formatBytes(s.bytes_in + s.bytes_out)}</strong>
+                          {t('reports.active.data')} <strong className="text-slate-900">{formatBytes(s.bytes_in + s.bytes_out)}</strong>
                         </span>
-                        <span className="font-mono text-xs">{s.mac_address || '—'}</span>
-                        <span className="text-xs">{s.vouchers?.expires_at ? `Expires ${formatJubaTime(s.vouchers.expires_at)}` : ''}</span>
+                        <span className="font-mono text-xs">
+                          <span dir="ltr">{s.mac_address || '—'}</span>
+                        </span>
+                        <span className="text-xs">{s.vouchers?.expires_at ? t('reports.active.expiresAt', { time: formatJubaTime(s.vouchers.expires_at) }) : ''}</span>
                       </div>
                       {isAdmin &&
                         (dc?.phase === 'done' && !dc.ok ? (
@@ -184,7 +192,7 @@ export function ActiveUsersPage() {
                             onClick={() => void disconnect(s)}
                             className="mt-2 px-3 text-sm"
                           >
-                            {dc?.phase === 'running' && <Spinner className="h-4 w-4" />} Disconnect
+                            {dc?.phase === 'running' && <Spinner className="h-4 w-4" />} {t('reports.active.disconnect')}
                           </Button>
                         ))}
                     </li>
@@ -192,19 +200,19 @@ export function ActiveUsersPage() {
                 })}
               </ul>
               <div className="hidden overflow-x-auto border-t border-slate-100 sm:block">
-                <table className="w-full min-w-[760px] text-left text-sm">
+                <table className="w-full min-w-[760px] text-start text-sm">
                   <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
                     <tr>
-                      <th className="px-4 py-2">Code</th>
-                      <th className="px-4 py-2">Plan</th>
-                      <th className="px-4 py-2">Device</th>
-                      <th className="px-4 py-2">This session</th>
-                      <th className="px-4 py-2">Time used</th>
-                      <th className="px-4 py-2">Data used</th>
-                      <th className="px-4 py-2">Expires</th>
+                      <th className="px-4 py-2">{t('reports.code')}</th>
+                      <th className="px-4 py-2">{t('common.plan')}</th>
+                      <th className="px-4 py-2">{t('reports.active.device')}</th>
+                      <th className="px-4 py-2">{t('reports.active.thisSession')}</th>
+                      <th className="px-4 py-2">{t('reports.active.timeUsed')}</th>
+                      <th className="px-4 py-2">{t('reports.active.dataUsed')}</th>
+                      <th className="px-4 py-2">{t('reports.active.expires')}</th>
                       {isAdmin && (
                         <th className="px-4 py-2">
-                          <span className="sr-only">Disconnect</span>
+                          <span className="sr-only">{t('reports.active.disconnect')}</span>
                         </th>
                       )}
                     </tr>
@@ -216,7 +224,9 @@ export function ActiveUsersPage() {
                       const dc = disconnects[s.id];
                       return (
                         <tr key={s.id} className="border-t border-slate-100">
-                          <td className="px-4 py-2 font-mono text-base font-semibold tracking-wider">{s.code}</td>
+                          <td className="px-4 py-2 font-mono text-base font-semibold tracking-wider">
+                            <span dir="ltr">{s.code}</span>
+                          </td>
                           <td className="whitespace-nowrap px-4 py-2">
                             {plan ? (
                               <span className="flex items-center gap-2">
@@ -224,12 +234,16 @@ export function ActiveUsersPage() {
                                 {plan.name}
                               </span>
                             ) : (
-                              <span className="text-amber-700">Not a Hotzonex voucher</span>
+                              <span className="text-amber-700">{t('reports.active.notHz')}</span>
                             )}
                           </td>
                           <td className="px-4 py-2">
-                            <div className="font-mono text-xs">{s.mac_address || '—'}</div>
-                            <div className="text-xs text-slate-500">{s.ip_address ? bareIp(s.ip_address) : ''}</div>
+                            <div className="font-mono text-xs">
+                              <span dir="ltr">{s.mac_address || '—'}</span>
+                            </div>
+                            <div className="text-xs text-slate-500">
+                              <span dir="ltr">{s.ip_address ? bareIp(s.ip_address) : ''}</span>
+                            </div>
                           </td>
                           <td className="px-4 py-2">{formatDuration(s.uptime_seconds)}</td>
                           <td className="whitespace-nowrap px-4 py-2">
@@ -239,7 +253,7 @@ export function ActiveUsersPage() {
                           <td className="px-4 py-2">{formatBytes(s.bytes_in + s.bytes_out)}</td>
                           <td className="whitespace-nowrap px-4 py-2">{s.vouchers?.expires_at ? formatJubaTime(s.vouchers.expires_at) : '—'}</td>
                           {isAdmin && (
-                            <td className="px-4 py-2 text-right">
+                            <td className="px-4 py-2 text-end">
                               {dc?.phase === 'done' ? (
                                 <span className={`text-sm ${dc.ok ? 'text-green-700' : 'text-red-700'}`}>{dc.message}</span>
                               ) : (
@@ -249,7 +263,7 @@ export function ActiveUsersPage() {
                                   onClick={() => void disconnect(s)}
                                   className="px-3 text-sm"
                                 >
-                                  {dc?.phase === 'running' && <Spinner className="h-4 w-4" />} Disconnect
+                                  {dc?.phase === 'running' && <Spinner className="h-4 w-4" />} {t('reports.active.disconnect')}
                                 </Button>
                               )}
                             </td>

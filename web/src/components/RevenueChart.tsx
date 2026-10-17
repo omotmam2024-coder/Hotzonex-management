@@ -1,6 +1,9 @@
 import { useState } from 'react';
 import { formatNumber, formatSSP } from '../lib/format';
 import { textButtonClass } from './ui';
+import { useT } from '../i18n';
+import { getLang, LOCALE } from '../i18n/core';
+import { shortDay } from '../lib/period';
 
 export interface DayRevenue {
   day: string; // YYYY-MM-DD (Juba)
@@ -8,8 +11,9 @@ export interface DayRevenue {
   sold: number;
 }
 
-const dayLabel = new Intl.DateTimeFormat('en-GB', { day: 'numeric', timeZone: 'UTC' });
-const fullLabel = new Intl.DateTimeFormat('en-GB', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' });
+/** Day labels in the chosen language (Latin digits). */
+const dayLabel = { format: (d: Date) => new Intl.DateTimeFormat(LOCALE[getLang()], { day: 'numeric', timeZone: 'UTC' }).format(d) };
+const fullLabel = shortDay;
 const parseDay = (d: string) => new Date(`${d}T00:00:00Z`);
 
 /** Rounds the axis maximum up to a friendly number (1, 2, 2.5, 5 × 10^n). */
@@ -28,6 +32,7 @@ function compact(n: number): string {
 
 /** Single-series bar chart of daily revenue: one hue, recessive grid, hover/tap tooltip, table view. */
 export function RevenueChart({ days }: { days: DayRevenue[] }) {
+  const { t } = useT();
   const [active, setActive] = useState<number | null>(null);
   const [asTable, setAsTable] = useState(false);
   const max = niceMax(Math.max(0, ...days.map((d) => d.revenue)));
@@ -37,39 +42,40 @@ export function RevenueChart({ days }: { days: DayRevenue[] }) {
   return (
     <div>
       <div className="mb-3 flex items-center justify-between gap-2">
-        <h2 className="text-lg font-bold">Revenue, last 14 days</h2>
-        <button type="button" onClick={() => setAsTable((v) => !v)} className={`${textButtonClass} -mr-2 text-brand-700`}>
-          {asTable ? 'Show chart' : 'Show as table'}
+        <h2 className="text-lg font-bold">{t('reports.chart.title')}</h2>
+        <button type="button" onClick={() => setAsTable((v) => !v)} className={`${textButtonClass} -me-2 text-brand-700`}>
+          {asTable ? t('reports.chart.showChart') : t('reports.chart.showTable')}
         </button>
       </div>
 
       {asTable ? (
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
+          <table className="w-full text-start text-sm">
             <thead className="text-xs uppercase tracking-wide text-slate-500">
               <tr>
-                <th className="py-1">Day</th>
-                <th className="py-1 text-right">Vouchers</th>
-                <th className="py-1 text-right">Revenue</th>
+                <th className="py-1">{t('common.day')}</th>
+                <th className="py-1 text-end">{t('reports.chart.vouchers')}</th>
+                <th className="py-1 text-end">{t('common.revenue')}</th>
               </tr>
             </thead>
             <tbody>
               {days.map((d) => (
                 <tr key={d.day} className="border-t border-slate-100">
                   <td className="py-1.5">{fullLabel.format(parseDay(d.day))}</td>
-                  <td className="py-1.5 text-right tabular-nums">{formatNumber(d.sold)}</td>
-                  <td className="py-1.5 text-right font-semibold tabular-nums">{formatSSP(d.revenue)}</td>
+                  <td className="py-1.5 text-end tabular-nums">{formatNumber(d.sold)}</td>
+                  <td className="py-1.5 text-end font-semibold tabular-nums">{formatSSP(d.revenue)}</td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
       ) : (
-        <div className="flex gap-2">
+        // Time runs left to right in every language, so the chart itself stays left-to-right.
+        <div className="flex gap-2" dir="ltr">
           {/* y-axis labels */}
-          <div className="relative h-48 w-10 shrink-0 text-right text-xs text-slate-500">
+          <div className="relative h-48 w-10 shrink-0 text-end text-xs text-slate-500">
             {ticks.map((t, i) => (
-              <span key={t} className="absolute right-0 -translate-y-1/2 tabular-nums" style={{ top: `${(i / (ticks.length - 1)) * 100}%` }}>
+              <span key={t} className="absolute end-0 -translate-y-1/2 tabular-nums" style={{ top: `${(i / (ticks.length - 1)) * 100}%` }}>
                 {compact(t)}
               </span>
             ))}
@@ -91,7 +97,7 @@ export function RevenueChart({ days }: { days: DayRevenue[] }) {
                       onMouseEnter={() => setActive(i)}
                       onFocus={() => setActive(i)}
                       onClick={() => setActive(active === i ? null : i)}
-                      aria-label={`${fullLabel.format(parseDay(d.day))}: ${formatSSP(d.revenue)}, ${d.sold} vouchers`}
+                      aria-label={t('reports.chart.barLabel', { day: fullLabel.format(parseDay(d.day)), amount: formatSSP(d.revenue), n: d.sold })}
                     >
                       {i === peak && d.revenue > 0 && active === null && (
                         <span className="absolute z-10 whitespace-nowrap text-[11px] font-semibold text-slate-700" style={{ bottom: `calc(${h}% + 4px)` }}>
@@ -113,7 +119,7 @@ export function RevenueChart({ days }: { days: DayRevenue[] }) {
                 >
                   <div className="font-semibold">{fullLabel.format(parseDay(days[active].day))}</div>
                   <div className="tabular-nums">{formatSSP(days[active].revenue)}</div>
-                  <div className="tabular-nums text-slate-300">{formatNumber(days[active].sold)} vouchers</div>
+                  <div className="tabular-nums text-slate-300">{t('reports.nVouchers', { n: formatNumber(days[active].sold) })}</div>
                 </div>
               )}
             </div>

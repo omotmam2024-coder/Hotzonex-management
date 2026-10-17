@@ -13,6 +13,7 @@ import { currentPeriodName, periodLabel, shortDay, usePeriodParams, utc } from '
 import { categoryLabel, profitTone, useProfit, type Expense } from '../../lib/profit';
 import { supabase } from '../../lib/supabase';
 import { EXPENSE_CATEGORIES, expenseSchema, validate } from '../../lib/validation';
+import { useT } from '../../i18n';
 
 function ExpenseForm({
   expense,
@@ -31,6 +32,7 @@ function ExpenseForm({
   onDone: () => void;
   onCancel: () => void;
 }) {
+  const { t } = useT();
   const [spentOn, setSpentOn] = useState(expense?.spent_on ?? jubaToday());
   const [category, setCategory] = useState(expense?.category ?? '');
   const [amount, setAmount] = useState(expense ? String(expense.amount_ssp) : '');
@@ -68,28 +70,28 @@ function ExpenseForm({
 
   return (
     <form onSubmit={submit} className="no-print rounded-2xl bg-white p-4 shadow-card ring-1 ring-brand-200 sm:p-5">
-      <h2 className="mb-3 text-sm font-bold text-slate-900">{expense ? 'Change expense' : 'Add expense'}</h2>
+      <h2 className="mb-3 text-sm font-bold text-slate-900">{expense ? t('expenses.change') : t('expenses.add')}</h2>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <Field label="Day">
+        <Field label={t('common.day')}>
           <TextInput type="date" value={spentOn} max={jubaToday()} onChange={(e) => setSpentOn(e.target.value)} />
         </Field>
-        <Field label="Category">
+        <Field label={t('expenses.category')}>
           <Select value={category} onChange={(e) => setCategory(e.target.value)}>
-            <option value="">Choose…</option>
+            <option value="">{t('common.choose')}</option>
             {EXPENSE_CATEGORIES.map((c) => (
               <option key={c.key} value={c.key}>
-                {c.label}
+                {categoryLabel(c.key)}
               </option>
             ))}
           </Select>
         </Field>
-        <Field label="Amount (SSP)">
+        <Field label={t('common.amountSsp')}>
           <TextInput inputMode="numeric" value={amount} placeholder="0" onChange={(e) => setAmount(e.target.value.replace(/[^0-9]/g, '').slice(0, 10))} />
         </Field>
         {isAdmin ? (
-          <Field label="For">
+          <Field label={t('expenses.for')}>
             <Select value={siteId} onChange={(e) => setSiteId(e.target.value)}>
-              <option value="">Whole business</option>
+              <option value="">{t('expenses.wholeBusiness')}</option>
               {sites.map((s) => (
                 <option key={s.id} value={s.id}>
                   {s.name}
@@ -98,14 +100,14 @@ function ExpenseForm({
             </Select>
           </Field>
         ) : (
-          <Field label="Note (optional)">
-            <TextInput value={note} onChange={(e) => setNote(e.target.value.slice(0, 200))} placeholder="e.g. Starlink October" />
+          <Field label={t('common.noteOptional')}>
+            <TextInput value={note} onChange={(e) => setNote(e.target.value.slice(0, 200))} placeholder={t('expenses.notePlaceholder')} />
           </Field>
         )}
         {isAdmin && (
           <div className="sm:col-span-2 lg:col-span-4">
-            <Field label="Note (optional)">
-              <TextInput value={note} onChange={(e) => setNote(e.target.value.slice(0, 200))} placeholder="e.g. Starlink October" />
+            <Field label={t('common.noteOptional')}>
+              <TextInput value={note} onChange={(e) => setNote(e.target.value.slice(0, 200))} placeholder={t('expenses.notePlaceholder')} />
             </Field>
           </div>
         )}
@@ -117,10 +119,10 @@ function ExpenseForm({
       )}
       <div className="mt-3 flex gap-2">
         <Button type="submit" disabled={save.isPending}>
-          {save.isPending && <Spinner />} {expense ? 'Save changes' : 'Add expense'}
+          {save.isPending && <Spinner />} {expense ? t('expenses.saveChanges') : t('expenses.add')}
         </Button>
         <Button variant="secondary" onClick={onCancel}>
-          Cancel
+          {t('common.cancel')}
         </Button>
       </div>
     </form>
@@ -129,6 +131,7 @@ function ExpenseForm({
 
 export function ExpensesPage() {
   const { profile, business } = useAuth();
+  const { t } = useT();
   const isAdmin = profile?.role === 'admin';
   const sites = useSites();
   const usdRate = useUsdRate();
@@ -158,46 +161,46 @@ export function ExpensesPage() {
 
   function exportCsv() {
     if (!r) return;
-    const scope = siteId ? (sites.data?.find((x) => x.id === siteId)?.name ?? '') : 'All sites';
+    const scope = siteId ? (sites.data?.find((x) => x.id === siteId)?.name ?? '') : t('common.allSites');
     const rows: (string | number | null)[][] = [
-      [businessName, 'Profit report'],
-      ['Period', label],
-      ['Site', scope],
-      ['Generated', formatJubaStamp()],
+      [businessName, t('expenses.profitReport')],
+      [t('expenses.period'), label],
+      [t('common.site'), scope],
+      [t('expenses.generated'), formatJubaStamp()],
       [],
-      ['Revenue (SSP)', r.summary.revenue],
-      ['Agent commission (SSP)', r.summary.commission],
-      ['Expenses (SSP)', r.summary.expenses],
-      ['Profit (SSP)', r.summary.profit],
+      [t('expenses.revenueSsp'), r.summary.revenue],
+      [t('expenses.agentCommissionSsp'), r.summary.commission],
+      [t('expenses.expensesSsp'), r.summary.expenses],
+      [t('expenses.profitSsp'), r.summary.profit],
     ];
     if (r.days.length) {
-      rows.push([], ['Day', 'Revenue (SSP)', 'Commission (SSP)', 'Expenses (SSP)', 'Profit (SSP)']);
+      rows.push([], [t('common.day'), t('expenses.revenueSsp'), t('expenses.commissionSsp'), t('expenses.expensesSsp'), t('expenses.profitSsp')]);
       for (const d of r.days) rows.push([d.day, d.revenue, d.commission, d.expenses, d.profit]);
     }
-    rows.push([], ['Day', 'Category', 'For', 'Note', 'Amount (SSP)', 'Recorded by']);
-    for (const e of r.items) rows.push([e.spent_on, categoryLabel(e.category), e.site_name ?? 'Whole business', e.note, e.amount_ssp, e.created_by]);
+    rows.push([], [t('common.day'), t('expenses.category'), t('expenses.for'), t('common.note'), t('common.amountSsp'), t('expenses.recordedBy')]);
+    for (const e of r.items) rows.push([e.spent_on, categoryLabel(e.category), e.site_name ?? t('expenses.wholeBusiness'), e.note, e.amount_ssp, e.created_by]);
     downloadText(`hotzonex-profit-${r.period}-${r.start}.csv`, toCsv(rows));
   }
 
   const stats: { label: string; value: string; sub?: string; tone?: string }[] = s
     ? [
         {
-          label: 'Revenue',
+          label: t('common.revenue'),
           value: formatSSP(s.revenue),
           sub: formatUsd(s.revenue, usdRate) || undefined,
         },
         {
-          label: 'Agent commission',
+          label: t('expenses.agentCommission'),
           value: s.commission ? `− ${formatSSP(s.commission)}` : formatSSP(0),
         },
         {
-          label: 'Expenses',
+          label: t('expenses.expenses'),
           value: s.expenses ? `− ${formatSSP(s.expenses)}` : formatSSP(0),
         },
         {
-          label: 'Profit',
+          label: t('expenses.profit'),
           value: formatSSP(s.profit),
-          sub: [margin !== null ? `${margin}% of revenue` : '', formatUsd(s.profit, usdRate)].filter(Boolean).join(' · ') || undefined,
+          sub: [margin !== null ? t('expenses.pctOfRevenue', { n: margin }) : '', formatUsd(s.profit, usdRate)].filter(Boolean).join(' · ') || undefined,
           tone: profitTone(s.profit),
         },
       ]
@@ -207,22 +210,22 @@ export function ExpensesPage() {
     <div className="space-y-4">
       <ReportPrintStyle />
       <div className="hidden print:block">
-        <div className="text-lg font-extrabold">{businessName} — profit report</div>
+        <div className="text-lg font-extrabold">{t('expenses.printTitle', { business: businessName })}</div>
         <div className="text-sm">{label}</div>
-        <div className="text-xs text-slate-600">Generated {formatJubaStamp()} (Juba time).</div>
+        <div className="text-xs text-slate-600">{t('expenses.printGenerated', { stamp: formatJubaStamp() })}</div>
       </div>
 
       <div className="no-print">
         <PageHeader
-          title="Expenses & profit"
-          subtitle="What you spend and what you keep"
+          title={t('nav.expenses')}
+          subtitle={t('expenses.subtitle')}
           actions={
             <div className="no-print flex gap-2">
               <Button variant="secondary" className="px-3 text-sm" onClick={() => window.print()} disabled={!r}>
-                Print
+                {t('common.print')}
               </Button>
               <Button variant="secondary" className="px-3 text-sm" onClick={exportCsv} disabled={!r}>
-                Download CSV
+                {t('common.downloadCsv')}
               </Button>
             </div>
           }
@@ -231,8 +234,8 @@ export function ExpensesPage() {
 
       <PeriodPicker period={tab} date={date} onPeriod={(p) => set('tab', p)} onDate={(d) => set('date', d)}>
         {isAdmin && (sites.data?.length ?? 0) > 1 && (
-          <Select aria-label="Site" className="!w-auto text-sm" value={siteId} onChange={(e) => set('site', e.target.value)}>
-            <option value="">All sites</option>
+          <Select aria-label={t('common.site')} className="!w-auto text-sm" value={siteId} onChange={(e) => set('site', e.target.value)}>
+            <option value="">{t('common.allSites')}</option>
             {(sites.data ?? []).map((x) => (
               <option key={x.id} value={x.id}>
                 {x.name}
@@ -252,10 +255,7 @@ export function ExpensesPage() {
             <div className="text-sm font-semibold text-slate-900">{label}</div>
             <div className="flex items-center gap-3 text-xs text-slate-500">
               {change !== null && (
-                <span>
-                  Profit {change > 0 ? '+' : ''}
-                  {change}% vs previous {tab}
-                </span>
+                <span>{t(`expenses.profitVs.${tab}`, { change: `${change > 0 ? '+' : ''}${change}` })}</span>
               )}
               {!isCurrent && (
                 <button type="button" onClick={() => set('date', '')} className="no-print min-h-11 font-semibold text-brand-700 hover:underline">
@@ -266,7 +266,7 @@ export function ExpensesPage() {
           </div>
           <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-4">
             {stats.map((x, i) => (
-              <div key={x.label} className={i > 0 ? 'sm:border-l sm:border-slate-100 sm:pl-4' : ''}>
+              <div key={x.label} className={i > 0 ? 'sm:border-s sm:border-slate-100 sm:ps-4' : ''}>
                 <dt className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{x.label}</dt>
                 <dd className={`whitespace-nowrap text-base font-bold tabular-nums sm:text-xl ${x.tone ?? 'text-slate-900'}`}>{x.value}</dd>
                 {x.sub && <dd className="text-xs text-slate-500">{x.sub}</dd>}
@@ -292,7 +292,7 @@ export function ExpensesPage() {
         />
       ) : (
         <Button className="no-print w-full sm:w-auto" onClick={() => setEditing('new')}>
-          + Add expense
+          {t('expenses.addButton')}
         </Button>
       )}
 
@@ -300,13 +300,13 @@ export function ExpensesPage() {
         <>
           {remove.error && <Alert tone="error">{friendlyError(remove.error)}</Alert>}
 
-          <ReportSection title="Expenses" aside={`${formatNumber(r.items.length)} · ${formatSSP(r.summary.expenses)}`}>
-            <table className="w-full text-left text-sm">
+          <ReportSection title={t('expenses.expenses')} aside={`${formatNumber(r.items.length)} · ${formatSSP(r.summary.expenses)}`}>
+            <table className="w-full text-start text-sm">
               <thead>
                 <tr>
-                  <th className={th}>Day</th>
-                  <th className={th}>What</th>
-                  <th className={`${th} text-right`}>Amount</th>
+                  <th className={th}>{t('common.day')}</th>
+                  <th className={th}>{t('expenses.what')}</th>
+                  <th className={`${th} text-end`}>{t('common.amount')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -315,31 +315,31 @@ export function ExpensesPage() {
                     <td className={`${td} whitespace-nowrap tabular-nums`}>{shortDay.format(utc(e.spent_on))}</td>
                     <td className={td}>
                       <div className="font-medium text-slate-900">{categoryLabel(e.category)}</div>
-                      <div className="text-xs text-slate-500">{[e.note, e.site_name ?? (isAdmin ? 'Whole business' : null)].filter(Boolean).join(' · ')}</div>
-                      <div className="no-print -ml-2 flex">
+                      <div className="text-xs text-slate-500">{[e.note, e.site_name ?? (isAdmin ? t('expenses.wholeBusiness') : null)].filter(Boolean).join(' · ')}</div>
+                      <div className="no-print -ms-2 flex">
                         <button type="button" className={`${textButtonClass} text-brand-700`} onClick={() => setEditing(e)}>
-                          Edit
+                          {t('common.edit')}
                         </button>
                         <button
                           type="button"
                           className={`${textButtonClass} text-red-700`}
                           disabled={remove.isPending}
                           onClick={() =>
-                            window.confirm(`Remove ${categoryLabel(e.category)} ${formatSSP(e.amount_ssp)} of ${shortDay.format(utc(e.spent_on))}?`) &&
+                            window.confirm(t('expenses.confirmRemove', { category: categoryLabel(e.category), amount: formatSSP(e.amount_ssp), day: shortDay.format(utc(e.spent_on)) })) &&
                             remove.mutate(e.id)
                           }
                         >
-                          Remove
+                          {t('common.remove')}
                         </button>
                       </div>
                     </td>
-                    <td className={`${td} whitespace-nowrap text-right font-semibold tabular-nums`}>{formatSSP(e.amount_ssp)}</td>
+                    <td className={`${td} whitespace-nowrap text-end font-semibold tabular-nums`}>{formatSSP(e.amount_ssp)}</td>
                   </tr>
                 ))}
                 {r.items.length === 0 && (
                   <tr>
                     <td colSpan={3} className="py-3 text-slate-500">
-                      No expenses recorded for this {tab}.
+                      {t(`expenses.none.${tab}`)}
                     </td>
                   </tr>
                 )}
@@ -349,37 +349,37 @@ export function ExpensesPage() {
 
           <div className="grid gap-3 lg:grid-cols-2">
             {r.days.length > 0 && (
-              <ReportSection title="Day by day" aside="days with nothing hidden">
-                <table className="w-full text-left text-sm">
+              <ReportSection title={t('expenses.dayByDay')} aside={t('expenses.nothingHidden')}>
+                <table className="w-full text-start text-sm">
                   <thead>
                     <tr>
-                      <th className={th}>Day</th>
-                      <th className={`${th} text-right`}>Revenue</th>
-                      <th className={`${th} text-right`}>Costs</th>
-                      <th className={`${th} text-right`}>Profit</th>
+                      <th className={th}>{t('common.day')}</th>
+                      <th className={`${th} text-end`}>{t('common.revenue')}</th>
+                      <th className={`${th} text-end`}>{t('expenses.costs')}</th>
+                      <th className={`${th} text-end`}>{t('expenses.profit')}</th>
                     </tr>
                   </thead>
                   <tbody>
                     {activeDays.map((d) => (
                       <tr key={d.day} className="border-t border-slate-100">
                         <td className={`${td} whitespace-nowrap tabular-nums`}>{shortDay.format(utc(d.day))}</td>
-                        <td className={`${td} text-right tabular-nums`}>{formatNumber(d.revenue)}</td>
-                        <td className={`${td} text-right tabular-nums text-slate-500`}>{formatNumber(d.commission + d.expenses)}</td>
-                        <td className={`${td} text-right font-semibold tabular-nums ${profitTone(d.profit)}`}>{formatNumber(d.profit)}</td>
+                        <td className={`${td} text-end tabular-nums`}>{formatNumber(d.revenue)}</td>
+                        <td className={`${td} text-end tabular-nums text-slate-500`}>{formatNumber(d.commission + d.expenses)}</td>
+                        <td className={`${td} text-end font-semibold tabular-nums ${profitTone(d.profit)}`}>{formatNumber(d.profit)}</td>
                       </tr>
                     ))}
                     {activeDays.length === 0 && (
                       <tr>
                         <td colSpan={4} className="py-3 text-slate-500">
-                          No sales or expenses.
+                          {t('expenses.noSalesOrExpenses')}
                         </td>
                       </tr>
                     )}
                     <tr className="border-t border-slate-300 font-bold">
-                      <td className={td}>Total SSP</td>
-                      <td className={`${td} text-right tabular-nums`}>{formatNumber(r.summary.revenue)}</td>
-                      <td className={`${td} text-right tabular-nums`}>{formatNumber(r.summary.commission + r.summary.expenses)}</td>
-                      <td className={`${td} text-right tabular-nums ${profitTone(r.summary.profit)}`}>{formatNumber(r.summary.profit)}</td>
+                      <td className={td}>{t('expenses.totalSsp')}</td>
+                      <td className={`${td} text-end tabular-nums`}>{formatNumber(r.summary.revenue)}</td>
+                      <td className={`${td} text-end tabular-nums`}>{formatNumber(r.summary.commission + r.summary.expenses)}</td>
+                      <td className={`${td} text-end tabular-nums ${profitTone(r.summary.profit)}`}>{formatNumber(r.summary.profit)}</td>
                     </tr>
                   </tbody>
                 </table>
@@ -387,14 +387,14 @@ export function ExpensesPage() {
             )}
 
             {r.by_category.length > 0 && (
-              <ReportSection title="Expenses by category">
-                <table className="w-full text-left text-sm">
+              <ReportSection title={t('expenses.byCategory')}>
+                <table className="w-full text-start text-sm">
                   <tbody>
                     {r.by_category.map((c) => (
                       <tr key={c.category} className="border-t border-slate-100 first:border-t-0">
                         <td className={td}>{categoryLabel(c.category)}</td>
-                        <td className={`${td} text-right font-semibold tabular-nums`}>{formatSSP(c.amount)}</td>
-                        <td className={`${td} w-14 text-right tabular-nums text-slate-500`}>
+                        <td className={`${td} text-end font-semibold tabular-nums`}>{formatSSP(c.amount)}</td>
+                        <td className={`${td} w-14 text-end tabular-nums text-slate-500`}>
                           {r.summary.expenses ? Math.round((c.amount / r.summary.expenses) * 100) : 0}%
                         </td>
                       </tr>
@@ -406,8 +406,8 @@ export function ExpensesPage() {
           </div>
 
           <p className="no-print text-xs text-slate-500">
-            Profit = revenue − agent commission − expenses. Revenue is counted as on Reports (voided sales left out).
-            {siteId ? ' With one site chosen, whole-business expenses are not included.' : ''}
+            {t('expenses.footer')}
+            {siteId ? t('expenses.footerSite') : ''}
           </p>
         </>
       )}
