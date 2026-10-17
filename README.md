@@ -364,12 +364,30 @@ dashboard, the sale screen and reports.
 
 ## Alerts, mobile money, agents and billing
 
-### Alerts (Telegram)
+### Alerts (WhatsApp and Telegram)
 Every 2 minutes Hotzonex looks for: a router offline for 5 minutes (and back online), cards that
 failed or need checking after a push (missing on the router, wrong profile, code length unlike the
 router's own cards), low stock, mobile-money payments to confirm, and billing messages. They show on
-the **Alerts** page and go to Telegram:
+the **Alerts** page and go to WhatsApp and/or Telegram.
 
+**WhatsApp (no API key).** Hotzonex Cloud sends alerts from a normal WhatsApp number: a second SIM
+(not your personal number) linked to the tunnel server the same way WhatsApp Web is linked.
+1. Put the second SIM in a phone and install WhatsApp on it.
+2. Hotzonex → **Businesses → WhatsApp sender → Set up WhatsApp sender** → copy the command, paste it
+   on the tunnel server (VPS) and press Enter (1–3 minutes). Running it again is safe.
+3. A QR code appears on the same card. On the sender phone: WhatsApp → **Settings → Linked devices →
+   Link a device** → scan it. The card shows **Connected** and the sender's number.
+4. Each business (yours too): **Alerts → WhatsApp** → enter up to 5 numbers (e.g. `0924904216`;
+   numbers starting with 0 are South Sudan) → **Save numbers** → **Send a test message**.
+
+Good to know: this way of sending is unofficial (WhatsApp Web protocol, library
+`@whiskeysockets/baileys`). A few messages a day to people who expect them keeps the risk low, but
+WhatsApp can block a number it thinks is a bot; that is why a separate SIM is used. Keep the sender
+phone charged and online at least once every two weeks. If the sender is offline, alerts are retried
+every 2 minutes (5 times) and always stay on the Alerts page. On the VPS: `systemctl status hzc-wa`,
+`journalctl -u hzc-wa -n 50`. **Unlink phone** on the card (or Linked devices on the phone) unlinks it.
+
+**Telegram.**
 1. In Telegram, talk to **@BotFather** → `/newbot` → pick a name → copy the token it gives.
 2. Supabase → **Edge Functions → Secrets** → add `TELEGRAM_BOT_TOKEN` with that token (never paste it anywhere else).
 3. In Hotzonex: **Alerts → Connect Telegram** → press **Start** in Telegram. For a group, add the bot to the group first.

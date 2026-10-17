@@ -1,5 +1,16 @@
 # Changelog
 
+## 17 October 2026 — WhatsApp alerts
+
+- Alerts can go to **WhatsApp from a normal number, without an API key**: a second SIM is linked to
+  the tunnel server like WhatsApp Web (Businesses → WhatsApp sender: one install command, then scan
+  the QR code). Each business saves up to 5 WhatsApp numbers on **Alerts** and can send a test.
+- Every alert goes to Telegram and WhatsApp, each at most once, even when one of them is retried.
+- The tunnel server keeps extra relay routes in `/etc/caddy/hzc.d`, so re-running its script no
+  longer removes the WhatsApp route.
+- Migration `20261017120000_whatsapp_alerts.sql` (applied). See README → Alerts.
+- Unofficial way of sending: use a separate SIM, never your personal number.
+
 ## 17 October 2026 — consistency pass
 
 A review of the whole app for the same words, the same look and small bugs.
