@@ -387,6 +387,14 @@ phone charged and online at least once every two weeks. If the sender is offline
 every 2 minutes (5 times) and always stay on the Alerts page. On the VPS: `systemctl status hzc-wa`,
 `journalctl -u hzc-wa -n 50`. **Unlink phone** on the card (or Linked devices on the phone) unlinks it.
 
+**Subscription reminders (English, Arabic, Kiswahili).** Businesses that use Hotzonex Cloud are
+told before their service runs out: 7, 3 and 1 day before the paid month or the free trial ends,
+plus a new invoice, an invoice due in 2 days, the app paused (unpaid) and payment received. Each
+business chooses the language on **Alerts → WhatsApp → Language of Hotzonex messages**. The texts
+have defaults in all three languages; change them on **Businesses → Billing messages** (words like
+`{business}`, `{date}`, `{days}`, `{amount}`, `{invoice}`, `{due}`, `{pay}` are filled in; an empty
+text uses the default). They go to the business's alert numbers, or the phone it signed up with.
+
 **Telegram.**
 1. In Telegram, talk to **@BotFather** → `/newbot` → pick a name → copy the token it gives.
 2. Supabase → **Edge Functions → Secrets** → add `TELEGRAM_BOT_TOKEN` with that token (never paste it anywhere else).

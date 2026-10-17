@@ -1,5 +1,15 @@
 # Changelog
 
+## 17 October 2026 — subscription reminders in three languages
+
+- Businesses on Hotzonex Cloud are reminded on WhatsApp (and Telegram) **7, 3 and 1 day before
+  their paid month or free trial ends**, next to the invoice, due, paused and paid notices.
+- Each business chooses **English, Arabic or Kiswahili** (Alerts → WhatsApp). Default texts are
+  included; the platform admin can change them on **Businesses → Billing messages**, with a preview.
+- Billing messages go to the business's alert numbers, or the phone it signed up with.
+- The WhatsApp sender on the tunnel server can hold one linked number per business (for later use).
+- Migration `20261017150000_billing_reminders.sql` (applied).
+
 ## 17 October 2026 — WhatsApp alerts
 
 - Alerts can go to **WhatsApp from a normal number, without an API key**: a second SIM is linked to
