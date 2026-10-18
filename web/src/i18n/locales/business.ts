@@ -43,6 +43,13 @@ const en = {
   'business.businesses.switchOff': 'Switch off',
   'business.businesses.switchOn': 'Switch on',
   'business.businesses.confirmOff': 'Switch off {name}? Its staff can no longer log in until you switch it back on. Nothing is deleted.',
+  'business.businesses.remove': 'Remove',
+  'business.businesses.removeTitle': 'Remove {name} for good?',
+  'business.businesses.removeText':
+    'This deletes its sites, routers, plans, vouchers, sales, expenses, invoices and staff logins. It cannot be undone. The routers keep working as they are; they are only disconnected from Hotzonex Cloud. Use it when the owner has left Hotzonex Cloud.',
+  'business.businesses.removeType': 'Type the business name to confirm: {name}',
+  'business.businesses.removeConfirm': 'Remove for good',
+  'business.businesses.removed': '{name} was removed ({n} staff logins deleted).',
   'business.newBusiness.title': 'Add a business',
   'business.newBusiness.text':
     'The business gets its own sites, plans, routers, staff and sales. Its admin logs in with the email and password below and adds the rest.',
@@ -334,6 +341,13 @@ const ar = {
   'business.businesses.switchOff': 'إيقاف',
   'business.businesses.switchOn': 'تشغيل',
   'business.businesses.confirmOff': 'إيقاف {name}؟ لن يتمكن موظفوه من الدخول حتى تعيد تشغيله. لن يُحذف أي شيء.',
+  'business.businesses.remove': 'حذف',
+  'business.businesses.removeTitle': 'حذف {name} نهائياً؟',
+  'business.businesses.removeText':
+    'سيؤدي هذا إلى حذف مواقعه وأجهزة الراوتر والباقات والقسائم والمبيعات والمصروفات والفواتير وحسابات دخول الموظفين. لا يمكن التراجع عن ذلك. تستمر أجهزة الراوتر في العمل كما هي، ولكنها تُفصل عن Hotzonex Cloud فقط. استخدمه عندما يترك المالك Hotzonex Cloud.',
+  'business.businesses.removeType': 'اكتب اسم النشاط التجاري للتأكيد: {name}',
+  'business.businesses.removeConfirm': 'حذف نهائياً',
+  'business.businesses.removed': 'تم حذف {name} (حُذف {n} من حسابات دخول الموظفين).',
   'business.newBusiness.title': 'إضافة نشاط تجاري',
   'business.newBusiness.text': 'يحصل النشاط على مواقعه وباقاته وراوتراته وموظفيه ومبيعاته الخاصة. يدخل مديره بالبريد وكلمة المرور أدناه ويضيف الباقي.',
   'business.newBusiness.firstSite': 'الموقع الأول',
@@ -614,6 +628,13 @@ const sw = {
   'business.businesses.switchOff': 'Zima',
   'business.businesses.switchOn': 'Washa',
   'business.businesses.confirmOff': 'Zima {name}? Wafanyakazi wake hawataweza kuingia hadi uiwashe tena. Hakuna kinachofutwa.',
+  'business.businesses.remove': 'Futa',
+  'business.businesses.removeTitle': 'Futa {name} kabisa?',
+  'business.businesses.removeText':
+    'Hii inafuta maeneo yake, router, vifurushi, vocha, mauzo, matumizi, ankara na akaunti za kuingia za wafanyakazi. Haiwezi kurudishwa. Router zinaendelea kufanya kazi kama zilivyo; zinatenganishwa tu na Hotzonex Cloud. Itumie mmiliki anapoacha Hotzonex Cloud.',
+  'business.businesses.removeType': 'Andika jina la biashara kuthibitisha: {name}',
+  'business.businesses.removeConfirm': 'Futa kabisa',
+  'business.businesses.removed': '{name} imefutwa (akaunti {n} za wafanyakazi zimefutwa).',
   'business.newBusiness.title': 'Ongeza biashara',
   'business.newBusiness.text':
     'Biashara inapata matawi, vifurushi, router, wafanyakazi na mauzo yake yenyewe. Msimamizi wake anaingia kwa barua pepe na nenosiri hapa chini na kuongeza mengine.',

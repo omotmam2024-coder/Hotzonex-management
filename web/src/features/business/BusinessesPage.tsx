@@ -144,6 +144,23 @@ export function BusinessesPage() {
     onSettled: () => void queryClient.invalidateQueries({ queryKey: ['businesses'] }),
   });
 
+  const [removing, setRemoving] = useState<string | null>(null);
+  const [confirmName, setConfirmName] = useState('');
+  const remove = useMutation({
+    mutationFn: (b: BusinessRow) =>
+      invokeFunction<{ removed: string; users_removed: number }>('delete-items', { action: 'delete_business', id: b.id, name: confirmName }),
+    onSuccess: () => {
+      setRemoving(null);
+      setConfirmName('');
+    },
+    onSettled: () => void queryClient.invalidateQueries({ queryKey: ['businesses'] }),
+  });
+  const startRemove = (b: BusinessRow) => {
+    remove.reset();
+    setConfirmName('');
+    setRemoving(removing === b.id ? null : b.id);
+  };
+
   if (!twoStep)
     return (
       <div className="space-y-4">
@@ -177,12 +194,15 @@ export function BusinessesPage() {
       {list.isLoading && <Spinner className="h-8 w-8 text-brand-600" />}
       {list.error && <Alert tone="error">{friendlyError(list.error)}</Alert>}
       {toggle.error && <Alert tone="error">{friendlyError(toggle.error)}</Alert>}
+      {remove.data && (
+        <Alert tone="success">{t('business.businesses.removed', { name: remove.data.removed, n: formatNumber(remove.data.users_removed) })}</Alert>
+      )}
 
       <div className="grid gap-3 md:grid-cols-2">
         {(list.data ?? []).map((b) => (
-          <Card key={b.id} className={b.is_active ? '' : 'opacity-60'}>
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
+          <Card key={b.id}>
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className={`min-w-0 flex-1 ${b.is_active ? '' : 'opacity-60'}`}>
                 <div className="truncate font-bold">
                   {b.name} {b.id === business?.id && <span className="font-normal text-slate-500">{t('business.businesses.yours')}</span>}
                 </div>
@@ -195,17 +215,48 @@ export function BusinessesPage() {
                   {!b.is_active && <Badge color="red">{t('business.businesses.switchedOff')}</Badge>}
                 </div>
               </div>
-              {(b.id !== business?.id || support) && b.id !== support?.tenant_id && (
-                <Button variant="secondary" disabled={manage.isPending} onClick={() => manage.mutate(b)} title={t('business.businesses.manageTitle')}>
-                  {t('business.businesses.manage')}
-                </Button>
-              )}
-              {b.id !== business?.id && (
-                <Button variant={b.is_active ? 'danger' : 'secondary'} disabled={toggle.isPending} onClick={() => toggle.mutate(b)}>
-                  {b.is_active ? t('business.businesses.switchOff') : t('business.businesses.switchOn')}
-                </Button>
-              )}
+              <div className="flex flex-wrap justify-end gap-2">
+                {(b.id !== business?.id || support) && b.id !== support?.tenant_id && (
+                  <Button variant="secondary" disabled={manage.isPending} onClick={() => manage.mutate(b)} title={t('business.businesses.manageTitle')}>
+                    {t('business.businesses.manage')}
+                  </Button>
+                )}
+                {b.id !== business?.id && (
+                  <Button variant={b.is_active ? 'danger' : 'secondary'} disabled={toggle.isPending} onClick={() => toggle.mutate(b)}>
+                    {b.is_active ? t('business.businesses.switchOff') : t('business.businesses.switchOn')}
+                  </Button>
+                )}
+                {b.id !== business?.id && !b.is_active && (
+                  <Button variant="danger" aria-expanded={removing === b.id} onClick={() => startRemove(b)}>
+                    {t('business.businesses.remove')}
+                  </Button>
+                )}
+              </div>
             </div>
+            {removing === b.id && (
+              <form
+                className="mt-3 space-y-3 rounded-lg bg-red-50 p-3 ring-1 ring-red-200"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  remove.mutate(b);
+                }}
+              >
+                <div className="font-bold text-red-800">{t('business.businesses.removeTitle', { name: b.name })}</div>
+                <p className="text-sm text-red-800">{t('business.businesses.removeText')}</p>
+                <Field label={t('business.businesses.removeType', { name: b.name })}>
+                  <TextInput value={confirmName} onChange={(e) => setConfirmName(e.target.value)} autoComplete="off" spellCheck={false} />
+                </Field>
+                {remove.error && <Alert tone="error">{friendlyError(remove.error)}</Alert>}
+                <div className="flex flex-wrap gap-2">
+                  <Button type="submit" variant="danger" disabled={remove.isPending || confirmName.trim().toLowerCase() !== b.name.trim().toLowerCase()}>
+                    {remove.isPending && <Spinner />} {t('business.businesses.removeConfirm')}
+                  </Button>
+                  <Button type="button" variant="secondary" onClick={() => setRemoving(null)}>
+                    {t('common.cancel')}
+                  </Button>
+                </div>
+              </form>
+            )}
           </Card>
         ))}
       </div>

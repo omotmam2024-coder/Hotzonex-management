@@ -8,6 +8,9 @@
 //   A plan with Hotzonex vouchers or sales can only be switched off. Otherwise a profile Hotzonex
 //   made is deleted from its routers (only while no hotspot user is on it), then the plan. The
 //   routers' own profiles (MikroTicket's) stay on the routers and are not made into a plan again.
+// POST { action: "delete_business", id, name } → { removed, users_removed, counts }
+//   Platform admins only: removes a switched-off business for good (the owner left Hotzonex Cloud):
+//   all its data, its staff logins and its logo. The business name must be typed to confirm.
 import type { SupabaseClient } from 'npm:@supabase/supabase-js@2.117.3';
 import { audit, type Caller, requireAdmin, serviceClient } from '../_shared/auth.ts';
 import { HttpError, readBody, serveJson } from '../_shared/cors.ts';
@@ -150,6 +153,45 @@ async function deletePlan(db: SupabaseClient, caller: Caller, body: Record<strin
   return { removing: targets.length, kept_on_routers: keepOnRouter.length, job_ids: (jobs ?? []).map((j) => j.id as string) };
 }
 
+const BUSINESS_REFUSALS: Record<string, number> = { P0002: 404, '55000': 409, '22023': 400 };
+
+async function deleteBusiness(db: SupabaseClient, caller: Caller, body: Record<string, unknown>) {
+  if (!caller.isPlatformAdmin) throw new HttpError(403, 'Only Hotzonex Cloud platform admins can remove a business.');
+  const id = typeof body.id === 'string' && UUID_RE.test(body.id) ? body.id : '';
+  const name = typeof body.name === 'string' ? body.name.slice(0, 200) : '';
+  if (!id) throw new HttpError(400, 'Business not found.');
+  if (!name.trim()) throw new HttpError(400, 'Type the business name exactly to remove it.');
+
+  // The database checks again: switched off, the name matches, no platform admin inside.
+  const { data, error } = await db.rpc('remove_tenant', { p_tenant_id: id, p_by: caller.id, p_name: name });
+  if (error) {
+    const status = BUSINESS_REFUSALS[error.code ?? ''];
+    if (status) throw new HttpError(status, error.message);
+    throw new Error(`Could not remove the business: ${error.message}`);
+  }
+  const removed = data as { name: string; users: string[]; counts: Record<string, number> };
+
+  // The staff logins (their profiles are already gone with the business).
+  let usersRemoved = 0;
+  for (const userId of removed.users ?? []) {
+    const { error: userError } = await db.auth.admin.deleteUser(userId);
+    if (userError) console.error(`Could not delete login ${userId}: ${userError.message}`);
+    else usersRemoved++;
+  }
+
+  // The logo (logos/<business id>/...).
+  const { data: files } = await db.storage.from('logos').list(id, { limit: 100 });
+  if (files?.length) {
+    const { error: logoError } = await db.storage.from('logos').remove(files.map((f) => `${id}/${f.name}`));
+    if (logoError) console.error(`Could not delete the logo of ${id}: ${logoError.message}`);
+  }
+
+  if (caller.tenantId !== id) {
+    await audit(db, caller, 'tenant.removed', { tenant_id: id, name: removed.name, users_removed: usersRemoved, ...removed.counts });
+  }
+  return { removed: removed.name, users_removed: usersRemoved, counts: removed.counts };
+}
+
 serveJson(async (req) => {
   const db = serviceClient();
   const caller = await requireAdmin(req, db);
@@ -159,6 +201,8 @@ serveJson(async (req) => {
       return await deleteVouchers(db, caller, body);
     case 'delete_plan':
       return await deletePlan(db, caller, body);
+    case 'delete_business':
+      return await deleteBusiness(db, caller, body);
     default:
       throw new HttpError(400, 'Unknown action.');
   }
