@@ -1669,6 +1669,7 @@ export type Database = {
       billing_usage: { Args: never; Returns: Json }
       can_access_site: { Args: { target_site: string }; Returns: boolean }
       cash_up: { Args: { p_date: string; p_site_id?: string }; Returns: Json }
+      check_voucher: { Args: { p_code: string }; Returns: Json }
       confirm_payment_request: { Args: { p_id: string }; Returns: Json }
       dashboard_summary: { Args: { p_site_id?: string }; Returns: Json }
       expense_site_check: { Args: { p_site_id: string }; Returns: undefined }

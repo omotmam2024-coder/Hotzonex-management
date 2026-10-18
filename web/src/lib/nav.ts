@@ -19,7 +19,8 @@ export type IconName =
   | 'billing'
   | 'security'
   | 'settings'
-  | 'expenses';
+  | 'expenses'
+  | 'check';
 
 export type NavGroup = 'Overview' | 'Selling' | 'Cards & WiFi' | 'Business';
 
@@ -47,6 +48,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { path: '/sell', get label() { return translate('nav.sell'); }, icon: 'sell', roles: ALL, group: 'Selling' },
   { path: '/payments', get label() { return translate('nav.payments'); }, icon: 'payments', roles: ALL, group: 'Selling' },
   { path: '/sales', get label() { return translate('nav.sales'); }, icon: 'sales', roles: ALL, group: 'Selling' },
+  { path: '/check', get label() { return translate('nav.check'); }, icon: 'check', roles: ALL, group: 'Selling' },
   { path: '/cash', get label() { return translate('nav.cash'); }, icon: 'cash', roles: ALL, group: 'Selling' },
   { path: '/vouchers', get label() { return translate('nav.vouchers'); }, icon: 'vouchers', roles: ADMIN_MANAGER, group: 'Cards & WiFi' },
   { path: '/plans', get label() { return translate('nav.plans'); }, icon: 'plans', roles: ADMIN, group: 'Cards & WiFi' },

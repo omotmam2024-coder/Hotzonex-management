@@ -1,5 +1,14 @@
 # Changelog
 
+## 18 October 2026 — check a voucher
+
+- **Check voucher** (menu → Selling, every role): type the code a customer complains about or brings
+  back and see at once **NOT USED / IN USE NOW / USED — TIME LEFT / USED UP / SWITCHED OFF**, with
+  the plan, router, who sold it and when, first login, time and data used, valid-until, the device
+  online now, and how recently the router reported (a warning when that is old). Works for Hotzonex
+  vouchers and for MikroTicket codes the routers report. Cashiers and managers see their own site.
+- Migration `20261018120000_check_voucher.sql` (applied).
+
 ## 18 October 2026 — remove a business for good
 
 - **Businesses → Remove** (platform admins): when an owner leaves Hotzonex Cloud, switch the business

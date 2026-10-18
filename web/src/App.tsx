@@ -12,6 +12,7 @@ import { LoginPage } from './features/public/LoginPage';
 
 // Each screen is its own file, loaded when first opened: the app starts with less to download.
 const MarkSoldPage = page(() => import('./features/sell/MarkSoldPage'), 'MarkSoldPage');
+const CheckVoucherPage = page(() => import('./features/vouchers/CheckVoucherPage'), 'CheckVoucherPage');
 const ActiveUsersPage = page(() => import('./features/reports/ActiveUsersPage'), 'ActiveUsersPage');
 const DashboardPage = page(() => import('./features/reports/DashboardPage'), 'DashboardPage');
 const GenerateVouchersPage = page(() => import('./features/vouchers/GenerateVouchersPage'), 'GenerateVouchersPage');
@@ -102,6 +103,9 @@ export function App() {
             </Route>
             <Route element={<RequireRole roles={rolesFor('/active-users')} />}>
               <Route path="/active-users" element={<ActiveUsersPage />} />
+            </Route>
+            <Route element={<RequireRole roles={rolesFor('/check')} />}>
+              <Route path="/check" element={<CheckVoucherPage />} />
             </Route>
             <Route element={<RequireRole roles={rolesFor('/sales')} />}>
               <Route path="/sales" element={<SalesPage />} />
