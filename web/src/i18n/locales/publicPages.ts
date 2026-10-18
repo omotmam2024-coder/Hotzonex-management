@@ -203,6 +203,7 @@ const en = {
   'public.terms.s7.p1':
     'Hotzonex Cloud, its software, designs, texts and name belong to Hotzonex WiFi. Businesses get the right to use the hosted service while they subscribe, nothing more. It is not allowed to copy, imitate, resell or publish the service or its code, to extract or reverse-engineer it (including with artificial-intelligence tools), or to build a competing service from it. Breaking this ends the account at once and may lead to legal action.',
   'public.terms.s8.title': '8. Changes and contact',
+  'public.terms.email': 'Email:',
   'public.terms.s8.p1':
     'We may update these terms; the date above shows the latest version, and important changes are announced in the app. Questions, data requests or complaints: call or WhatsApp {phone}, or visit our office in Juba.',
   'public.terms.back': 'Back to Hotzonex Cloud',
@@ -418,6 +419,7 @@ const ar = {
   'public.terms.s7.p1':
     'Hotzonex Cloud وبرمجياتها وتصاميمها ونصوصها واسمها ملك لـ Hotzonex WiFi. تحصل الأنشطة على حق استخدام الخدمة المستضافة طوال مدة اشتراكها، لا أكثر. لا يُسمح بنسخ الخدمة أو تقليدها أو إعادة بيعها أو نشرها هي أو شفرتها، ولا باستخراجها أو تفكيكها (بما في ذلك بأدوات الذكاء الاصطناعي)، ولا ببناء خدمة منافسة منها. مخالفة ذلك تُنهي الحساب فوراً وقد تؤدي إلى إجراءات قانونية.',
   'public.terms.s8.title': '8. التغييرات والتواصل',
+  'public.terms.email': 'البريد الإلكتروني:',
   'public.terms.s8.p1':
     'قد نحدّث هذه الشروط؛ يبيّن التاريخ أعلاه أحدث نسخة، ويُعلَن عن التغييرات المهمة في التطبيق. للأسئلة أو طلبات البيانات أو الشكاوى: اتصل أو راسلنا عبر WhatsApp على {phone}، أو زر مكتبنا في جوبا.',
   'public.terms.back': 'العودة إلى Hotzonex Cloud',
@@ -630,6 +632,7 @@ const sw = {
   'public.terms.s7.p1':
     'Hotzonex Cloud, programu zake, miundo, maandishi na jina lake ni mali ya Hotzonex WiFi. Biashara zinapata haki ya kutumia huduma iliyohifadhiwa wakati zimejisajili, si zaidi. Hairuhusiwi kunakili, kuiga, kuuza upya au kuchapisha huduma au msimbo wake, kuitoa au kuichambua kinyume (ikiwa ni pamoja na kwa zana za akili bandia), au kujenga huduma shindani kutoka kwayo. Kuvunja hili kunafunga akaunti mara moja na kunaweza kusababisha hatua za kisheria.',
   'public.terms.s8.title': '8. Mabadiliko na mawasiliano',
+  'public.terms.email': 'Barua pepe:',
   'public.terms.s8.p1':
     'Tunaweza kusasisha masharti haya; tarehe iliyo juu inaonyesha toleo la karibuni, na mabadiliko muhimu yanatangazwa kwenye programu. Maswali, maombi ya data au malalamiko: piga simu au tuma WhatsApp {phone}, au tembelea ofisi yetu Juba.',
   'public.terms.back': 'Rudi Hotzonex Cloud',

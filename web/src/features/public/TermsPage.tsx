@@ -77,6 +77,14 @@ export function TermsPage() {
             <b dir="ltr">{CONTACT.phone}</b>
             {contactAfter}
           </p>
+          {CONTACT.email && (
+            <p>
+              {t('public.terms.email')}{' '}
+              <a href={`mailto:${CONTACT.email}`} dir="ltr" className="font-semibold text-brand-700 hover:underline">
+                {CONTACT.email}
+              </a>
+            </p>
+          )}
         </Section>
 
         <p className="border-t border-slate-100 pt-4 text-center text-sm">
