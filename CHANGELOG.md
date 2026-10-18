@@ -1,5 +1,18 @@
 # Changelog
 
+## 18 October 2026 — the app in English, Arabic and Kiswahili
+
+- Every screen is available in **English, العربية (Arabic, right to left) and Kiswahili**: the
+  menu, all pages, forms and their checks, printed voucher cards and receipts, reports and CSV
+  files, the Buy page for customers, sign-up, login, terms, and the server's error messages.
+- Choose the language at the bottom of the menu, or at the top of the login, sign-up and Buy pages.
+  It is saved on each phone or computer; the first visit follows the phone's language.
+- Dates and times use the chosen language (Latin digits); amounts stay in SSP.
+- Still in English: router commands and WinBox screen names, names and data people type, server
+  messages with changing parts (names, numbers), alerts to owners other than billing reminders,
+  and the hotspot login page on the routers. A native Arabic and Kiswahili speaker should read the
+  texts once (web/src/i18n/locales/*.ts) — wording can be changed there without touching the code.
+
 ## 17 October 2026 — subscription reminders in three languages
 
 - Businesses on Hotzonex Cloud are reminded on WhatsApp (and Telegram) **7, 3 and 1 day before

@@ -364,6 +364,12 @@ dashboard, the sale screen and reports.
 
 ## Alerts, mobile money, agents and billing
 
+### Languages
+The app is in **English, Arabic (right to left) and Kiswahili**. Everyone picks a language at the
+bottom of the menu (or at the top of the login, sign-up and Buy pages); it is saved on that device.
+All texts live in `web/src/i18n/locales/*.ts` (one file per area; each English text has an Arabic
+and a Kiswahili one, checked by `npm run typecheck`). Pages use `const { t } = useT(); t('key')`.
+
 ### Alerts (WhatsApp and Telegram)
 Every 2 minutes Hotzonex looks for: a router offline for 5 minutes (and back online), cards that
 failed or need checking after a push (missing on the router, wrong profile, code length unlike the
