@@ -5,7 +5,7 @@ export const CONTACT = {
   /** Digits only, with country code, for wa.me links. */
   whatsapp: '211924904216',
   /** A public business email; null hides the email line. */
-  email: null as string | null,
+  email: 'info@hotzonex.net' as string | null,
   office: 'Gorom Head Office, Juba, South Sudan',
 };
 
