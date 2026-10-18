@@ -47,7 +47,7 @@ const en = {
   'routers.siteExists': 'A site named "{name}" already exists.',
   'routers.sellFirstLogin': 'Sell on first login',
   'routers.sellFirstLoginHelp':
-    'Sell on first login: when an unused card logs in for the first time, a cash sale is recorded automatically at the plan price, with no seller. Leave it off to record pre-printed cards with “Mark as sold”.',
+    'Sell on first login: when an unused card logs in for the first time, a cash sale is recorded automatically at the plan price, with no seller. Leave it off to record pre-printed cards with “Mark printed cards as sold”.',
   'routers.newSitePlaceholder': 'New site name, e.g. Jebel Iraq',
 
   // Add / edit router
@@ -133,7 +133,7 @@ const en = {
   'routers.health.noAnswerSince': 'No answer since {ago}',
   'routers.health.noAnswerEver': 'No answer since it was added',
   'routers.health.loginPage': 'Login page',
-  'routers.health.notRead': 'Not read yet: press “Test connection” to read it.',
+  'routers.health.notRead': 'Not read yet: press “Test again” to read it.',
   'routers.health.mkt': "MikroTicket's login page ({dir}) — codes as long as its own cards",
   'routers.health.hzPortal': 'Hotzonex login portal',
   'routers.health.ownPages': "The router's own pages ({dir})",
@@ -271,7 +271,7 @@ const ar = {
   'routers.siteExists': 'يوجد موقع باسم "{name}" بالفعل.',
   'routers.sellFirstLogin': 'البيع عند أول دخول',
   'routers.sellFirstLoginHelp':
-    'البيع عند أول دخول: عندما تدخل بطاقة غير مستخدمة لأول مرة، يُسجَّل بيع نقدي تلقائياً بسعر الباقة، بدون كاشير. اتركه مغلقاً لتسجيل البطاقات المطبوعة مسبقاً باستخدام “تحديد كمباعة”.',
+    'البيع عند أول دخول: عندما تدخل بطاقة غير مستخدمة لأول مرة، يُسجَّل بيع نقدي تلقائياً بسعر الباقة، بدون كاشير. اتركه مغلقاً لتسجيل البطاقات المطبوعة مسبقاً باستخدام “تسجيل بيع البطاقات المطبوعة”.',
   'routers.newSitePlaceholder': 'اسم موقع جديد، مثلاً Jebel Iraq',
 
   'routers.form.newTitle': 'راوتر جديد',
@@ -488,7 +488,7 @@ const sw = {
   'routers.siteExists': 'Tawi lenye jina "{name}" tayari lipo.',
   'routers.sellFirstLogin': 'Uza kwenye kuingia kwa kwanza',
   'routers.sellFirstLoginHelp':
-    'Uza kwenye kuingia kwa kwanza: kadi ambayo haijatumika ikiingia mara ya kwanza, mauzo ya pesa taslimu yanarekodiwa yenyewe kwa bei ya kifurushi, bila muuzaji. Iache imezimwa ili kurekodi kadi zilizochapishwa mapema kwa “Weka kama imeuzwa”.',
+    'Uza kwenye kuingia kwa kwanza: kadi ambayo haijatumika ikiingia mara ya kwanza, mauzo ya pesa taslimu yanarekodiwa yenyewe kwa bei ya kifurushi, bila muuzaji. Iache imezimwa ili kurekodi kadi zilizochapishwa mapema kwa “Weka kadi zilizochapishwa kama zimeuzwa”.',
   'routers.newSitePlaceholder': 'Jina la tawi jipya, mfano Jebel Iraq',
 
   'routers.form.newTitle': 'Router mpya',
