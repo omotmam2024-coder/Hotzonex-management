@@ -11,3 +11,6 @@ supabase/.temp
 *.tsbuildinfo
 supabase/functions/deno.lock
 logs/
+
+# Presentation videos (made for sharing, kept out of the repository)
+presentation-videos/
