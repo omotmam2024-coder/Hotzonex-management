@@ -51,17 +51,17 @@ function MenuLink({ item }: { item: NavItem }) {
 }
 
 const THEMES = [
-  { key: 'light', label: 'theme.light' },
-  { key: 'dark', label: 'theme.dark' },
-  { key: 'system', label: 'theme.auto' },
-] as const satisfies readonly { key: ThemePref; label: string }[];
+  { key: 'light', label: 'theme.light', icon: 'sun' },
+  { key: 'dark', label: 'theme.dark', icon: 'moon' },
+  { key: 'system', label: 'theme.auto', icon: 'auto' },
+] as const satisfies readonly { key: ThemePref; label: string; icon: 'sun' | 'moon' | 'auto' }[];
 
 /** Light / Dark / Auto (follows the phone), saved on this device. */
 function ThemeSwitch() {
   const { t } = useT();
   const [pref, setPref] = useState<ThemePref>(getThemePref);
   return (
-    <div className="grid grid-cols-3 gap-1 rounded-xl bg-white/[0.06] p-1" role="radiogroup" aria-label={t('theme.label')}>
+    <div className="grid grid-cols-3 gap-1" role="radiogroup" aria-label={t('theme.label')}>
       {THEMES.map((theme) => (
         <button
           key={theme.key}
@@ -72,8 +72,9 @@ function ThemeSwitch() {
             setThemePref(theme.key);
             setPref(theme.key);
           }}
-          className={`min-h-11 rounded-lg text-xs font-semibold ${pref === theme.key ? 'bg-white/15 text-white' : 'text-white/60 hover:bg-white/10 hover:text-white'}`}
+          className={`inline-flex min-h-10 items-center justify-center gap-1.5 rounded-lg text-xs font-semibold ${pref === theme.key ? 'bg-white/15 text-white' : 'text-white/60 hover:bg-white/10 hover:text-white'}`}
         >
+          <Icon name={theme.icon} className="h-4 w-4" />
           {t(theme.label)}
         </button>
       ))}
@@ -135,19 +136,36 @@ export function Layout() {
         })}
       </div>
       <div className="shrink-0 space-y-2 border-t border-white/10 p-3">
-        <div className="rounded-xl bg-white/[0.06] p-2.5 text-xs text-white/70">
-          <div className="mb-1 font-semibold text-white/80">{t('common.help')}</div>
-          <a href={whatsappLink('Hotzonex Cloud')} target="_blank" rel="noopener noreferrer" dir="ltr" className="block truncate py-0.5 hover:text-white hover:underline">
-            WhatsApp {CONTACT.phone}
-          </a>
-          {CONTACT.email && (
-            <a href={`mailto:${CONTACT.email}`} dir="ltr" className="block truncate py-0.5 hover:text-white hover:underline">
-              {CONTACT.email}
+        <div>
+          <div className="mb-1.5 px-1 text-[11px] font-semibold uppercase tracking-wide text-white/40">{t('common.help')}</div>
+          <div className="grid grid-cols-2 gap-2">
+            <a
+              href={whatsappLink('Hotzonex Cloud')}
+              target="_blank"
+              rel="noopener noreferrer"
+              title={CONTACT.phone}
+              className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-white/[0.06] px-2 text-xs font-semibold text-white/80 hover:bg-white/10 hover:text-white"
+            >
+              <Icon name="whatsapp" className="h-4 w-4 shrink-0 text-[#25D366]" />
+              WhatsApp
             </a>
-          )}
+            {CONTACT.email && (
+              <a
+                href={`mailto:${CONTACT.email}`}
+                title={CONTACT.email}
+                className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-white/[0.06] px-2 text-xs font-semibold text-white/80 hover:bg-white/10 hover:text-white"
+              >
+                <Icon name="mail" className="h-4 w-4 shrink-0" />
+                {t('common.email')}
+              </a>
+            )}
+          </div>
         </div>
-        <LanguageSwitch />
-        <ThemeSwitch />
+        <div className="space-y-1 rounded-xl bg-white/[0.06] p-1">
+          <LanguageSwitch bare />
+          <div className="mx-2 border-t border-white/10" />
+          <ThemeSwitch />
+        </div>
         <div className="flex items-center gap-3 rounded-xl bg-white/[0.06] p-2.5">
           <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-500 text-sm font-bold">{initials(profile.full_name)}</span>
           <div className="min-w-0 flex-1 text-sm leading-tight">
