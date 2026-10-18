@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { z } from 'zod';
 import { friendlyError } from '../lib/errors';
+import { useT } from '../i18n';
+import { translate } from '../i18n/translate';
 import { formatNumber, formatSSP } from '../lib/format';
 import { fromJson, supabase } from '../lib/supabase';
 import { validate } from '../lib/validation';
@@ -39,15 +41,19 @@ function usePlatformPlans() {
   });
 }
 
-const limitText = (n: number | null, unit: string) => (n === null ? `Unlimited ${unit}` : `${formatNumber(n)} ${unit}`);
-
 /** "1 router · 1 site · 3 staff · 5,000 vouchers a month" */
 function planSummary(p: Pick<SubscriptionPlan, 'max_routers' | 'max_sites' | 'max_staff' | 'max_vouchers_month'>): string {
   return [
-    limitText(p.max_routers, p.max_routers === 1 ? 'router' : 'routers'),
-    limitText(p.max_sites, p.max_sites === 1 ? 'site' : 'sites'),
-    limitText(p.max_staff, 'staff'),
-    p.max_vouchers_month === null ? 'unlimited vouchers' : `${formatNumber(p.max_vouchers_month)} vouchers a month`,
+    p.max_routers === null
+      ? translate('business.limits.unlimitedRouters')
+      : translate(p.max_routers === 1 ? 'business.limits.router' : 'business.limits.routers', { n: formatNumber(p.max_routers) }),
+    p.max_sites === null
+      ? translate('business.limits.unlimitedSites')
+      : translate(p.max_sites === 1 ? 'business.limits.site' : 'business.limits.sites', { n: formatNumber(p.max_sites) }),
+    p.max_staff === null ? translate('business.limits.unlimitedStaff') : translate('business.limits.staff', { n: formatNumber(p.max_staff) }),
+    p.max_vouchers_month === null
+      ? translate('business.limits.unlimitedVouchers')
+      : translate('business.limits.vouchersMonth', { n: formatNumber(p.max_vouchers_month) }),
   ].join(' · ');
 }
 
@@ -55,23 +61,25 @@ function planSummary(p: Pick<SubscriptionPlan, 'max_routers' | 'max_sites' | 'ma
 // Platform owner
 // -------------------------------------------------------------------------------------------
 
-const limit = z
-  .string()
-  .trim()
-  .transform((v) => (v === '' ? null : Number(v)))
-  .refine((v) => v === null || (Number.isInteger(v) && v >= 0), 'Limits are whole numbers (empty = no limit).');
+const limit = () =>
+  z
+    .string()
+    .trim()
+    .transform((v) => (v === '' ? null : Number(v)))
+    .refine((v) => v === null || (Number.isInteger(v) && v >= 0), translate('business.limits.errLimit'));
 
-const planFormSchema = z.object({
-  id: z.string().trim().toLowerCase().regex(/^[a-z0-9-]{2,30}$/, 'The plan code is 2 to 30 small letters, digits or dashes (e.g. starter).'),
-  name: z.string().trim().min(1, 'Type the plan name.').max(40, 'The plan name is too long (max 40 characters).'),
-  description: z.string().trim().max(300, 'The description is too long (max 300 characters).'),
-  price: limit,
-  max_routers: limit,
-  max_sites: limit,
-  max_staff: limit,
-  max_vouchers_month: limit,
-  is_public: z.boolean(),
-});
+const planFormSchema = () =>
+  z.object({
+    id: z.string().trim().toLowerCase().regex(/^[a-z0-9-]{2,30}$/, translate('business.limits.errCode')),
+    name: z.string().trim().min(1, translate('business.limits.errName')).max(40, translate('business.limits.errNameLong')),
+    description: z.string().trim().max(300, translate('business.limits.errDescLong')),
+    price: limit(),
+    max_routers: limit(),
+    max_sites: limit(),
+    max_staff: limit(),
+    max_vouchers_month: limit(),
+    is_public: z.boolean(),
+  });
 
 type PlanForm = { id: string; name: string; description: string; price: string; max_routers: string; max_sites: string; max_staff: string; max_vouchers_month: string; is_public: boolean };
 
@@ -88,12 +96,13 @@ const toForm = (p: SubscriptionPlan | null): PlanForm => ({
 });
 
 function PlanEditor({ plan, stdPrice, onDone }: { plan: SubscriptionPlan | null; stdPrice: number; onDone: () => void }) {
+  const { t } = useT();
   const queryClient = useQueryClient();
   const [form, setForm] = useState<PlanForm>(() => toForm(plan));
   const set = (k: keyof PlanForm) => (e: React.ChangeEvent<HTMLInputElement>) => setForm((f) => ({ ...f, [k]: e.target.value }));
   const save = useMutation({
     mutationFn: async () => {
-      const v = validate(planFormSchema, form);
+      const v = validate(planFormSchema(), form);
       const { error } = await supabase.rpc('platform_save_plan', {
         p_id: v.id,
         p_name: v.name,
@@ -113,38 +122,38 @@ function PlanEditor({ plan, stdPrice, onDone }: { plan: SubscriptionPlan | null;
     },
   });
   const num = (k: keyof PlanForm, label: string, hint?: string) => (
-    <Field label={label} hint={hint ?? 'Empty = no limit'}>
+    <Field label={label} hint={hint ?? t('business.limits.emptyNoLimit')}>
       <TextInput inputMode="numeric" value={String(form[k])} onChange={set(k)} />
     </Field>
   );
   return (
     <div className="space-y-3 rounded-xl bg-slate-50 p-3">
       <div className="grid gap-3 sm:grid-cols-2">
-        <Field label="Plan code" hint="Never changes once used, e.g. starter">
-          <TextInput value={form.id} onChange={set('id')} disabled={plan !== null} />
+        <Field label={t('business.limits.code')} hint={t('business.limits.codeHint')}>
+          <TextInput value={form.id} onChange={set('id')} disabled={plan !== null} dir="ltr" />
         </Field>
-        <Field label="Name">
+        <Field label={t('business.limits.name')}>
           <TextInput value={form.name} onChange={set('name')} />
         </Field>
       </div>
-      <Field label="Description (shown on the landing page)">
+      <Field label={t('business.limits.description')}>
         <TextInput value={form.description} onChange={set('description')} />
       </Field>
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
-        {num('price', 'Price / router / month (SSP)', `Empty: standard ${formatSSP(stdPrice)}`)}
-        {num('max_routers', 'Routers')}
-        {num('max_sites', 'Sites')}
-        {num('max_staff', 'Staff logins')}
-        {num('max_vouchers_month', 'Vouchers a month')}
+        {num('price', t('business.limits.price'), t('business.limits.emptyStandard', { price: formatSSP(stdPrice) }))}
+        {num('max_routers', t('business.limits.routersField'))}
+        {num('max_sites', t('business.limits.sitesField'))}
+        {num('max_staff', t('business.limits.staffField'))}
+        {num('max_vouchers_month', t('business.limits.vouchersField'))}
       </div>
-      <Checkbox label="Show on the landing page" checked={form.is_public} onChange={(v) => setForm((f) => ({ ...f, is_public: v }))} />
+      <Checkbox label={t('business.limits.public')} checked={form.is_public} onChange={(v) => setForm((f) => ({ ...f, is_public: v }))} />
       {save.error && <Alert tone="error">{friendlyError(save.error)}</Alert>}
       <div className="flex gap-2">
         <Button onClick={() => save.mutate()} disabled={save.isPending}>
-          {save.isPending && <Spinner />} Save plan
+          {save.isPending && <Spinner />} {t('business.limits.savePlan')}
         </Button>
         <Button variant="ghost" onClick={onDone}>
-          Cancel
+          {t('common.cancel')}
         </Button>
       </div>
     </div>
@@ -153,6 +162,7 @@ function PlanEditor({ plan, stdPrice, onDone }: { plan: SubscriptionPlan | null;
 
 /** Platform owner: the plans businesses can be on, with their limits and prices. */
 export function PlansCard({ stdPrice }: { stdPrice: number }) {
+  const { t } = useT();
   const plans = usePlatformPlans();
   const [editing, setEditing] = useState<string | 'new' | null>(null);
   if (plans.error) return <Alert tone="error">{friendlyError(plans.error)}</Alert>;
@@ -161,17 +171,17 @@ export function PlansCard({ stdPrice }: { stdPrice: number }) {
     <Card className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <h2 className="text-lg font-bold">Subscription plans</h2>
-          <p className="text-sm text-slate-600">Limits are enforced by the database. Businesses that are not billed have no limits.</p>
+          <h2 className="text-lg font-bold">{t('business.limits.title')}</h2>
+          <p className="text-sm text-slate-600">{t('business.limits.text')}</p>
         </div>
         {editing === null && (
           <Button variant="secondary" onClick={() => setEditing('new')}>
-            + New plan
+            {t('business.limits.newPlan')}
           </Button>
         )}
       </div>
       {editing === 'new' && <PlanEditor plan={null} stdPrice={stdPrice} onDone={() => setEditing(null)} />}
-      {plans.data.plans.length === 0 && editing !== 'new' && <p className="text-sm text-slate-600">No plans yet.</p>}
+      {plans.data.plans.length === 0 && editing !== 'new' && <p className="text-sm text-slate-600">{t('business.limits.noPlans')}</p>}
       <ul className="divide-y divide-slate-100">
         {plans.data.plans.map((p) => (
           <li key={p.id} className="space-y-2 py-3">
@@ -181,15 +191,16 @@ export function PlansCard({ stdPrice }: { stdPrice: number }) {
               <div className="flex flex-wrap items-start justify-between gap-2">
                 <div>
                   <p className="font-semibold text-slate-900">
-                    {p.name} <span className="text-sm font-normal text-slate-600">({p.id})</span> {!p.is_public && <Badge color="gray">Hidden</Badge>}
+                    {p.name} <span className="text-sm font-normal text-slate-600">({p.id})</span> {!p.is_public && <Badge color="gray">{t('business.limits.hidden')}</Badge>}
                   </p>
                   <p className="text-sm text-slate-600">{planSummary(p)}</p>
                   <p className="text-sm text-slate-600">
-                    {formatSSP(p.price_per_router_ssp ?? stdPrice)} per router per month{p.price_per_router_ssp === null ? ' (standard price)' : ''}
+                    {t('business.limits.perRouter', { price: formatSSP(p.price_per_router_ssp ?? stdPrice) })}
+                    {p.price_per_router_ssp === null ? t('business.limits.standardPrice') : ''}
                   </p>
                 </div>
                 <Button variant="secondary" onClick={() => setEditing(p.id)}>
-                  Edit
+                  {t('common.edit')}
                 </Button>
               </div>
             )}
@@ -202,6 +213,7 @@ export function PlansCard({ stdPrice }: { stdPrice: number }) {
 
 /** Platform owner: a business's plan (changed at once), its voucher use this month, and trial shortcuts. */
 export function BusinessPlanControl({ tenantId, onExtendTrial }: { tenantId: string; onExtendTrial: (days: number) => void }) {
+  const { t } = useT();
   const plans = usePlatformPlans();
   const queryClient = useQueryClient();
   const row = plans.data?.businesses.find((b) => b.tenant_id === tenantId);
@@ -224,7 +236,7 @@ export function BusinessPlanControl({ tenantId, onExtendTrial }: { tenantId: str
   return (
     <div className="flex flex-wrap items-end gap-2">
       <div className="w-48">
-        <Field label="Plan">
+        <Field label={t('common.plan')}>
           <Select
             value={planId}
             onChange={(e) => {
@@ -242,14 +254,15 @@ export function BusinessPlanControl({ tenantId, onExtendTrial }: { tenantId: str
         </Field>
       </div>
       <span className="pb-3 text-sm text-slate-600">
-        {formatNumber(row.vouchers_month)}
-        {plan?.max_vouchers_month != null ? ` / ${formatNumber(plan.max_vouchers_month)}` : ''} vouchers this month
+        {t('business.limits.vouchersThisMonth', {
+          n: `${formatNumber(row.vouchers_month)}${plan?.max_vouchers_month != null ? ` / ${formatNumber(plan.max_vouchers_month)}` : ''}`,
+        })}
       </span>
       <Button variant="secondary" onClick={() => onExtendTrial(14)}>
-        Trial +14 days
+        {t('business.limits.trialPlus', { n: 14 })}
       </Button>
       <Button variant="secondary" onClick={() => onExtendTrial(30)}>
-        Trial +30 days
+        {t('business.limits.trialPlus', { n: 30 })}
       </Button>
       {change.error && <Alert tone="error">{friendlyError(change.error)}</Alert>}
     </div>
@@ -267,6 +280,7 @@ interface Usage {
 }
 
 function Meter({ label, used, max }: { label: string; used: number; max: number | null }) {
+  const { t } = useT();
   const pct = max ? Math.min(100, Math.round((used / max) * 100)) : 0;
   const tone = max === null ? 'bg-emerald-500' : pct >= 100 ? 'bg-red-500' : pct >= 80 ? 'bg-amber-500' : 'bg-brand-600';
   return (
@@ -274,7 +288,7 @@ function Meter({ label, used, max }: { label: string; used: number; max: number 
       <div className="flex justify-between text-sm">
         <span className="font-medium text-slate-700">{label}</span>
         <span className="tabular-nums text-slate-900">
-          {formatNumber(used)} / {max === null ? 'no limit' : formatNumber(max)}
+          {formatNumber(used)} / {max === null ? t('business.limits.noLimit') : formatNumber(max)}
         </span>
       </div>
       <div className="mt-1 h-2 overflow-hidden rounded-full bg-slate-100" role="progressbar" aria-label={label} aria-valuenow={used} aria-valuemax={max ?? undefined}>
@@ -286,6 +300,7 @@ function Meter({ label, used, max }: { label: string; used: number; max: number 
 
 /** Business owner: the plan and how much of it is used. */
 export function OwnerPlanUsage() {
+  const { t } = useT();
   const usage = useQuery({
     queryKey: ['billing-usage'],
     staleTime: 60_000,
@@ -301,19 +316,19 @@ export function OwnerPlanUsage() {
   return (
     <Card className="space-y-3">
       <div className="flex flex-wrap items-center gap-2">
-        <h2 className="text-lg font-bold">Your plan: {u.plan.name}</h2>
-        {!u.limited && <Badge color="green">No limits</Badge>}
+        <h2 className="text-lg font-bold">{t('business.limits.yourPlan', { name: u.plan.name })}</h2>
+        {!u.limited && <Badge color="green">{t('business.limits.noLimits')}</Badge>}
       </div>
       {u.plan.description && <p className="text-slate-700">{u.plan.description}</p>}
       {u.limited && (
         <div className="grid gap-3 sm:grid-cols-2">
-          <Meter label="Routers" used={u.usage.routers} max={u.plan.max_routers} />
-          <Meter label="Sites" used={u.usage.sites} max={u.plan.max_sites} />
-          <Meter label="Active staff logins" used={u.usage.staff} max={u.plan.max_staff} />
-          <Meter label="Vouchers made this month" used={u.usage.vouchers_month} max={u.plan.max_vouchers_month} />
+          <Meter label={t('business.limits.routersField')} used={u.usage.routers} max={u.plan.max_routers} />
+          <Meter label={t('business.limits.sitesField')} used={u.usage.sites} max={u.plan.max_sites} />
+          <Meter label={t('business.limits.meterStaff')} used={u.usage.staff} max={u.plan.max_staff} />
+          <Meter label={t('business.limits.meterVouchers')} used={u.usage.vouchers_month} max={u.plan.max_vouchers_month} />
         </div>
       )}
-      {u.limited && <p className="text-sm text-slate-600">Need more? Contact Hotzonex Cloud to move to a bigger plan.</p>}
+      {u.limited && <p className="text-sm text-slate-600">{t('business.limits.needMore')}</p>}
     </Card>
   );
 }

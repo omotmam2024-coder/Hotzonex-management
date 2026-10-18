@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { friendlyError } from '../lib/errors';
+import { useT } from '../i18n';
 import { formatJubaDate, formatJubaTime, formatSSP, jubaToday } from '../lib/format';
 import { fromJson, supabase } from '../lib/supabase';
 import { BusinessPlanControl, PlansCard } from './PlanLimits';
@@ -74,6 +75,7 @@ function jubaEndOfDay(day: string): string {
 }
 
 function ConfigCard({ config }: { config: PlatformBillingData['config'] }) {
+  const { t } = useT();
   const queryClient = useQueryClient();
   const [f, setF] = useState({ price: String(config.price_per_router_ssp), howto: config.instructions, grace: String(config.grace_days), trial: String(config.trial_days) });
   const save = useMutation({
@@ -91,35 +93,33 @@ function ConfigCard({ config }: { config: PlatformBillingData['config'] }) {
   const num = (k: 'price' | 'grace' | 'trial') => (e: React.ChangeEvent<HTMLInputElement>) => setF((x) => ({ ...x, [k]: e.target.value.replace(/\D/g, '').slice(0, 9) }));
   return (
     <Card className="space-y-3">
-      <h2 className="text-lg font-bold">Billing for Hotzonex Cloud</h2>
-      <p className="text-sm text-slate-600">
-        Businesses pay a monthly fee per connected router. An invoice is made each month; unpaid after the grace days, the business is
-        paused (its WiFi keeps working) until you mark the invoice paid. With the price at 0, nobody is invoiced.
-      </p>
+      <h2 className="text-lg font-bold">{t('business.pbilling.title')}</h2>
+      <p className="text-sm text-slate-600">{t('business.pbilling.text')}</p>
       <div className="grid gap-3 sm:grid-cols-3">
-        <Field label="Price per router / month (SSP)">
+        <Field label={t('business.pbilling.price')}>
           <TextInput inputMode="numeric" value={f.price} onChange={num('price')} />
         </Field>
-        <Field label="Days to pay (grace)">
+        <Field label={t('business.pbilling.grace')}>
           <TextInput inputMode="numeric" value={f.grace} onChange={num('grace')} />
         </Field>
-        <Field label="Free trial days (new sign-ups)">
+        <Field label={t('business.pbilling.trialDays')}>
           <TextInput inputMode="numeric" value={f.trial} onChange={num('trial')} />
         </Field>
       </div>
-      <Field label="How businesses pay you" hint="Shown on their invoices, e.g. MTN MoMo 092 123 4567 (Hotzonex Cloud), reference = invoice number">
+      <Field label={t('business.pbilling.howto')} hint={t('business.pbilling.howtoHint')}>
         <TextArea value={f.howto} onChange={(e) => setF((x) => ({ ...x, howto: e.target.value.slice(0, 500) }))} rows={2} />
       </Field>
       <Button onClick={() => save.mutate()} disabled={save.isPending}>
-        {save.isPending && <Spinner />} Save
+        {save.isPending && <Spinner />} {t('common.save')}
       </Button>
-      {save.isSuccess && <Alert tone="success">Saved. Invoices are made each morning.</Alert>}
+      {save.isSuccess && <Alert tone="success">{t('business.pbilling.saved')}</Alert>}
       {save.error && <Alert tone="error">{friendlyError(save.error)}</Alert>}
     </Card>
   );
 }
 
 function BusinessBilling({ b, stdPrice }: { b: PlatformBusiness; stdPrice: number }) {
+  const { t } = useT();
   const queryClient = useQueryClient();
   const [exempt, setExempt] = useState(Boolean(b.exempt));
   const [price, setPrice] = useState(b.price_per_router_ssp === null ? '' : String(b.price_per_router_ssp));
@@ -150,7 +150,7 @@ function BusinessBilling({ b, stdPrice }: { b: PlatformBusiness; stdPrice: numbe
     const end = new Date(`${from}T12:00:00Z`);
     end.setUTCDate(end.getUTCDate() + days);
     const next = end.toISOString().slice(0, 10);
-    if (!window.confirm(`Free trial for ${b.name} until ${formatJubaDate(next)}?`)) return;
+    if (!window.confirm(t('business.pbilling.confirmTrial', { name: b.name, date: formatJubaDate(next) }))) return;
     setTrialEnd(next);
     save.mutate(next);
   }
@@ -178,30 +178,35 @@ function BusinessBilling({ b, stdPrice }: { b: PlatformBusiness; stdPrice: numbe
       <div className="flex flex-wrap items-center gap-2">
         <span className="font-semibold text-slate-900">{b.name}</span>
         {b.exempt ? (
-          <Badge color="gray">Not billed</Badge>
+          <Badge color="gray">{t('business.pbilling.notBilled')}</Badge>
         ) : b.status === 'trial' ? (
-          <Badge color="blue">Trial{b.trial_ends_at ? ` to ${formatJubaTime(b.trial_ends_at)}` : ''}</Badge>
+          <Badge color="blue">{b.trial_ends_at ? t('business.pbilling.trialTo', { date: formatJubaTime(b.trial_ends_at) }) : t('business.pbilling.trial')}</Badge>
         ) : b.status === 'suspended' ? (
-          <Badge color="red">Paused (unpaid)</Badge>
+          <Badge color="red">{t('business.pbilling.paused')}</Badge>
         ) : (
-          <Badge color="green">Active</Badge>
+          <Badge color="green">{t('business.billing.active')}</Badge>
         )}
         <span className="text-sm text-slate-500">
-          {b.routers} router{b.routers === 1 ? '' : 's'}
-          {b.created_via === 'signup' && ' · signed up'}
-          {b.contact_phone && ` · ${b.contact_phone}`}
+          {t(b.routers === 1 ? 'business.limits.router' : 'business.limits.routers', { n: b.routers })}
+          {b.created_via === 'signup' && t('business.pbilling.signedUp')}
+          {b.contact_phone && (
+            <>
+              {' · '}
+              <span dir="ltr">{b.contact_phone}</span>
+            </>
+          )}
         </span>
       </div>
       <div className="grid gap-2 sm:grid-cols-[auto_12rem_12rem_auto] sm:items-end">
-        <Checkbox label="Not billed" checked={exempt} onChange={setExempt} />
-        <Field label="Own price (SSP)" hint={`Empty: standard ${formatSSP(stdPrice)}`}>
+        <Checkbox label={t('business.pbilling.notBilled')} checked={exempt} onChange={setExempt} />
+        <Field label={t('business.pbilling.ownPrice')} hint={t('business.limits.emptyStandard', { price: formatSSP(stdPrice) })}>
           <TextInput inputMode="numeric" value={price} onChange={(e) => setPrice(e.target.value.replace(/\D/g, '').slice(0, 9))} />
         </Field>
-        <Field label="Trial until">
+        <Field label={t('business.pbilling.trialUntil')}>
           <TextInput type="date" value={trialEnd} onChange={(e) => setTrialEnd(e.target.value)} />
         </Field>
         <Button variant="secondary" onClick={() => save.mutate(undefined)} disabled={save.isPending}>
-          {save.isPending && <Spinner />} Save
+          {save.isPending && <Spinner />} {t('common.save')}
         </Button>
       </div>
       <BusinessPlanControl tenantId={b.tenant_id} onExtendTrial={extendTrial} />
@@ -211,22 +216,28 @@ function BusinessBilling({ b, stdPrice }: { b: PlatformBusiness; stdPrice: numbe
           {b.invoices.map((i) => (
             <li key={i.id} className="flex flex-wrap items-center justify-between gap-2">
               <span>
-                <b>{i.number}</b> · {formatSSP(i.amount_ssp)} · {i.routers} router{i.routers === 1 ? '' : 's'} ·{' '}
-                {i.status === 'open' ? `due ${formatJubaTime(i.due_at)}` : i.status === 'paid' ? `paid ${i.paid_ref ? `(ref ${i.paid_ref})` : ''}` : 'void'}
+                <b>{i.number}</b> · {formatSSP(i.amount_ssp)} · {t(i.routers === 1 ? 'business.limits.router' : 'business.limits.routers', { n: i.routers })} ·{' '}
+                {i.status === 'open'
+                  ? t('business.pbilling.due', { date: formatJubaTime(i.due_at) })
+                  : i.status === 'paid'
+                    ? i.paid_ref
+                      ? t('business.pbilling.paidRef', { ref: i.paid_ref })
+                      : t('business.pbilling.paid')
+                    : t('business.pbilling.void')}
                 {i.status === 'open' && i.customer_ref && (
-                  <span className="ml-1 font-semibold text-brand-800">· says paid, ref {i.customer_ref}</span>
+                  <span className="ms-1 font-semibold text-brand-800">{t('business.pbilling.saysPaid', { ref: i.customer_ref })}</span>
                 )}
               </span>
               {i.status === 'open' && (
                 <span className="flex gap-2">
                   <Button
-                    onClick={() => markInvoice(i.id, 'paid', `Did ${formatSSP(i.amount_ssp)} for ${i.number} arrive?`)}
+                    onClick={() => markInvoice(i.id, 'paid', t('business.pbilling.confirmPaid', { amount: formatSSP(i.amount_ssp), number: i.number }))}
                     disabled={mark.isPending}
                   >
-                    Mark paid
+                    {t('business.pbilling.markPaid')}
                   </Button>
-                  <Button variant="ghost" onClick={() => markInvoice(i.id, 'void', `Cancel ${i.number}?`)} disabled={mark.isPending}>
-                    Void
+                  <Button variant="ghost" onClick={() => markInvoice(i.id, 'void', t('business.pbilling.confirmVoid', { number: i.number }))} disabled={mark.isPending}>
+                    {t('business.pbilling.voidButton')}
                   </Button>
                 </span>
               )}
@@ -241,6 +252,7 @@ function BusinessBilling({ b, stdPrice }: { b: PlatformBusiness; stdPrice: numbe
 
 /** Platform admins: Hotzonex Cloud's own billing of the businesses. */
 export function PlatformBilling() {
+  const { t } = useT();
   const data = useQuery({
     queryKey: KEY,
     queryFn: async (): Promise<PlatformBillingData> => {
@@ -251,13 +263,13 @@ export function PlatformBilling() {
   });
   if (data.error) return <Alert tone="error">{friendlyError(data.error)}</Alert>;
   const d = data.data;
-  if (!d) return data.fetchStatus === 'paused' ? <Alert tone="warning">No internet connection. Billing loads when you are back online.</Alert> : <Spinner />;
+  if (!d) return data.fetchStatus === 'paused' ? <Alert tone="warning">{t('business.billing.offline')}</Alert> : <Spinner />;
   return (
     <div className="space-y-4">
       <ConfigCard config={d.config} />
       <PlansCard stdPrice={d.config.price_per_router_ssp} />
       <Card>
-        <h2 className="mb-1 text-lg font-bold">Businesses' billing</h2>
+        <h2 className="mb-1 text-lg font-bold">{t('business.pbilling.businesses')}</h2>
         <ul className="divide-y divide-slate-100">
           {d.businesses.map((b) => (
             <BusinessBilling key={b.tenant_id} b={b} stdPrice={d.config.price_per_router_ssp} />

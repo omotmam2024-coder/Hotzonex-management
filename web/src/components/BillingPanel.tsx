@@ -2,11 +2,18 @@ import { useRef, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useBillingOverview, type Invoice } from '../hooks/useBillingOverview';
 import { friendlyError } from '../lib/errors';
+import { useT } from '../i18n';
 import { formatJubaDate, formatJubaTime, formatSSP } from '../lib/format';
 import { supabase } from '../lib/supabase';
 import { OwnerPlanUsage } from './PlanLimits';
 import { Alert, Badge, Button, Card, Spinner, TextInput } from './ui';
 import { paymentRefSchema, validate } from '../lib/validation';
+
+const STATUS_KEY = {
+  open: 'business.billing.status.open',
+  paid: 'business.billing.status.paid',
+  void: 'business.billing.status.void',
+} as const;
 
 export function daysLeft(iso: string | null): number | null {
   if (!iso) return null;
@@ -14,6 +21,7 @@ export function daysLeft(iso: string | null): number | null {
 }
 
 function PayForm({ invoice }: { invoice: Invoice }) {
+  const { t } = useT();
   const queryClient = useQueryClient();
   const [ref, setRef] = useState('');
   // Blocks a second tap before the button disables.
@@ -36,10 +44,13 @@ function PayForm({ invoice }: { invoice: Invoice }) {
   return (
     <div className="mt-2 flex flex-wrap items-end gap-2">
       <div className="min-w-48 flex-1">
-        <TextInput value={ref} onChange={(e) => setRef(e.target.value)} placeholder="Transaction ID of your payment" autoCapitalize="characters" />
+        <TextInput value={ref} onChange={(e) => setRef(e.target.value)} placeholder={t('business.billing.refPlaceholder')}
+          autoCapitalize="characters"
+          dir="ltr"
+        />
       </div>
       <Button onClick={submit} disabled={send.isPending || ref.trim().length < 4}>
-        {send.isPending && <Spinner />} I have paid
+        {send.isPending && <Spinner />} {t('business.billing.iPaid')}
       </Button>
       {send.error && <Alert tone="error">{friendlyError(send.error)}</Alert>}
     </div>
@@ -48,11 +59,12 @@ function PayForm({ invoice }: { invoice: Invoice }) {
 
 /** The business's plan and invoices, and how to pay them. */
 export function BillingPanel() {
+  const { t } = useT();
   const billing = useBillingOverview();
   if (billing.error) return <Alert tone="error">{friendlyError(billing.error)}</Alert>;
   const b = billing.data;
   if (!b)
-    return billing.fetchStatus === 'paused' ? <Alert tone="warning">No internet connection. Billing loads when you are back online.</Alert> : <Spinner />;
+    return billing.fetchStatus === 'paused' ? <Alert tone="warning">{t('business.billing.offline')}</Alert> : <Spinner />;
   const open = b.invoices.filter((i) => i.status === 'open');
   const left = daysLeft(b.trial_ends_at);
 
@@ -61,37 +73,43 @@ export function BillingPanel() {
       <OwnerPlanUsage />
       <Card className="space-y-2">
         <div className="flex flex-wrap items-center gap-2">
-          <h2 className="text-lg font-bold">Payment</h2>
+          <h2 className="text-lg font-bold">{t('business.billing.payment')}</h2>
           {b.exempt ? (
-            <Badge color="green">Included</Badge>
+            <Badge color="green">{t('business.billing.included')}</Badge>
           ) : b.status === 'trial' ? (
-            <Badge color="blue">Free trial{left !== null ? ` · ${left} day${left === 1 ? '' : 's'} left` : ''}</Badge>
+            <Badge color="blue">
+              {left === null
+                ? t('business.billing.freeTrial')
+                : t(left === 1 ? 'business.billing.freeTrialLeftOne' : 'business.billing.freeTrialLeft', { n: left })}
+            </Badge>
           ) : b.status === 'suspended' ? (
-            <Badge color="red">Paused: invoice unpaid</Badge>
+            <Badge color="red">{t('business.billing.paused')}</Badge>
           ) : (
-            <Badge color="green">Active</Badge>
+            <Badge color="green">{t('business.billing.active')}</Badge>
           )}
         </div>
         {b.exempt ? (
-          <p className="text-slate-700">Hotzonex Cloud is included for your business. Nothing to pay.</p>
+          <p className="text-slate-700">{t('business.billing.exemptText')}</p>
         ) : (
           <p className="text-slate-700">
             {b.price_per_router_ssp > 0
-              ? `${formatSSP(b.price_per_router_ssp)} per connected router per month · ${b.routers} router${b.routers === 1 ? '' : 's'} now.`
-              : 'No monthly fee is set yet.'}
-            {b.status === 'trial' && b.trial_ends_at && ` The free trial ends on ${formatJubaTime(b.trial_ends_at)}.`}
+              ? t(b.routers === 1 ? 'business.billing.priceLineOne' : 'business.billing.priceLine', { price: formatSSP(b.price_per_router_ssp), n: b.routers })
+              : t('business.billing.noFee')}
+            {b.status === 'trial' && b.trial_ends_at && t('business.billing.trialEnds', { date: formatJubaTime(b.trial_ends_at) })}
           </p>
         )}
         {b.instructions && !b.exempt && (
           <Alert tone="warning">
-            <b>How to pay:</b> <span className="whitespace-pre-line">{b.instructions}</span>
+            <b>{t('business.billing.howToPay')}</b> <span className="whitespace-pre-line">{b.instructions}</span>
           </Alert>
         )}
       </Card>
 
       {b.invoices.length > 0 && (
         <Card>
-          <h2 className="mb-2 text-lg font-bold">Invoices {open.length > 0 && <Badge color="red">{open.length} open</Badge>}</h2>
+          <h2 className="mb-2 text-lg font-bold">
+            {t('business.billing.invoices')} {open.length > 0 && <Badge color="red">{t('business.billing.openCount', { n: open.length })}</Badge>}
+          </h2>
           <ul className="divide-y divide-slate-100">
             {b.invoices.map((i) => (
               <li key={i.id} className="py-3">
@@ -101,16 +119,21 @@ export function BillingPanel() {
                       {i.number} · {formatSSP(i.amount_ssp)}
                     </p>
                     <p className="text-sm text-slate-600">
-                      {formatJubaDate(i.period_start)} – {formatJubaDate(i.period_end)} · {i.routers} router{i.routers === 1 ? '' : 's'} × {formatSSP(i.price_per_router_ssp)}
+                      {t(i.routers === 1 ? 'business.billing.invoiceLineOne' : 'business.billing.invoiceLine', {
+                        start: formatJubaDate(i.period_start),
+                        end: formatJubaDate(i.period_end),
+                        n: i.routers,
+                        price: formatSSP(i.price_per_router_ssp),
+                      })}
                     </p>
-                    {i.status === 'open' && <p className="text-sm text-slate-600">Due {formatJubaTime(i.due_at)}</p>}
+                    {i.status === 'open' && <p className="text-sm text-slate-600">{t('business.billing.due', { date: formatJubaTime(i.due_at) })}</p>}
                     {i.status === 'open' && i.customer_ref && (
                       <p className="text-sm text-brand-800">
-                        You sent ref <b className="font-mono">{i.customer_ref}</b> — Hotzonex Cloud is checking it.
+                        {t('business.billing.sentRef')} <b dir="ltr" className="font-mono">{i.customer_ref}</b> {t('business.billing.checking')}
                       </p>
                     )}
                   </div>
-                  <Badge color={i.status === 'paid' ? 'green' : i.status === 'open' ? 'red' : 'gray'}>{i.status}</Badge>
+                  <Badge color={i.status === 'paid' ? 'green' : i.status === 'open' ? 'red' : 'gray'}>{t(STATUS_KEY[i.status])}</Badge>
                 </div>
                 {i.status === 'open' && !i.customer_ref && <PayForm invoice={i} />}
               </li>

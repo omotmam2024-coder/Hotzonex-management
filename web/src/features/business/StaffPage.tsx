@@ -5,6 +5,7 @@ import { PageHeader } from '../../components/PageHeader';
 import { Alert, Badge, Button, Card, Checkbox, Field, Select, Spinner, TextInput } from '../../components/ui';
 import { friendlyError } from '../../lib/errors';
 import { invokeFunction } from '../../lib/functions';
+import { useT } from '../../i18n';
 import { ROLE_LABELS } from '../../lib/nav';
 import { useSites } from '../../hooks/queries';
 import type { Role, StaffMember } from '../../lib/types';
@@ -23,6 +24,7 @@ interface StaffForm {
 const NEW_FORM: StaffForm = { id: null, email: '', password: '', full_name: '', role: 'seller', site_id: '', is_active: true };
 
 function StaffEditor({ initial, onClose }: { initial: StaffForm; onClose: () => void }) {
+  const { t } = useT();
   const sites = useSites();
   const queryClient = useQueryClient();
   const [form, setForm] = useState<StaffForm>(initial);
@@ -58,28 +60,31 @@ function StaffEditor({ initial, onClose }: { initial: StaffForm; onClose: () => 
 
   return (
     <Card>
-      <h2 className="mb-4 text-lg font-bold">{isNew ? 'Add staff member' : `Edit ${initial.full_name}`}</h2>
+      <h2 className="mb-4 text-lg font-bold">{isNew ? t('business.staff.addTitle') : t('business.staff.editTitle', { name: initial.full_name })}</h2>
       <form onSubmit={submit} className="space-y-4" noValidate>
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Full name">
+          <Field label={t('business.staff.fullName')}>
             <TextInput value={form.full_name} onChange={(e) => set('full_name', e.target.value)} maxLength={80} />
           </Field>
-          <Field label="Email (login)">
-            <TextInput type="email" value={form.email} onChange={(e) => set('email', e.target.value)} disabled={!isNew} autoComplete="off" />
+          <Field label={t('business.staff.email')}>
+            <TextInput type="email" value={form.email} onChange={(e) => set('email', e.target.value)} disabled={!isNew} autoComplete="off" dir="ltr" />
           </Field>
-          <Field label={isNew ? 'Password' : 'New password'} hint={isNew ? 'At least 8 characters' : 'Leave blank to keep the current password'}>
+          <Field
+            label={isNew ? t('business.staff.password') : t('business.staff.newPassword')}
+            hint={isNew ? t('business.staff.passwordHint') : t('business.staff.passwordKeep')}
+          >
             <TextInput type="password" value={form.password} onChange={(e) => set('password', e.target.value)} autoComplete="new-password" />
           </Field>
-          <Field label="Role">
+          <Field label={t('business.staff.role')}>
             <Select value={form.role} onChange={(e) => set('role', e.target.value as Role)}>
-              <option value="seller">Cashier / Agent — sells cards and prints receipts</option>
-              <option value="manager">Manager — runs one site</option>
-              <option value="admin">Owner — everything, all sites</option>
+              <option value="seller">{t('business.staff.roleSeller')}</option>
+              <option value="manager">{t('business.staff.roleManager')}</option>
+              <option value="admin">{t('business.staff.roleAdmin')}</option>
             </Select>
           </Field>
-          <Field label="Site" hint={form.role === 'admin' ? 'Admins can leave this empty to see all sites' : undefined}>
+          <Field label={t('common.site')} hint={form.role === 'admin' ? t('business.staff.siteHintAdmin') : undefined}>
             <Select value={form.site_id} onChange={(e) => set('site_id', e.target.value)}>
-              <option value="">{form.role === 'admin' ? 'All sites' : 'Choose a site…'}</option>
+              <option value="">{form.role === 'admin' ? t('common.allSites') : t('business.staff.chooseSite')}</option>
               {(sites.data ?? []).map((s) => (
                 <option key={s.id} value={s.id}>
                   {s.name}
@@ -88,14 +93,14 @@ function StaffEditor({ initial, onClose }: { initial: StaffForm; onClose: () => 
             </Select>
           </Field>
         </div>
-        {!isNew && <Checkbox label="Account active (can log in)" checked={form.is_active} onChange={(v) => set('is_active', v)} />}
-        {save.error && <Alert tone="error">{save.error.message}</Alert>}
+        {!isNew && <Checkbox label={t('business.staff.active')} checked={form.is_active} onChange={(v) => set('is_active', v)} />}
+        {save.error && <Alert tone="error">{friendlyError(save.error)}</Alert>}
         <div className="flex flex-wrap gap-2">
           <Button type="submit" disabled={save.isPending}>
-            {save.isPending ? <Spinner /> : null} {isNew ? 'Create account' : 'Save changes'}
+            {save.isPending ? <Spinner /> : null} {isNew ? t('business.staff.create') : t('business.staff.saveChanges')}
           </Button>
           <Button variant="ghost" onClick={onClose}>
-            Cancel
+            {t('common.cancel')}
           </Button>
         </div>
       </form>
@@ -104,6 +109,7 @@ function StaffEditor({ initial, onClose }: { initial: StaffForm; onClose: () => 
 }
 
 export function StaffPage() {
+  const { t } = useT();
   const { profile } = useAuth();
   const sites = useSites();
   const [editing, setEditing] = useState<StaffForm | null>(null);
@@ -112,17 +118,17 @@ export function StaffPage() {
     queryFn: async () => (await invokeFunction<{ staff: StaffMember[] }>('create-staff', { action: 'list' })).staff ?? [],
   });
 
-  const siteName = (id: string | null) => (id ? (sites.data?.find((s) => s.id === id)?.name ?? 'Unknown site') : 'All sites');
+  const siteName = (id: string | null) => (id ? (sites.data?.find((s) => s.id === id)?.name ?? t('common.unknownSite')) : t('common.allSites'));
 
   return (
     <div className="space-y-4">
       <PageHeader
-        title="Staff"
-        subtitle="Logins for owners, managers, cashiers and agents"
+        title={t('nav.staff')}
+        subtitle={t('business.staff.subtitle')}
         actions={
           !editing && (
             <Button onClick={() => setEditing(NEW_FORM)} className="min-h-11">
-              + Add staff
+              {t('business.staff.add')}
             </Button>
           )
         }
@@ -139,13 +145,13 @@ export function StaffPage() {
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <div className="truncate font-bold">
-                  {m.full_name} {m.id === profile?.id && <span className="font-normal text-slate-500">(you)</span>}
+                  {m.full_name} {m.id === profile?.id && <span className="font-normal text-slate-500">{t('business.staff.you')}</span>}
                 </div>
                 <div className="truncate text-sm text-slate-600">{m.email}</div>
                 <div className="mt-2 flex flex-wrap gap-2">
                   <Badge color="blue">{ROLE_LABELS[m.role]}</Badge>
                   <Badge color="gray">{siteName(m.site_id)}</Badge>
-                  {!m.is_active && <Badge color="red">Disabled</Badge>}
+                  {!m.is_active && <Badge color="red">{t('business.staff.disabled')}</Badge>}
                 </div>
               </div>
               <Button
@@ -162,7 +168,7 @@ export function StaffPage() {
                   })
                 }
               >
-                Edit
+                {t('common.edit')}
               </Button>
             </div>
           </Card>

@@ -9,6 +9,7 @@ import { PageHeader } from '../../components/PageHeader';
 import { Alert, Badge, Button, Card, Field, Spinner, TextInput } from '../../components/ui';
 import { friendlyError } from '../../lib/errors';
 import { formatNumber } from '../../lib/format';
+import { useT } from '../../i18n';
 import { invokeFunction } from '../../lib/functions';
 import { supabase } from '../../lib/supabase';
 
@@ -37,15 +38,16 @@ interface BusinessForm {
 const NEW_FORM: BusinessForm = { business_name: '', site_name: '', timezone: 'Africa/Juba', full_name: '', email: '', password: '' };
 
 function NewBusiness({ onClose }: { onClose: () => void }) {
+  const { t } = useT();
   const queryClient = useQueryClient();
   const [form, setForm] = useState<BusinessForm>(NEW_FORM);
   const set = <K extends keyof BusinessForm>(key: K, value: BusinessForm[K]) => setForm((f) => ({ ...f, [key]: value }));
 
   const create = useMutation({
     mutationFn: async () => {
-      if (!form.business_name.trim()) throw new Error('Enter the business name.');
-      if (!form.full_name.trim() || !form.email.trim()) throw new Error("Enter the business admin's name and email.");
-      if (form.password.length < 8) throw new Error('The password must be at least 8 characters.');
+      if (!form.business_name.trim()) throw new Error(t('business.newBusiness.errName'));
+      if (!form.full_name.trim() || !form.email.trim()) throw new Error(t('business.newBusiness.errAdmin'));
+      if (form.password.length < 8) throw new Error(t('business.newBusiness.errPassword'));
       await invokeFunction('create-staff', {
         action: 'create_business',
         business_name: form.business_name.trim(),
@@ -69,38 +71,36 @@ function NewBusiness({ onClose }: { onClose: () => void }) {
 
   return (
     <Card>
-      <h2 className="mb-1 text-lg font-bold">Add a business</h2>
-      <p className="mb-4 text-sm text-slate-600">
-        The business gets its own sites, plans, routers, staff and sales. Its admin logs in with the email and password below and adds the rest.
-      </p>
+      <h2 className="mb-1 text-lg font-bold">{t('business.newBusiness.title')}</h2>
+      <p className="mb-4 text-sm text-slate-600">{t('business.newBusiness.text')}</p>
       <form onSubmit={submit} className="space-y-4" noValidate>
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Business name">
+          <Field label={t('business.settings.name')}>
             <TextInput value={form.business_name} onChange={(e) => set('business_name', e.target.value)} maxLength={100} />
           </Field>
-          <Field label="First site" hint="For example the town or shop name. Default: Main site">
+          <Field label={t('business.newBusiness.firstSite')} hint={t('business.newBusiness.firstSiteHint')}>
             <TextInput value={form.site_name} onChange={(e) => set('site_name', e.target.value)} maxLength={80} />
           </Field>
-          <Field label="Time zone" hint="Reports count days in this time zone">
-            <TextInput value={form.timezone} onChange={(e) => set('timezone', e.target.value)} placeholder="Africa/Juba" />
+          <Field label={t('business.newBusiness.timezone')} hint={t('business.newBusiness.timezoneHint')}>
+            <TextInput value={form.timezone} onChange={(e) => set('timezone', e.target.value)} placeholder="Africa/Juba" dir="ltr" />
           </Field>
-          <Field label="Owner's full name">
+          <Field label={t('business.newBusiness.ownerName')}>
             <TextInput value={form.full_name} onChange={(e) => set('full_name', e.target.value)} maxLength={80} />
           </Field>
-          <Field label="Owner's email (login)">
-            <TextInput type="email" value={form.email} onChange={(e) => set('email', e.target.value)} autoComplete="off" />
+          <Field label={t('business.newBusiness.ownerEmail')}>
+            <TextInput type="email" value={form.email} onChange={(e) => set('email', e.target.value)} autoComplete="off" dir="ltr" />
           </Field>
-          <Field label="Owner's first password" hint="At least 8 characters; they can change it later">
+          <Field label={t('business.newBusiness.ownerPassword')} hint={t('business.newBusiness.ownerPasswordHint')}>
             <TextInput type="password" value={form.password} onChange={(e) => set('password', e.target.value)} autoComplete="new-password" />
           </Field>
         </div>
-        {create.error && <Alert tone="error">{create.error.message}</Alert>}
+        {create.error && <Alert tone="error">{friendlyError(create.error)}</Alert>}
         <div className="flex flex-wrap gap-2">
           <Button type="submit" disabled={create.isPending}>
-            {create.isPending ? <Spinner /> : null} Create business
+            {create.isPending ? <Spinner /> : null} {t('business.newBusiness.create')}
           </Button>
           <Button variant="ghost" onClick={onClose}>
-            Cancel
+            {t('common.cancel')}
           </Button>
         </div>
       </form>
@@ -110,6 +110,7 @@ function NewBusiness({ onClose }: { onClose: () => void }) {
 
 /** Platform admins only: every business on Hotzonex Cloud. */
 export function BusinessesPage() {
+  const { t } = useT();
   const { business, twoStep, support, reload } = useAuth();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -136,7 +137,7 @@ export function BusinessesPage() {
 
   const toggle = useMutation({
     mutationFn: async (b: BusinessRow) => {
-      if (b.is_active && !window.confirm(`Switch off ${b.name}? Its staff can no longer log in until you switch it back on. Nothing is deleted.`)) return;
+      if (b.is_active && !window.confirm(t('business.businesses.confirmOff', { name: b.name }))) return;
       const { error } = await supabase.rpc('platform_set_tenant_active', { p_tenant_id: b.id, p_active: !b.is_active });
       if (error) throw error;
     },
@@ -146,13 +147,13 @@ export function BusinessesPage() {
   if (!twoStep)
     return (
       <div className="space-y-4">
-        <PageHeader title="Businesses" subtitle="Every hotspot business on Hotzonex Cloud" />
+        <PageHeader title={t('nav.businesses')} subtitle={t('business.businesses.subtitle')} />
         <Alert tone="warning">
-          Platform controls (all businesses, support mode, billing) open only after logging in with your 2-step code.{' '}
+          {t('business.businesses.locked')}{' '}
           <Link to="/security" className="font-semibold underline">
-            Turn on the 2-step login
+            {t('business.businesses.lockedLink')}
           </Link>
-          , then log out and in again.
+          {t('business.businesses.lockedAfter')}
         </Alert>
       </div>
     );
@@ -161,12 +162,12 @@ export function BusinessesPage() {
     <div className="space-y-4">
       {manage.error && <Alert tone="error">{friendlyError(manage.error)}</Alert>}
       <PageHeader
-        title="Businesses"
-        subtitle="Every hotspot business on Hotzonex Cloud. Each one sees only its own data."
+        title={t('nav.businesses')}
+        subtitle={t('business.businesses.subtitleFull')}
         actions={
           !adding && (
             <Button onClick={() => setAdding(true)} className="min-h-11">
-              + Add business
+              {t('business.businesses.add')}
             </Button>
           )
         }
@@ -183,25 +184,25 @@ export function BusinessesPage() {
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <div className="truncate font-bold">
-                  {b.name} {b.id === business?.id && <span className="font-normal text-slate-500">(yours)</span>}
+                  {b.name} {b.id === business?.id && <span className="font-normal text-slate-500">{t('business.businesses.yours')}</span>}
                 </div>
-                <div className="truncate text-sm text-slate-600">{b.admin_names ? `Owner: ${b.admin_names}` : 'No owner yet'}</div>
+                <div className="truncate text-sm text-slate-600">{b.admin_names ? t('business.businesses.owner', { names: b.admin_names }) : t('business.businesses.noOwner')}</div>
                 <div className="mt-2 flex flex-wrap gap-2">
-                  <Badge color="gray">{formatNumber(b.sites)} sites</Badge>
-                  <Badge color="gray">{formatNumber(b.routers)} routers</Badge>
-                  <Badge color="gray">{formatNumber(b.staff)} staff</Badge>
+                  <Badge color="gray">{t('business.businesses.sites', { n: formatNumber(b.sites) })}</Badge>
+                  <Badge color="gray">{t('business.businesses.routers', { n: formatNumber(b.routers) })}</Badge>
+                  <Badge color="gray">{t('business.businesses.staff', { n: formatNumber(b.staff) })}</Badge>
                   <Badge color="blue">{b.timezone}</Badge>
-                  {!b.is_active && <Badge color="red">Switched off</Badge>}
+                  {!b.is_active && <Badge color="red">{t('business.businesses.switchedOff')}</Badge>}
                 </div>
               </div>
               {(b.id !== business?.id || support) && b.id !== support?.tenant_id && (
-                <Button variant="secondary" disabled={manage.isPending} onClick={() => manage.mutate(b)} title="Manage this business's routers and settings for 2 hours (support mode)">
-                  Manage
+                <Button variant="secondary" disabled={manage.isPending} onClick={() => manage.mutate(b)} title={t('business.businesses.manageTitle')}>
+                  {t('business.businesses.manage')}
                 </Button>
               )}
               {b.id !== business?.id && (
                 <Button variant={b.is_active ? 'danger' : 'secondary'} disabled={toggle.isPending} onClick={() => toggle.mutate(b)}>
-                  {b.is_active ? 'Switch off' : 'Switch on'}
+                  {b.is_active ? t('business.businesses.switchOff') : t('business.businesses.switchOn')}
                 </Button>
               )}
             </div>
