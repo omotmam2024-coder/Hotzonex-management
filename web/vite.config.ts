@@ -21,6 +21,8 @@ function serviceWorker(): Plugin {
         .replace("'__VERSION__'", JSON.stringify(version))
         .replace('__FILES__', JSON.stringify(files));
       this.emitFile({ type: 'asset', fileName: 'sw.js', source });
+      // The live version, read by the open app (lib/appUpdate.ts) to notice an update.
+      this.emitFile({ type: 'asset', fileName: 'version.json', source: JSON.stringify({ version: APP_VERSION }) });
     },
   };
 }

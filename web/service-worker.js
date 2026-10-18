@@ -7,6 +7,12 @@ const SHELL = `hzc-shell-${VERSION}`;
 const ASSETS = 'hzc-assets';
 const META = 'hzc-meta';
 const SHELL_URL = '/index.html';
+const NETWORK_WAIT_MS = 4000;
+
+/** A real built file, not the app page the host sends for an address it does not have. */
+function isFile(res) {
+  return res.ok && !(res.headers.get('content-type') || '').includes('text/html');
+}
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
@@ -47,23 +53,24 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(req.url);
   if (url.origin !== self.location.origin) return;
 
-  // Pages: the saved app opens at once; a newer one is fetched for next time.
+  // Pages: the live app from the network, so an update shows at once (a saved app would ask for
+  // page files the server no longer has). The saved copy is used only offline or when the network
+  // takes longer than a few seconds.
   if (req.mode === 'navigate') {
     event.respondWith(
       (async () => {
         const shell = await caches.open(SHELL);
+        const fresh = fetch(SHELL_URL, { cache: 'no-cache' }).then(async (res) => {
+          if (res.ok) await shell.put(SHELL_URL, res.clone());
+          return res;
+        });
+        event.waitUntil(fresh.catch(() => undefined));
+        const slow = new Promise((resolve) => setTimeout(resolve, NETWORK_WAIT_MS));
+        const first = await Promise.race([fresh.catch(() => undefined), slow]);
+        if (first) return first;
         const cached = await shell.match(SHELL_URL);
-        const fresh = fetch(SHELL_URL, { cache: 'no-cache' })
-          .then(async (res) => {
-            if (res.ok) await shell.put(SHELL_URL, res.clone());
-            return res;
-          })
-          .catch(() => undefined);
-        if (cached) {
-          event.waitUntil(fresh);
-          return cached;
-        }
-        return (await fresh) ?? Response.error();
+        if (cached) return cached;
+        return (await fresh.catch(() => undefined)) ?? Response.error();
       })(),
     );
     return;
@@ -75,10 +82,14 @@ self.addEventListener('fetch', (event) => {
       (async () => {
         const assets = await caches.open(ASSETS);
         const cached = await assets.match(req);
-        if (cached) return cached;
+        if (cached && isFile(cached)) return cached;
         const res = await fetch(req);
-        if (res.ok) await assets.put(req, res.clone());
-        return res;
+        if (isFile(res)) {
+          await assets.put(req, res.clone());
+          return res;
+        }
+        // Gone after an update: a clear failure, so the app reloads into the live version.
+        return new Response('Not found', { status: 404, headers: { 'Content-Type': 'text/plain' } });
       })(),
     );
   }

@@ -1,4 +1,4 @@
-import { Suspense, useEffect, useState } from 'react';
+import { Suspense, useEffect, useRef, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '../auth/AuthProvider';
 import { groupLabel, NAV_ITEMS, navForRole, ROLE_LABELS, tabsForRole, type NavGroup, type NavItem } from '../lib/nav';
@@ -9,6 +9,7 @@ import { ErrorBoundary } from './ErrorBoundary';
 import { BillingBanner } from './BillingBanner';
 import { SupportBar } from './SupportBar';
 import { Icon } from './Icon';
+import { reloadForUpdate, updateReady, watchForUpdates } from '../lib/appUpdate';
 import { getThemePref, setThemePref, type ThemePref } from '../lib/theme';
 
 const GROUPS: NavGroup[] = ['Overview', 'Selling', 'Cards & WiFi', 'Business'];
@@ -88,6 +89,14 @@ export function Layout() {
   // Close the phone menu whenever the page changes.
   useEffect(() => {
     setMenuOpen(false);
+  }, [location.pathname]);
+
+  // A newer version is live: the page just chosen opens in it (a full load of the same address).
+  useEffect(() => watchForUpdates(), []);
+  const shownPath = useRef(location.pathname);
+  useEffect(() => {
+    if (location.pathname !== shownPath.current && updateReady()) reloadForUpdate();
+    shownPath.current = location.pathname;
   }, [location.pathname]);
 
   if (!profile) return null;

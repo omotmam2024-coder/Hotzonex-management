@@ -1,5 +1,6 @@
 import { translate } from '../i18n/translate';
 import { Component, type ErrorInfo, type ReactNode } from 'react';
+import { reloadForUpdate } from '../lib/appUpdate';
 
 interface Props {
   children: ReactNode;
@@ -10,8 +11,6 @@ interface Props {
 interface State {
   error: Error | null;
 }
-
-const RELOADED_KEY = 'hzc.reloadedForUpdate';
 
 /** After a new version is published, an open app may ask for page files that no longer exist. */
 function isOldVersion(error: Error): boolean {
@@ -31,16 +30,8 @@ export class ErrorBoundary extends Component<Props, State> {
 
   componentDidCatch(error: Error, info: ErrorInfo) {
     console.error(error, info.componentStack);
-    if (isOldVersion(error)) {
-      try {
-        if (!window.sessionStorage.getItem(RELOADED_KEY)) {
-          window.sessionStorage.setItem(RELOADED_KEY, '1');
-          window.location.reload();
-        }
-      } catch {
-        // Storage blocked: the Reload button below still works.
-      }
-    }
+    // Otherwise the Reload button below still works.
+    if (isOldVersion(error)) reloadForUpdate();
   }
 
   componentDidUpdate(prev: Props) {

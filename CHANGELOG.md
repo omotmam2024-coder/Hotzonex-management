@@ -9,6 +9,10 @@
 - The 2-step login QR code scans in light and dark mode, with an "Open in authenticator app"
   button and a copyable key.
 - Migration `20261018090000_remove_business.sql`.
+- **Pages open after an update without refreshing.** The open app notices a new version
+  (`/version.json`) and loads it on the next page you choose; the app is fetched from the network
+  first (the saved copy only offline), and a missing page file reloads into the new version instead
+  of showing "A new version is ready".
 
 ## 18 October 2026 — the app in English, Arabic and Kiswahili
 
