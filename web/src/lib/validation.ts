@@ -65,7 +65,7 @@ export const planSchema = z.object({
     .string()
     .trim()
     .refine((r) => r === '' || RATE_RE.test(r), 'Speed limit must look like 2M/2M (upload/download), or be empty for no limit.'),
-  data_limit_mb: int('Data limit must be a whole number of MB, or empty for no limit.').positive('Data limit must be a whole number of MB, or empty for no limit.').nullable(),
+  data_limit_mb: int('Data limit must be a number of MB or GB (up to 2 decimals in GB), or empty for no limit.').positive('Data limit must be a number of MB or GB (up to 2 decimals in GB), or empty for no limit.').nullable(),
   shared_users: int('Devices per code must be from 1 to 50.').min(1, 'Devices per code must be from 1 to 50.').max(50, 'Devices per code must be from 1 to 50.'),
   router_ids: z.array(z.string()).min(1, 'Tick at least one router for this plan.'),
 });

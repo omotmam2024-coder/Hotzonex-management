@@ -73,3 +73,23 @@ test('seller terms: commission 0–100, credit limit whole or empty', () => {
   assert.throws(() => validate(sellerTermsSchema, { pct: '120', limit: '' }), /Commission/);
   assert.throws(() => validate(sellerTermsSchema, { pct: '5', limit: '10.5' }), /Credit limit/);
 });
+
+test('plan data limit in MB or GB', async () => {
+  const { cleanDataAmount, formatDataLimit, splitDataLimit, toMegabytes } = await import('../src/lib/dataLimit.ts');
+  assert.equal(toMegabytes('2', 'GB'), 2048);
+  assert.equal(toMegabytes('1.5', 'GB'), 1536);
+  assert.equal(toMegabytes('500', 'MB'), 500);
+  assert.ok(Number.isNaN(toMegabytes('1.5', 'MB')));
+  assert.ok(Number.isNaN(toMegabytes('1.', 'GB')));
+  assert.deepEqual(splitDataLimit(2048), { dataLimitAmount: '2', dataUnit: 'GB' });
+  assert.deepEqual(splitDataLimit(1536), { dataLimitAmount: '1.5', dataUnit: 'GB' });
+  assert.deepEqual(splitDataLimit(500), { dataLimitAmount: '500', dataUnit: 'MB' });
+  assert.deepEqual(splitDataLimit(1000), { dataLimitAmount: '1000', dataUnit: 'MB' });
+  assert.deepEqual(splitDataLimit(null), { dataLimitAmount: '', dataUnit: 'GB' });
+  assert.equal(cleanDataAmount('1,555x', 'GB'), '1.55');
+  assert.equal(cleanDataAmount('1.5.2', 'GB'), '1.52');
+  assert.equal(cleanDataAmount('1.5', 'MB'), '15');
+  assert.equal(formatDataLimit(1536), '1.5 GB');
+  assert.equal(formatDataLimit(1024), '1 GB');
+  assert.equal(formatDataLimit(500), '500 MB');
+});

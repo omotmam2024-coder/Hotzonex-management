@@ -9,6 +9,8 @@
 - The 2-step login QR code scans in light and dark mode, with an "Open in authenticator app"
   button and a copyable key.
 - Migration `20261018090000_remove_business.sql`.
+- **Plans: data limit in MB or GB.** Choose MB or GB next to the data limit; GB can have decimals
+  (1.5 GB = 1536 MB, as the router counts). Plan cards and the Buy page show large limits in GB.
 - **Pages open after an update without refreshing.** The open app notices a new version
   (`/version.json`) and loads it on the next page you choose; the app is fetched from the network
   first (the saved copy only offline), and a missing page file reloads into the new version instead

@@ -3,6 +3,7 @@ import { useParams } from 'react-router-dom';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { friendlyError } from '../../lib/errors';
 import { formatDuration, formatSSP } from '../../lib/format';
+import { formatDataLimit } from '../../lib/dataLimit';
 import { Alert } from '../../components/ui';
 import { callPublicFunction } from '../../lib/functions';
 import { buyRequestSchema, validate } from '../../lib/validation';
@@ -72,7 +73,7 @@ function saveClaim(slug: string, claim: Claim | null) {
 function planLine(p: BuyPlan): string {
   const parts: string[] = [];
   if (p.uptime_seconds) parts.push(formatDuration(p.uptime_seconds));
-  if (p.data_limit_mb) parts.push(p.data_limit_mb >= 1024 ? `${Math.round(p.data_limit_mb / 102.4) / 10} GB` : `${p.data_limit_mb} MB`);
+  if (p.data_limit_mb) parts.push(formatDataLimit(p.data_limit_mb));
   if (p.validity_seconds) parts.push(translate('public.buy.useWithin', { time: formatDuration(p.validity_seconds) }));
   return parts.join(' · ');
 }

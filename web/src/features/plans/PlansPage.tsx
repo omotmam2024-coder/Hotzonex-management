@@ -4,6 +4,7 @@ import { PageHeader } from '../../components/PageHeader';
 import { Alert, Badge, Button, Card, Checkbox, Field, Select, Spinner, TextInput } from '../../components/ui';
 import { friendlyError } from '../../lib/errors';
 import { formatDuration, formatSSP } from '../../lib/format';
+import { cleanDataAmount, formatDataLimit, splitDataLimit, toMegabytes, type DataUnit } from '../../lib/dataLimit';
 import { useT } from '../../i18n';
 import { translate, translateMessage } from '../../i18n/translate';
 import { invokeFunction } from '../../lib/functions';
@@ -54,7 +55,8 @@ interface PlanForm {
   validityAmount: string;
   validityUnit: TimeUnit;
   rateLimit: string;
-  dataLimitMb: string;
+  dataLimitAmount: string;
+  dataUnit: DataUnit;
   sharedUsers: string;
   color: string;
   isActive: boolean;
@@ -73,7 +75,8 @@ function newPlan(routers: RouterInfo[]): PlanForm {
     validityAmount: '1',
     validityUnit: 'days',
     rateLimit: '2M/2M',
-    dataLimitMb: '',
+    dataLimitAmount: '',
+    dataUnit: 'GB',
     sharedUsers: '1',
     color: SWATCHES[0] ?? '#16a34a',
     isActive: true,
@@ -94,7 +97,7 @@ function toForm(p: Plan): PlanForm {
     validityAmount: val.amount,
     validityUnit: val.unit,
     rateLimit: p.rate_limit ?? '',
-    dataLimitMb: p.data_limit_mb ? String(p.data_limit_mb) : '',
+    ...splitDataLimit(p.data_limit_mb),
     sharedUsers: String(p.shared_users),
     color: p.color,
     isActive: p.is_active,
@@ -103,6 +106,7 @@ function toForm(p: Plan): PlanForm {
 }
 
 const wholeNumber = (v: string) => (/^\d+$/.test(v) ? Number(v) : NaN);
+
 
 function PlanEditor({
   initial,
@@ -147,7 +151,7 @@ function PlanEditor({
         uptime_seconds: wholeNumber(form.uptimeAmount) * UNIT_SECONDS[form.uptimeUnit],
         validity_seconds: form.hasValidity ? wholeNumber(form.validityAmount) * UNIT_SECONDS[form.validityUnit] : null,
         rate_limit: form.rateLimit,
-        data_limit_mb: form.dataLimitMb.trim() ? wholeNumber(form.dataLimitMb.trim()) : null,
+        data_limit_mb: form.dataLimitAmount.trim() ? toMegabytes(form.dataLimitAmount.trim(), form.dataUnit) : null,
         shared_users: wholeNumber(form.sharedUsers),
         router_ids: form.routerIds,
       });
@@ -268,7 +272,24 @@ function PlanEditor({
               <TextInput inputMode="numeric" value={form.sharedUsers} onChange={(e) => set('sharedUsers', e.target.value.replace(/\D/g, ''))} />
             </Field>
             <Field label={t('plans.field.data')} hint={t('plans.field.dataHint')}>
-              <TextInput inputMode="numeric" value={form.dataLimitMb} onChange={(e) => set('dataLimitMb', e.target.value.replace(/\D/g, ''))} placeholder={t('plans.field.none')} />
+              <div className="flex gap-2">
+                <TextInput
+                  inputMode={form.dataUnit === 'GB' ? 'decimal' : 'numeric'}
+                  value={form.dataLimitAmount}
+                  onChange={(e) => set('dataLimitAmount', cleanDataAmount(e.target.value, form.dataUnit))}
+                  placeholder={t('plans.field.none')}
+                />
+                <Select
+                  value={form.dataUnit}
+                  onChange={(e) => {
+                    const unit = e.target.value as DataUnit;
+                    setForm((f) => ({ ...f, dataUnit: unit, dataLimitAmount: cleanDataAmount(f.dataLimitAmount, unit) }));
+                  }}
+                >
+                  <option value="MB">{t('plans.unit.mb')}</option>
+                  <option value="GB">{t('plans.unit.gb')}</option>
+                </Select>
+              </div>
             </Field>
           </div>
 
@@ -438,7 +459,7 @@ export function PlansPage() {
               <p className="mt-1.5 text-xs leading-snug text-slate-600">
                 {formatDuration(p.uptime_seconds)} · {t('plans.card.valid', { d: p.validity_seconds ? formatDuration(p.validity_seconds) : t('plans.noLimit') })}
                 <br />
-                {p.rate_limit ?? t('plans.card.anySpeed')} · {p.data_limit_mb ? `${p.data_limit_mb} MB` : t('plans.card.noDataLimit')} ·{' '}
+                {p.rate_limit ?? t('plans.card.anySpeed')} · {p.data_limit_mb ? formatDataLimit(p.data_limit_mb) : t('plans.card.noDataLimit')} ·{' '}
                 {t('plans.card.devices', { n: p.shared_users })}
               </p>
               <div className="mt-2 flex flex-wrap gap-1">
