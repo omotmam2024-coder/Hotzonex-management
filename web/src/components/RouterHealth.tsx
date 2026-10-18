@@ -1,5 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { timeAgo } from '../lib/format';
+import { useT } from '../i18n';
+import { translate } from '../i18n/translate';
 import { supabase } from '../lib/supabase';
 import type { RouterInfo } from '../lib/types';
 
@@ -38,14 +40,15 @@ function loginPage(router: RouterInfo): { level: Level; text: string } {
   const info = router.hotspot_info;
   const server = info?.servers.find((s) => s.name === router.hotspot_server) ?? info?.servers[0];
   const dir = info?.server_profiles.find((p) => p.name === server?.profile)?.html_directory;
-  if (!dir) return { level: 'info', text: 'Not read yet: press “Test connection” to read it.' };
-  if (/^mkt_/i.test(dir)) return { level: 'ok', text: `MikroTicket's login page (${dir}) — codes as long as its own cards` };
-  if (dir === 'hotzonex') return { level: 'ok', text: 'Hotzonex login portal' };
-  return { level: 'ok', text: `The router's own pages (${dir})` };
+  if (!dir) return { level: 'info', text: translate('routers.health.notRead') };
+  if (/^mkt_/i.test(dir)) return { level: 'ok', text: translate('routers.health.mkt', { dir }) };
+  if (dir === 'hotzonex') return { level: 'ok', text: translate('routers.health.hzPortal') };
+  return { level: 'ok', text: translate('routers.health.ownPages', { dir }) };
 }
 
 /** One look at everything that makes cards work on this router. */
 export function RouterHealth({ router }: { router: RouterInfo }) {
+  const { t } = useT();
   const health = useQuery({
     queryKey: ['router-health', router.id],
     staleTime: 60_000,
@@ -82,46 +85,49 @@ export function RouterHealth({ router }: { router: RouterInfo }) {
   const checks: Check[] = [];
   checks.push(
     router.status === 'online'
-      ? { label: 'Answering', level: 'ok', text: `Checked ${router.last_seen_at ? timeAgo(router.last_seen_at) : 'just now'}` }
+      ? { label: t('routers.health.answering'), level: 'ok', text: t('routers.health.checked', { ago: router.last_seen_at ? timeAgo(router.last_seen_at) : t('common.justNow') }) }
       : router.status === 'pending'
-        ? { label: 'Answering', level: 'warn', text: 'Not connected yet' }
-        : { label: 'Answering', level: 'bad', text: `No answer since ${router.last_seen_at ? timeAgo(router.last_seen_at) : 'it was added'}` },
+        ? { label: t('routers.health.answering'), level: 'warn', text: t('routers.health.notConnected') }
+        : {
+            label: t('routers.health.answering'),
+            level: 'bad',
+            text: router.last_seen_at ? t('routers.health.noAnswerSince', { ago: timeAgo(router.last_seen_at) }) : t('routers.health.noAnswerEver'),
+          },
   );
   const page = loginPage(router);
-  checks.push({ label: 'Login page', ...page });
+  checks.push({ label: t('routers.health.loginPage'), ...page });
 
   const d = health.data;
   if (d) {
     if (d.ownLength) {
       const mismatch = d.lastBatchLength !== null && d.lastBatchLength !== d.ownLength;
       checks.push({
-        label: 'Code length',
+        label: t('routers.health.codeLength'),
         level: mismatch ? 'warn' : 'ok',
-        text: mismatch
-          ? `Router's own cards: ${d.ownLength} digits, but the last Hotzonex batch had ${d.lastBatchLength}. Use ${d.ownLength}.`
-          : `${d.ownLength} digits, like the router's own cards`,
+        text: mismatch ? t('routers.health.mismatch', { own: d.ownLength, last: d.lastBatchLength }) : t('routers.health.match', { n: d.ownLength }),
       });
     }
     if (d.lastPush) {
       const r = d.lastPush.result ?? {};
       const warnings = Array.isArray(r.warnings) ? (r.warnings as string[]) : [];
-      const when = d.lastPush.finished_at ? timeAgo(d.lastPush.finished_at) : 'in progress';
+      const when = d.lastPush.finished_at ? timeAgo(d.lastPush.finished_at) : t('routers.health.inProgress');
+      const lastCards = t('routers.health.lastCards');
       checks.push(
         d.lastPush.status === 'failed'
-          ? { label: 'Last cards', level: 'bad', text: `Failed ${when}: ${String(r.error ?? 'the router refused them')}` }
+          ? { label: lastCards, level: 'bad', text: t('routers.health.failed', { when, error: String(r.error ?? t('routers.health.refused')) }) }
           : warnings.length
-            ? { label: 'Last cards', level: 'warn', text: warnings.join(' ') }
+            ? { label: lastCards, level: 'warn', text: warnings.join(' ') }
             : {
-                label: 'Last cards',
+                label: lastCards,
                 level: 'ok',
-                text: `Added ${when}${typeof r.checked_on_router === 'number' ? ` and checked on the router (${r.checked_on_router})` : ''}${typeof r.profile === 'string' ? ` · profile ${r.profile.replace(/^profile_(.+?)-se:.*$/, '$1')}` : ''}`,
+                text: `${t('routers.health.added', { when })}${typeof r.checked_on_router === 'number' ? ` ${t('routers.health.checkedOn', { n: r.checked_on_router })}` : ''}${typeof r.profile === 'string' ? ` · ${t('routers.health.profile', { profile: r.profile.replace(/^profile_(.+?)-se:.*$/, '$1') })}` : ''}`,
               },
       );
     }
     checks.push(
       d.lastCleanup
-        ? { label: 'Expired cards', level: 'ok', text: `Removed automatically (last: ${d.lastCleanup.count}, ${timeAgo(d.lastCleanup.created_at)})` }
-        : { label: 'Expired cards', level: 'info', text: 'Removed automatically when their time is over (none needed yet)' },
+        ? { label: t('routers.health.expired'), level: 'ok', text: t('routers.health.removedLast', { n: d.lastCleanup.count, ago: timeAgo(d.lastCleanup.created_at) }) }
+        : { label: t('routers.health.expired'), level: 'info', text: t('routers.health.removedNone') },
     );
   }
 
@@ -135,7 +141,7 @@ export function RouterHealth({ router }: { router: RouterInfo }) {
           </span>
         </li>
       ))}
-      {health.isLoading && <li className="text-sm text-slate-500">Reading…</li>}
+      {health.isLoading && <li className="text-sm text-slate-500">{t('routers.health.reading')}</li>}
     </ul>
   );
 }

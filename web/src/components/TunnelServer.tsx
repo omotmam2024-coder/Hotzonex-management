@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { useTunnelServer } from '../hooks/useTunnelServer';
 import { friendlyError } from '../lib/errors';
+import { useT } from '../i18n';
+import { rich } from './RouterSetup';
 import { Alert, Badge, Button, Card, Spinner, textButtonClass } from './ui';
 
 /** Explains the tunnel server and gives the one install command for the VPS. */
@@ -8,51 +10,47 @@ export function TunnelServerCard() {
   const tunnel = useTunnelServer();
   const [open, setOpen] = useState(false);
   const [copied, setCopied] = useState(false);
-  const t = tunnel.data;
+  const { t } = useT();
+  const server = tunnel.data;
 
   async function copy() {
-    if (!t?.command) return;
+    if (!server?.command) return;
     try {
-      await navigator.clipboard.writeText(t.command);
+      await navigator.clipboard.writeText(server.command);
       setCopied(true);
       setTimeout(() => setCopied(false), 3000);
     } catch {
-      window.alert('Copying was blocked by the browser. Select the command and copy it with Ctrl+C.');
+      window.alert(t('routers.tunnel.copyBlocked'));
     }
   }
 
   if (tunnel.isLoading) return null;
-  if (tunnel.error) return <Alert tone="error">Tunnel server: {friendlyError(tunnel.error)}</Alert>;
-  if (!t) return null;
+  if (tunnel.error) return <Alert tone="error">{t('routers.tunnel.error', { error: friendlyError(tunnel.error) })}</Alert>;
+  if (!server) return null;
 
   // Businesses use the shared tunnel server that Hotzonex Cloud runs; only its platform admins install it.
-  if (!t.command) {
-    return t.ready ? null : (
-      <Alert tone="info">
-        Routers without a public IP connect through the Hotzonex Cloud tunnel server, which is not ready yet. Contact Hotzonex Cloud before adding such a
-        router.
-      </Alert>
+  if (!server.command) {
+    return server.ready ? null : (
+      <Alert tone="info">{t('routers.tunnel.sharedNotReady')}</Alert>
     );
   }
 
-  const showSteps = !t.ready || open;
+  const showSteps = !server.ready || open;
   return (
     <Card>
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <h2 className="text-lg font-bold text-slate-900">Tunnel server</h2>
-          <p className="text-sm text-slate-600">
-            For routers without a public IP. Each router keeps a WireGuard tunnel to your own small server, so nothing is scheduled on the router.
-          </p>
+          <h2 className="text-lg font-bold text-slate-900">{t('routers.tunnel.title')}</h2>
+          <p className="text-sm text-slate-600">{t('routers.tunnel.intro')}</p>
         </div>
-        {t.ready ? (
+        {server.ready ? (
           <span className="flex items-center gap-2">
-            <Badge color="green">Ready</Badge>
-            <span className="text-sm text-slate-500">{t.relay_url?.replace(/^https:\/\//, '')}</span>
+            <Badge color="green">{t('routers.tunnel.ready')}</Badge>
+            <span dir="ltr" className="text-sm text-slate-500">{server.relay_url?.replace(/^https:\/\//, '')}</span>
           </span>
         ) : (
           <span className="flex items-center gap-2">
-            <Badge color="gray">Not set up</Badge>
+            <Badge color="gray">{t('routers.tunnel.notSetUp')}</Badge>
             <Spinner className="h-4 w-4 text-slate-400" />
           </span>
         )}
@@ -60,33 +58,34 @@ export function TunnelServerCard() {
 
       {showSteps && (
         <div className="mt-3 space-y-2 text-sm text-slate-700">
-          <ol className="list-decimal space-y-1 pl-5">
+          <ol className="list-decimal space-y-1 ps-5">
+            <li>{rich(t('routers.tunnel.step1'), { ubuntu: <strong>Ubuntu</strong> })}</li>
             <li>
-              Rent the smallest <strong>Ubuntu</strong> VPS from any provider (Hetzner, DigitalOcean, Vultr…, about US$4–6 a month). One server serves all
-              your routers.
+              {rich(t('routers.tunnel.step2'), {
+                udp: <strong dir="ltr">UDP 51820</strong>,
+                tcp: <strong>{t('routers.tunnel.tcpPorts')}</strong>,
+              })}
             </li>
-            <li>
-              In the provider’s firewall (if it has one) allow <strong>UDP 51820</strong> and <strong>TCP 80 and 443</strong>.
-            </li>
-            <li>
-              Log in to the VPS (the provider’s web console or SSH), paste this command and press Enter. It takes 1–3 minutes.
-            </li>
+            <li>{t('routers.tunnel.step3')}</li>
           </ol>
           <div className="flex flex-wrap gap-2">
-            <Button onClick={copy}>{copied ? 'Copied ✓' : 'Copy install command'}</Button>
+            <Button onClick={copy}>{copied ? t('common.copied') : t('routers.tunnel.copyInstall')}</Button>
           </div>
-          <pre className="max-h-40 overflow-auto whitespace-pre-wrap break-all rounded-xl bg-slate-900 p-3 text-xs text-slate-100">{t.command}</pre>
-          <p className="text-xs text-slate-500">
-            The command contains your tunnel server’s secret: do not share it. It installs WireGuard and an HTTPS relay (Caddy, free certificate) that only
-            forwards Hotzonex’s requests to your routers’ REST API; each request still needs the router’s own username and password. This card turns{' '}
-            <strong>Ready</strong> by itself when the server has registered. Running the command again is safe.
-          </p>
-          {t.ready && <p className="text-xs text-slate-500">Server: {t.endpoint} · relay {t.relay_url}</p>}
+          <pre dir="ltr" className="max-h-40 overflow-auto whitespace-pre-wrap break-all rounded-xl bg-slate-900 p-3 text-xs text-slate-100">{server.command}</pre>
+          <p className="text-xs text-slate-500">{rich(t('routers.tunnel.secretNote'), { ready: <strong>{t('routers.tunnel.ready')}</strong> })}</p>
+          {server.ready && (
+            <p className="text-xs text-slate-500">
+              {rich(t('routers.tunnel.serverLine'), {
+                endpoint: <bdi dir="ltr">{server.endpoint}</bdi>,
+                relay: <bdi dir="ltr">{server.relay_url}</bdi>,
+              })}
+            </p>
+          )}
         </div>
       )}
-      {t.ready && (
-        <button type="button" className={`${textButtonClass} -ml-2 mt-1 text-brand-700`} onClick={() => setOpen((v) => !v)}>
-          {open ? 'Hide install command' : 'Show install command'}
+      {server.ready && (
+        <button type="button" className={`${textButtonClass} -ms-2 mt-1 text-brand-700`} onClick={() => setOpen((v) => !v)}>
+          {open ? t('routers.tunnel.hideInstall') : t('routers.tunnel.showInstall')}
         </button>
       )}
     </Card>

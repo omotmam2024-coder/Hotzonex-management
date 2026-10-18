@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { Fragment, useState, type ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { useT } from '../i18n';
 import { friendlyError } from '../lib/errors';
 import { formatNumber, timeAgo } from '../lib/format';
 import { usePlans } from '../hooks/queries';
@@ -8,9 +9,22 @@ import { supabase } from '../lib/supabase';
 import { ROUTER_COLUMNS, type HotspotInfo, type RouterInfo } from '../lib/types';
 import { Alert, Badge, Button, Card, Spinner, textButtonClass } from './ui';
 
+/**
+ * A translated sentence with pieces of markup (bold words, commands in <code>) in it: each {name}
+ * in the text is replaced by parts[name]. Commands and names stay untranslated inside the parts.
+ */
+export function rich(text: string, parts: Record<string, ReactNode>): ReactNode {
+  return text.split(/(\{[a-zA-Z_]+\})/).map((piece, i) => {
+    const name = /^\{([a-zA-Z_]+)\}$/.exec(piece)?.[1];
+    return name !== undefined && name in parts ? <Fragment key={i}>{parts[name]}</Fragment> : piece;
+  });
+}
+
 /** The router's setup script with plain steps and a copy button. */
 export function SetupScriptCard({ script, kind = 'cloud' }: { script: string; kind?: 'cloud' | 'tunnel' }) {
   const [copied, setCopied] = useState(false);
+  const { t } = useT();
+  const pasteStep = rich(t('routers.setup.paste'), { terminal: <strong dir="ltr">New Terminal</strong>, enter: <strong dir="ltr">Enter</strong> });
 
   async function copy() {
     try {
@@ -19,66 +33,58 @@ export function SetupScriptCard({ script, kind = 'cloud' }: { script: string; ki
       setTimeout(() => setCopied(false), 3000);
     } catch {
       setCopied(false);
-      window.alert('Copying was blocked by the browser. Select the text in the box and copy it with Ctrl+C.');
+      window.alert(t('routers.setup.copyBlocked'));
     }
   }
 
   if (kind === 'tunnel') {
     return (
       <Card>
-        <h2 className="text-lg font-bold text-slate-900">Connect the router through your tunnel server</h2>
-        <ol className="mt-2 list-decimal space-y-1 pl-5 text-sm text-slate-700">
-          <li>Click <strong>Copy tunnel script</strong> below.</li>
-          <li>
-            In Winbox click <strong>New Terminal</strong>, paste (right-click → Paste, or Ctrl+V) and press <strong>Enter</strong>.
-          </li>
-          <li>Wait here. Hotzonex checks the router through the tunnel within a minute.</li>
+        <h2 className="text-lg font-bold text-slate-900">{t('routers.setup.tunnelTitle')}</h2>
+        <ol className="mt-2 list-decimal space-y-1 ps-5 text-sm text-slate-700">
+          <li>{rich(t('routers.setup.clickBelow'), { button: <strong>{t('routers.setup.copyTunnel')}</strong> })}</li>
+          <li>{pasteStep}</li>
+          <li>{t('routers.setup.tunnelWait')}</li>
         </ol>
         <p className="mt-2 text-xs text-slate-500">
-          Nothing is scheduled on the router. The script checks that your hotspot is running, then adds only a WireGuard interface <code>wg-hzc</code> with one
-          peer (your tunnel server), its address and one firewall rule letting the tunnel server reach the www service. All three are marked{' '}
-          <code>hotzonex-tunnel</code>. It removes the old <code>hzc-cloud</code> scheduler and script if they are there. Your hotspot, its profiles and
-          MikroTicket are not touched. The script contains this router’s tunnel key, so do not share it. Pasting it again is safe.
+          {rich(t('routers.setup.tunnelNote'), {
+            wg: <code dir="ltr">wg-hzc</code>,
+            mark: <code dir="ltr">hotzonex-tunnel</code>,
+            sched: <code dir="ltr">hzc-cloud</code>,
+          })}
         </p>
         <div className="mt-3 flex flex-wrap gap-2">
-          <Button onClick={copy}>{copied ? 'Copied ✓' : 'Copy tunnel script'}</Button>
+          <Button onClick={copy}>{copied ? t('common.copied') : t('routers.setup.copyTunnel')}</Button>
         </div>
-        <pre className="mt-3 max-h-64 overflow-auto whitespace-pre-wrap break-all rounded-xl bg-slate-900 p-3 text-xs leading-relaxed text-slate-100">{script}</pre>
+        <pre dir="ltr" className="mt-3 max-h-64 overflow-auto whitespace-pre-wrap break-all rounded-xl bg-slate-900 p-3 text-xs leading-relaxed text-slate-100">{script}</pre>
       </Card>
     );
   }
 
   return (
     <Card>
-      <h2 className="text-lg font-bold text-slate-900">Connect the router to Hotzonex Cloud</h2>
-      <ol className="mt-2 list-decimal space-y-1 pl-5 text-sm text-slate-700">
-        <li>
-          The router needs <strong>RouterOS 7.19 or newer</strong> and internet access. To update: Winbox → System → Packages → Check For Updates.
-        </li>
-        <li>Click <strong>Copy setup script</strong> below.</li>
-        <li>
-          In Winbox click <strong>New Terminal</strong>, paste (right-click → Paste, or Ctrl+V) and press <strong>Enter</strong>.
-        </li>
-        <li>Wait here. The router calls Hotzonex Cloud every 30 seconds and shows Online within a minute.</li>
+      <h2 className="text-lg font-bold text-slate-900">{t('routers.setup.cloudTitle')}</h2>
+      <ol className="mt-2 list-decimal space-y-1 ps-5 text-sm text-slate-700">
+        <li>{rich(t('routers.setup.needsRos'), { ros: <strong>{t('routers.setup.rosVersion')}</strong> })}</li>
+        <li>{rich(t('routers.setup.clickBelow'), { button: <strong>{t('routers.setup.copySetup')}</strong> })}</li>
+        <li>{pasteStep}</li>
+        <li>{t('routers.setup.cloudWait')}</li>
       </ol>
-      <p className="mt-2 text-xs text-slate-500">
-        The script only adds a script and a scheduler named <code>hzc-cloud</code>; it changes no other router setting. No computer, VPN or public IP is
-        needed. The script contains this router’s secret key, so do not share it. Pasting it again is safe.
-      </p>
+      <p className="mt-2 text-xs text-slate-500">{rich(t('routers.setup.cloudNote'), { sched: <code dir="ltr">hzc-cloud</code> })}</p>
       <p className="mt-1 text-xs text-slate-500">
-        If the router stays “Waiting” after an upgrade from an older RouterOS, it may not trust certificates yet. You can allow that yourself with{' '}
-        <code>/certificate settings set builtin-trust-anchors=trusted</code>.
+        {rich(t('routers.setup.certNote'), { command: <code dir="ltr">/certificate settings set builtin-trust-anchors=trusted</code> })}
       </p>
       <div className="mt-3 flex flex-wrap gap-2">
-        <Button onClick={copy}>{copied ? 'Copied ✓' : 'Copy setup script'}</Button>
+        <Button onClick={copy}>{copied ? t('common.copied') : t('routers.setup.copySetup')}</Button>
       </div>
-      <pre className="mt-3 max-h-64 overflow-auto whitespace-pre-wrap break-all rounded-xl bg-slate-900 p-3 text-xs leading-relaxed text-slate-100">{script}</pre>
+      <pre dir="ltr" className="mt-3 max-h-64 overflow-auto whitespace-pre-wrap break-all rounded-xl bg-slate-900 p-3 text-xs leading-relaxed text-slate-100">{script}</pre>
     </Card>
   );
 }
 
 /** Live view of a router while it connects for the first time (or after a change). */
 export function RouterConnectionStatus({ routerId, onEdit }: { routerId: string; onEdit?: () => void }) {
+  const { t } = useT();
   const router = useQuery({
     queryKey: ['router', routerId],
     refetchInterval: 3000,
@@ -95,7 +101,8 @@ export function RouterConnectionStatus({ routerId, onEdit }: { routerId: string;
   if (status === 'online') {
     return (
       <Alert tone="success">
-        <strong>{r.name} is online.</strong> {r.model ?? ''} · RouterOS {r.ros_version ?? '?'} · last call {timeAgo(r.last_seen_at)}
+        <strong>{t('routers.status.online', { name: r.name })}</strong>{' '}
+        {t('routers.status.onlineLine', { model: r.model ?? '', ros: r.ros_version ?? '?', ago: timeAgo(r.last_seen_at) })}
       </Alert>
     );
   }
@@ -104,8 +111,8 @@ export function RouterConnectionStatus({ routerId, onEdit }: { routerId: string;
       <Alert tone="error">
         <span className="block">{r.last_error}</span>
         {onEdit && (
-          <button type="button" className={`${textButtonClass} -ml-2 mt-1 underline`} onClick={onEdit}>
-            Edit router
+          <button type="button" className={`${textButtonClass} -ms-2 mt-1 underline`} onClick={onEdit}>
+            {t('routers.editRouter')}
           </button>
         )}
       </Alert>
@@ -115,7 +122,7 @@ export function RouterConnectionStatus({ routerId, onEdit }: { routerId: string;
     return (
       <Alert tone="info">
         <span className="flex items-center gap-2">
-          <Spinner /> The router is connected (last call {timeAgo(r.last_seen_at)}) and is being checked…
+          <Spinner /> {t('routers.status.checking', { ago: timeAgo(r.last_seen_at) })}
         </span>
       </Alert>
     );
@@ -124,9 +131,7 @@ export function RouterConnectionStatus({ routerId, onEdit }: { routerId: string;
     <Alert tone="info">
       <span className="flex items-center gap-2">
         <Spinner />{' '}
-        {r.connection === 'tunnel'
-          ? 'Waiting for the router to connect through the tunnel. Paste the tunnel script into its terminal.'
-          : 'Waiting for the router to call in. Paste the setup script into its terminal.'}
+        {r.connection === 'tunnel' ? t('routers.status.waitTunnel') : t('routers.status.waitCloud')}
       </span>
     </Alert>
   );
@@ -135,18 +140,18 @@ export function RouterConnectionStatus({ routerId, onEdit }: { routerId: string;
 /** What the router already has (read at its last check). Hotzonex uses this setup as it is. */
 export function HotspotSnapshot({ info, hotspotServer }: { info: HotspotInfo; hotspotServer: string | null }) {
   const plans = usePlans();
+  const { t, dir } = useT();
   const profiles = new Set(info.user_profiles.map((p) => p.name));
   const activePlans = (plans.data ?? []).filter((p) => p.is_active);
   return (
     <div className="space-y-3 text-sm">
       <p className="text-slate-600">
-        Read from the router {timeAgo(info.checked_at)} · {formatNumber(info.users)} hotspot users · {formatNumber(info.active)} online. Hotzonex uses this setup
-        as it is and does not change it.
+        {t('routers.snap.read', { ago: timeAgo(info.checked_at), users: formatNumber(info.users), active: formatNumber(info.active) })}
       </p>
       <div>
-        <h3 className="font-semibold text-slate-800">Hotspot servers</h3>
+        <h3 className="font-semibold text-slate-800">{t('routers.snap.servers')}</h3>
         {info.servers.length === 0 ? (
-          <p className="text-slate-600">None. Create the hotspot on the router (Winbox → IP → Hotspot → Hotspot Setup).</p>
+          <p className="text-slate-600">{t('routers.snap.none')}</p>
         ) : (
           <ul className="mt-1 space-y-1">
             {info.servers.map((h) => {
@@ -154,11 +159,11 @@ export function HotspotSnapshot({ info, hotspotServer }: { info: HotspotInfo; ho
               return (
                 <li key={h.name} className="flex flex-wrap items-center gap-2">
                   <span className="font-mono font-medium">{h.name}</span>
-                  {h.name === hotspotServer && <Badge color="green">used by Hotzonex</Badge>}
-                  {h.disabled && <Badge color="red">disabled</Badge>}
+                  {h.name === hotspotServer && <Badge color="green">{t('routers.snap.usedBy')}</Badge>}
+                  {h.disabled && <Badge color="red">{t('routers.snap.disabled')}</Badge>}
                   <span className="text-slate-600">
-                    on {h.interface || '—'} · pool {h.address_pool || '—'} · profile {h.profile || '—'}
-                    {prof ? ` · DNS ${prof.dns_name || '—'} · login by ${prof.login_by || '—'}` : ''}
+                    {t('routers.snap.serverLine', { iface: h.interface || '—', pool: h.address_pool || '—', profile: h.profile || '—' })}
+                    {prof ? ` · ${t('routers.snap.serverDns', { dns: prof.dns_name || '—', by: prof.login_by || '—' })}` : ''}
                   </span>
                 </li>
               );
@@ -167,10 +172,10 @@ export function HotspotSnapshot({ info, hotspotServer }: { info: HotspotInfo; ho
         )}
       </div>
       <div>
-        <h3 className="font-semibold text-slate-800">User profiles on the router</h3>
+        <h3 className="font-semibold text-slate-800">{t('routers.snap.userProfiles')}</h3>
         <p className="mt-1 flex flex-wrap gap-1">
           {info.user_profiles.map((p) => (
-            <span key={p.name} className="rounded-lg bg-slate-100 px-2 py-0.5 font-mono text-xs">
+            <span key={p.name} dir="ltr" className="rounded-lg bg-slate-100 px-2 py-0.5 font-mono text-xs">
               {p.name}
               {p.rate_limit ? ` · ${p.rate_limit}` : ''}
             </span>
@@ -179,15 +184,18 @@ export function HotspotSnapshot({ info, hotspotServer }: { info: HotspotInfo; ho
       </div>
       {activePlans.length > 0 && (
         <div>
-          <h3 className="font-semibold text-slate-800">Hotzonex plans → user profile on the router</h3>
+          <h3 className="font-semibold text-slate-800">{t('routers.snap.planMap')}</h3>
           <ul className="mt-1 space-y-0.5">
             {activePlans.map((p) => (
               <li key={p.id}>
-                {p.name} → <span className="font-mono">{p.router_profile_name}</span>{' '}
+                {p.name} {dir === 'rtl' ? '←' : '→'}{' '}
+                <span dir="ltr" className="font-mono">
+                  {p.router_profile_name}
+                </span>{' '}
                 {profiles.has(p.router_profile_name) ? (
-                  <span className="text-green-700">(already on the router — used, not changed)</span>
+                  <span className="text-green-700">{t('routers.snap.already')}</span>
                 ) : (
-                  <span className="text-amber-700">(Hotzonex adds it to the router)</span>
+                  <span className="text-amber-700">{t('routers.snap.adds')}</span>
                 )}
               </li>
             ))}
@@ -200,6 +208,7 @@ export function HotspotSnapshot({ info, hotspotServer }: { info: HotspotInfo; ho
 
 /** Loads a router and shows its hotspot snapshot, if one has been read. */
 export function HotspotSetup({ routerId }: { routerId: string }) {
+  const { t } = useT();
   const router = useQuery({
     queryKey: ['router', routerId],
     refetchInterval: 5000,
@@ -213,7 +222,7 @@ export function HotspotSetup({ routerId }: { routerId: string }) {
   if (!r?.hotspot_info) return null;
   return (
     <Card>
-      <h2 className="text-lg font-bold text-slate-900">Hotspot setup on {r.name}</h2>
+      <h2 className="text-lg font-bold text-slate-900">{t('routers.snap.setupOn', { name: r.name })}</h2>
       <div className="mt-2">
         <HotspotSnapshot info={r.hotspot_info} hotspotServer={r.hotspot_server} />
       </div>

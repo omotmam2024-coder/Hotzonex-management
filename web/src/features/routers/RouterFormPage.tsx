@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { HotspotSetup, RouterConnectionStatus, SetupScriptCard } from '../../components/RouterSetup';
+import { HotspotSetup, rich, RouterConnectionStatus, SetupScriptCard } from '../../components/RouterSetup';
+import { translateMessage, useT } from '../../i18n';
 import { useTunnelServer } from '../../hooks/useTunnelServer';
 import { PageHeader } from '../../components/PageHeader';
 import { Alert, Button, Field, Select, Spinner, TextInput } from '../../components/ui';
@@ -39,6 +40,7 @@ export function RouterFormPage() {
   const isEdit = Boolean(id);
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { t, dir } = useT();
   const sites = useSites();
   const [form, setForm] = useState<FormState>(EMPTY);
   const [showPassword, setShowPassword] = useState(false);
@@ -90,7 +92,7 @@ export function RouterFormPage() {
 
   function validate(): string | null {
     const result = routerSchema(switchToTunnel).safeParse({ ...form, port: form.port || '80' });
-    return result.success ? null : (result.error.issues[0]?.message ?? 'Please check the form.');
+    return result.success ? null : (result.error.issues[0]?.message ?? t('msg.checkForm'));
   }
 
   async function handleSubmit(e: FormEvent) {
@@ -124,12 +126,12 @@ export function RouterFormPage() {
       const job = await waitForJob(res.job_id);
       const result = (job.result ?? {}) as TestConnectionResult;
       if (job.status === 'done') setPhase({ kind: 'success', routerId: res.router_id, result });
-      else setPhase({ kind: 'failed', routerId: res.router_id, message: result.error ?? 'The router check failed.' });
+      else setPhase({ kind: 'failed', routerId: res.router_id, message: result.error ?? t('routers.form.checkFailed') });
     } catch (err) {
       setPhase({
         kind: 'failed',
         routerId,
-        message: err instanceof RouterTimeoutError ? 'The router did not answer within a minute. It is saved and will be checked again automatically.' : friendlyError(err),
+        message: err instanceof RouterTimeoutError ? t('routers.form.timeout') : friendlyError(err),
       });
     } finally {
       void queryClient.invalidateQueries({ queryKey: ['routers'] });
@@ -138,14 +140,14 @@ export function RouterFormPage() {
   }
 
   if (isEdit && existing.isLoading) return <Spinner className="h-8 w-8 text-brand-600" />;
-  if (isEdit && !existing.isLoading && !existing.data) return <Alert tone="error">This router no longer exists.</Alert>;
+  if (isEdit && !existing.isLoading && !existing.data) return <Alert tone="error">{t('routers.form.gone')}</Alert>;
 
   const header = (title: string) => (
     <PageHeader
       title={title}
       actions={
         <Button variant="ghost" onClick={() => navigate('/routers')}>
-          ← Routers
+          {dir === 'rtl' ? '→' : '←'} {t('nav.routers')}
         </Button>
       }
     />
@@ -154,25 +156,17 @@ export function RouterFormPage() {
   if (phase.kind === 'setup') {
     return (
       <div className="max-w-2xl space-y-4">
-        {header('Connect router')}
-        {phase.connection === 'tunnel' ? (
-          <Alert tone="info">
-            <strong>{phase.host}</strong> is an address inside your router’s own network, so Hotzonex reaches the router through your tunnel server. Paste
-            this script into the router once: it checks that your hotspot is set up and running, then opens a WireGuard tunnel that stays up by itself. No
-            scheduler is added, and your hotspot and its profiles are not changed.
-          </Alert>
-        ) : (
-          <Alert tone="info">
-            <strong>{phase.host}</strong> is an address inside your router’s own network, so Hotzonex Cloud cannot open it from the internet. Connect the
-            router once with this script: it checks that your hotspot is already set up and running, then lets the router talk to Hotzonex Cloud. It does not
-            change your hotspot or its profiles.
-          </Alert>
-        )}
+        {header(t('routers.form.connectTitle'))}
+        <Alert tone="info">
+          {rich(t(phase.connection === 'tunnel' ? 'routers.form.tunnelIntro' : 'routers.form.cloudIntro'), {
+            host: <strong dir="ltr">{phase.host}</strong>,
+          })}
+        </Alert>
         <RouterConnectionStatus routerId={phase.routerId} onEdit={() => navigate(`/routers/${phase.routerId}/edit`)} />
         <SetupScriptCard script={phase.script} kind={phase.connection === 'tunnel' ? 'tunnel' : 'cloud'} />
         <HotspotSetup routerId={phase.routerId} />
         <Button variant="secondary" onClick={() => navigate('/routers')}>
-          Back to routers
+          {t('routers.form.backToRouters')}
         </Button>
       </div>
     );
@@ -182,10 +176,12 @@ export function RouterFormPage() {
     const r = phase.result;
     return (
       <div className="max-w-2xl space-y-4">
-        {header(isEdit ? 'Router updated' : 'Router connected')}
+        {header(isEdit ? t('routers.form.updatedTitle') : t('routers.form.connectedTitle'))}
         <Alert tone="success">
-          Connected. {r.model ?? ''} · RouterOS {r.ros_version ?? '?'} · using hotspot <strong>{r.hotspot_server ?? '?'}</strong> · login address{' '}
-          <strong>{r.dns_name ?? '?'}</strong>
+          {rich(t('routers.form.connectedLine', { model: r.model ?? '', ros: r.ros_version ?? '?' }), {
+            hotspot: <strong>{r.hotspot_server ?? '?'}</strong>,
+            dns: <strong dir="ltr">{r.dns_name ?? '?'}</strong>,
+          })}
         </Alert>
         {(r.warnings ?? []).map((w) => (
           <Alert key={w} tone="warning">
@@ -193,7 +189,7 @@ export function RouterFormPage() {
           </Alert>
         ))}
         <HotspotSetup routerId={phase.routerId} />
-        <Button onClick={() => navigate('/routers')}>Back to routers</Button>
+        <Button onClick={() => navigate('/routers')}>{t('routers.form.backToRouters')}</Button>
       </div>
     );
   }
@@ -203,63 +199,59 @@ export function RouterFormPage() {
 
   return (
     <div className="max-w-3xl space-y-4">
-      {header(switchToTunnel ? 'Switch to tunnel' : isEdit ? 'Edit router' : 'New router')}
+      {header(switchToTunnel ? t('routers.form.switchTitle') : isEdit ? t('routers.editRouter') : t('routers.form.newTitle'))}
 
       <form onSubmit={handleSubmit} className="space-y-4" noValidate>
         {switchToTunnel && (
           <Alert tone="info">
-            Hotzonex will reach this router through your tunnel server instead of the <code>hzc-cloud</code> scheduler. Enter the router’s login and the port
-            of its <strong>www</strong> service (Winbox → IP → Services → www; yours may be 87), then paste the tunnel script you get next. The script removes
-            the scheduler.
+            {rich(t('routers.form.switchIntro'), { sched: <code dir="ltr">hzc-cloud</code>, www: <strong>www</strong> })}
           </Alert>
         )}
         {!isEdit && tunnelReady && (
-          <p className="text-sm text-slate-600">
-            Your tunnel server is ready: a router at a local address (like 192.168.88.1) is connected through it, with no scheduler. Port = the router’s{' '}
-            <strong>www</strong> service port (Winbox → IP → Services).
-          </p>
+          <p className="text-sm text-slate-600">{rich(t('routers.form.tunnelReady'), { www: <strong>www</strong> })}</p>
         )}
         <div className="flex gap-3">
           <div className="min-w-0 flex-1">
-            <Field label="Address">
-              <TextInput value={form.host} onChange={(e) => set('host', e.target.value)} placeholder="192.168.88.1" autoComplete="off" disabled={busy} />
+            <Field label={t('routers.form.address')}>
+              <TextInput dir="ltr" value={form.host} onChange={(e) => set('host', e.target.value)} placeholder="192.168.88.1" autoComplete="off" disabled={busy} />
             </Field>
           </div>
           <div className="w-28">
-            <Field label="Port">
-              <TextInput value={form.port} onChange={(e) => set('port', e.target.value.replace(/\D/g, ''))} inputMode="numeric" disabled={busy} />
+            <Field label={t('routers.form.port')}>
+              <TextInput dir="ltr" value={form.port} onChange={(e) => set('port', e.target.value.replace(/\D/g, ''))} inputMode="numeric" disabled={busy} />
             </Field>
           </div>
         </div>
 
-        <Field label="Username">
-          <TextInput value={form.username} onChange={(e) => set('username', e.target.value)} autoComplete="off" disabled={busy} />
+        <Field label={t('routers.form.username')}>
+          <TextInput dir="ltr" value={form.username} onChange={(e) => set('username', e.target.value)} autoComplete="off" disabled={busy} />
         </Field>
 
-        <Field label="Password">
+        <Field label={t('routers.form.password')}>
           <div className="flex items-center gap-2">
             <TextInput
+              dir="ltr"
               type={showPassword ? 'text' : 'password'}
               value={form.password}
               onChange={(e) => set('password', e.target.value)}
-              placeholder={hasPassword ? 'Leave blank to keep the current password' : ''}
+              placeholder={hasPassword ? t('routers.form.keepPassword') : ''}
               autoComplete="new-password"
               disabled={busy}
             />
             <Button variant="ghost" className="shrink-0" onClick={() => setShowPassword((v) => !v)}>
-              {showPassword ? 'Hide' : 'Show'}
+              {showPassword ? t('routers.form.hide') : t('routers.form.show')}
             </Button>
           </div>
         </Field>
 
-        <Field label="Comment">
-          <TextInput value={form.comment} onChange={(e) => set('comment', e.target.value)} placeholder="e.g. Jebel Iraq main" maxLength={60} disabled={busy} />
+        <Field label={t('routers.form.comment')}>
+          <TextInput value={form.comment} onChange={(e) => set('comment', e.target.value)} placeholder={t('routers.form.commentPlaceholder')} maxLength={60} disabled={busy} />
         </Field>
 
         {activeSites.length > 1 && (
-          <Field label="Site">
+          <Field label={t('common.site')}>
             <Select value={form.site_id} onChange={(e) => set('site_id', e.target.value)} disabled={busy}>
-              <option value="">Choose a site…</option>
+              <option value="">{t('routers.form.chooseSite')}</option>
               {activeSites.map((s) => (
                 <option key={s.id} value={s.id}>
                   {s.name}
@@ -271,28 +263,28 @@ export function RouterFormPage() {
 
         {isEdit && servers.length > 0 && (
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Hotspot (on the router)">
+            <Field label={t('routers.form.hotspotOnRouter')}>
               <Select value={form.hotspot_server} onChange={(e) => set('hotspot_server', e.target.value)} disabled={busy}>
                 {servers.map((h) => (
                   <option key={h.name} value={h.name} disabled={h.disabled}>
                     {h.name}
-                    {h.disabled ? ' (switched off)' : ''}
+                    {h.disabled ? ` (${t('routers.form.switchedOff')})` : ''}
                   </option>
                 ))}
               </Select>
             </Field>
-            <Field label="Login address on cards">
-              <TextInput value={form.dns_name} onChange={(e) => set('dns_name', e.target.value)} placeholder="hotzonex.wifi" disabled={busy} />
+            <Field label={t('routers.form.loginAddress')}>
+              <TextInput dir="ltr" value={form.dns_name} onChange={(e) => set('dns_name', e.target.value)} placeholder="hotzonex.wifi" disabled={busy} />
             </Field>
           </div>
         )}
 
-        {formError && <Alert tone="error">{formError}</Alert>}
+        {formError && <Alert tone="error">{translateMessage(formError)}</Alert>}
         {phase.kind === 'failed' && <Alert tone="error">{phase.message}</Alert>}
         {phase.kind === 'testing' && (
           <Alert tone="info">
             <span className="flex items-center gap-2">
-              <Spinner /> Connecting and reading the router’s hotspot setup…
+              <Spinner /> {t('routers.form.reading')}
             </span>
           </Alert>
         )}
@@ -300,20 +292,18 @@ export function RouterFormPage() {
         <Button type="submit" disabled={busy} className="min-h-14 w-full text-lg">
           {busy ? (
             <>
-              <Spinner /> {phase.kind === 'saving' ? 'Saving…' : 'Connecting…'}
+              <Spinner /> {phase.kind === 'saving' ? t('common.saving') : t('routers.form.connecting')}
             </>
           ) : switchToTunnel ? (
-            'Switch to tunnel'
+            t('routers.form.switchTitle')
           ) : isEdit ? (
-            'Save'
+            t('common.save')
           ) : (
-            'Connect'
+            t('routers.form.connect')
           )}
         </Button>
 
-        <p className="text-center text-sm text-slate-500">
-          Hotzonex uses the hotspot already set up on your router and never changes it or its profiles. Plans and vouchers are managed here in Hotzonex.
-        </p>
+        <p className="text-center text-sm text-slate-500">{t('routers.form.footer')}</p>
       </form>
 
       {phase.kind === 'failed' && phase.routerId && <HotspotSetup routerId={phase.routerId} />}

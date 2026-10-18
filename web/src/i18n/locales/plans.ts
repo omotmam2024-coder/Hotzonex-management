@@ -1,11 +1,227 @@
 // Texts of the plans pages. Keys start with "plans.". Every English key must also have Arabic and Kiswahili.
 
-const en = {} as const;
+const en = {
+  'plans.subtitle':
+    "A plan is what you sell: price, time and speed. Tick the routers that sell it and Hotzonex makes its own profile on them (MikroTicket's profiles are not used).",
+  'plans.newButton': '+ New plan',
+  'plans.newPlan': 'New plan',
+  'plans.editTitle': 'Edit {name}',
+  'plans.editorIntro':
+    "Set the plan and tick the routers that sell it. Hotzonex makes its own user profile on those routers (named hzc-…), separate from MikroTicket's profiles.",
+
+  'plans.field.name': 'Plan name',
+  'plans.field.price': 'Price (SSP)',
+  'plans.field.time': 'Time allowed',
+  'plans.field.timeHint': 'Total connected time (uptime limit on the router)',
+  'plans.field.validity': 'Validity after first login',
+  'plans.field.validityHint': 'The voucher expires this long after first use, even if time is left',
+  'plans.field.noValidity': 'No validity limit',
+  'plans.field.speed': 'Speed limit (upload/download)',
+  'plans.field.speedHint': 'e.g. 2M/2M or 512k/1M. Empty = no limit',
+  'plans.field.devices': 'Devices per code',
+  'plans.field.devicesHint': 'How many devices may use one code at the same time',
+  'plans.field.data': 'Data limit (MB)',
+  'plans.field.dataHint': 'Empty = no data limit',
+  'plans.field.none': 'none',
+  'plans.noLimit': 'no limit',
+
+  'plans.unit.minutes': 'minutes',
+  'plans.unit.hours': 'hours',
+  'plans.unit.days': 'days',
+
+  'plans.routersLabel': 'Routers that sell this plan',
+  'plans.noRouters': 'No routers yet. Add one on the Routers page.',
+  'plans.note.made': 'profile made by Hotzonex',
+  'plans.note.own': 'uses its own profile {profile}',
+  'plans.note.pending': 'profile is made once the router is connected',
+  'plans.note.willMake': 'Hotzonex makes the profile',
+  'plans.unticked.made': 'No longer sold here; the profile Hotzonex made is removed from this router (kept while users are on it)',
+  'plans.unticked.own': 'No longer sold here; the router keeps its own profile',
+  'plans.ownProfileNote':
+    'Routers using their own profile keep their own speed and devices per code; the values above apply to profiles Hotzonex makes.',
+  'plans.colourLabel': 'Colour (cards and Sell buttons)',
+  'plans.colourAria': 'Colour {c}',
+  'plans.customColour': 'Custom colour',
+  'plans.activeLabel': 'Plan active (can be sold and generated)',
+  'plans.savePlan': 'Save plan',
+
+  'plans.saved': '{name} saved.',
+  'plans.saved.adding': 'Its profile is being added to {n} router(s).',
+  'plans.saved.own': '{n} router(s) use their own matching profile as it is.',
+  'plans.saved.removing': 'Its profile is being removed from {n} router(s) (kept there while users are on it).',
+  'plans.saved.noLonger': 'No longer sold on {n} router(s); their own profile stays on the router.',
+  'plans.saved.updated': 'Profiles made by Hotzonex are updated on the routers within a minute.',
+  'plans.err.duplicateRouter': 'A plan with the same name, price and time already exists on one of these routers.',
+  'plans.err.duplicateName': 'A plan with this name already exists. Choose another name.',
+
+  'plans.delete.made': 'The profile Hotzonex made is deleted from the routers too (kept while hotspot users are on it).',
+  'plans.delete.own': "Routers that use their own profile (e.g. MikroTicket's) keep it; it is just no longer a plan here.",
+  'plans.delete.confirm': 'Delete plan {name}? {details}',
+  'plans.delete.kept': 'The router(s) keep their own profile.',
+  'plans.deleted': '{name} deleted.',
+  'plans.delete.routerFailed': 'The router could not delete the profile.',
+  'plans.deletedFromRouter': '{name} deleted, and its profile removed from the router.',
+  'plans.switchedOff': '{name} is switched off. Its profile is deleted from the router as soon as the router is reachable, then the plan disappears.',
+
+  'plans.off': 'Off',
+  'plans.card.valid': 'valid {d}',
+  'plans.card.anySpeed': 'any speed',
+  'plans.card.noDataLimit': 'no data limit',
+  'plans.card.devices': '{n} device(s)',
+  'plans.card.noRouter': 'No router: tick one',
+  'plans.old.summary': 'Old MikroTicket plans ({n}) — switched off',
+  'plans.old.text':
+    'These were made from MikroTicket profiles. They are no longer sold in Hotzonex, but kept so past sales and reports keep their names. MikroTicket cards on your routers keep working and their sales are still counted.',
+} as const;
 
 type Keys = Record<keyof typeof en, string>;
 
-const ar = {} satisfies Keys;
+const ar = {
+  'plans.subtitle':
+    'الباقة هي ما تبيعه: السعر والوقت والسرعة. اختر الراوترات التي تبيعها وسيُنشئ Hotzonex ملفه الخاص عليها (لا تُستخدم ملفات MikroTicket).',
+  'plans.newButton': '+ باقة جديدة',
+  'plans.newPlan': 'باقة جديدة',
+  'plans.editTitle': 'تعديل {name}',
+  'plans.editorIntro':
+    'حدّد الباقة واختر الراوترات التي تبيعها. يُنشئ Hotzonex ملف مستخدم خاصاً به على هذه الراوترات (باسم hzc-…)، منفصلاً عن ملفات MikroTicket.',
 
-const sw = {} satisfies Keys;
+  'plans.field.name': 'اسم الباقة',
+  'plans.field.price': 'السعر (جنيه)',
+  'plans.field.time': 'الوقت المسموح',
+  'plans.field.timeHint': 'مجموع وقت الاتصال (حد وقت التشغيل على الراوتر)',
+  'plans.field.validity': 'الصلاحية بعد أول دخول',
+  'plans.field.validityHint': 'تنتهي القسيمة بعد هذه المدة من أول استخدام، حتى لو بقي وقت',
+  'plans.field.noValidity': 'بدون حد للصلاحية',
+  'plans.field.speed': 'حد السرعة (رفع/تنزيل)',
+  'plans.field.speedHint': 'مثلاً 2M/2M أو 512k/1M. فارغ = بدون حد',
+  'plans.field.devices': 'عدد الأجهزة لكل رمز',
+  'plans.field.devicesHint': 'كم جهازاً يمكنه استخدام رمز واحد في نفس الوقت',
+  'plans.field.data': 'حد البيانات (ميغابايت)',
+  'plans.field.dataHint': 'فارغ = بدون حد للبيانات',
+  'plans.field.none': 'بدون',
+  'plans.noLimit': 'بدون حد',
+
+  'plans.unit.minutes': 'دقائق',
+  'plans.unit.hours': 'ساعات',
+  'plans.unit.days': 'أيام',
+
+  'plans.routersLabel': 'الراوترات التي تبيع هذه الباقة',
+  'plans.noRouters': 'لا توجد راوترات بعد. أضف راوتراً من صفحة الراوترات.',
+  'plans.note.made': 'ملف أنشأه Hotzonex',
+  'plans.note.own': 'يستخدم ملفه الخاص {profile}',
+  'plans.note.pending': 'يُنشأ الملف بعد اتصال الراوتر',
+  'plans.note.willMake': 'Hotzonex يُنشئ الملف',
+  'plans.unticked.made': 'لم تعد تُباع هنا؛ يُحذف الملف الذي أنشأه Hotzonex من هذا الراوتر (يبقى ما دام هناك مستخدمون عليه)',
+  'plans.unticked.own': 'لم تعد تُباع هنا؛ يحتفظ الراوتر بملفه الخاص',
+  'plans.ownProfileNote':
+    'الراوترات التي تستخدم ملفها الخاص تحتفظ بسرعتها وعدد أجهزتها لكل رمز؛ القيم أعلاه تنطبق على الملفات التي يُنشئها Hotzonex.',
+  'plans.colourLabel': 'اللون (البطاقات وأزرار البيع)',
+  'plans.colourAria': 'اللون {c}',
+  'plans.customColour': 'لون مخصص',
+  'plans.activeLabel': 'الباقة مفعّلة (يمكن بيعها وإنشاء قسائمها)',
+  'plans.savePlan': 'حفظ الباقة',
+
+  'plans.saved': 'تم حفظ {name}.',
+  'plans.saved.adding': 'تجري إضافة ملفها إلى {n} راوتر.',
+  'plans.saved.own': '{n} راوتر يستخدم ملفه المطابق كما هو.',
+  'plans.saved.removing': 'تجري إزالة ملفها من {n} راوتر (يبقى هناك ما دام هناك مستخدمون عليه).',
+  'plans.saved.noLonger': 'لم تعد تُباع على {n} راوتر؛ يبقى ملفها الخاص على الراوتر.',
+  'plans.saved.updated': 'تُحدَّث الملفات التي أنشأها Hotzonex على الراوترات خلال دقيقة.',
+  'plans.err.duplicateRouter': 'توجد باقة بنفس الاسم والسعر والوقت على أحد هذه الراوترات.',
+  'plans.err.duplicateName': 'توجد باقة بهذا الاسم. اختر اسماً آخر.',
+
+  'plans.delete.made': 'يُحذف الملف الذي أنشأه Hotzonex من الراوترات أيضاً (يبقى ما دام هناك مستخدمو هوتسبوت عليه).',
+  'plans.delete.own': 'الراوترات التي تستخدم ملفها الخاص (مثل ملفات MikroTicket) تحتفظ به؛ فقط لم يعد باقة هنا.',
+  'plans.delete.confirm': 'حذف الباقة {name}؟ {details}',
+  'plans.delete.kept': 'تحتفظ الراوترات بملفها الخاص.',
+  'plans.deleted': 'تم حذف {name}.',
+  'plans.delete.routerFailed': 'لم يتمكن الراوتر من حذف الملف.',
+  'plans.deletedFromRouter': 'تم حذف {name} وإزالة ملفها من الراوتر.',
+  'plans.switchedOff': 'تم إيقاف {name}. يُحذف ملفها من الراوتر بمجرد أن يصبح الراوتر متاحاً، ثم تختفي الباقة.',
+
+  'plans.off': 'متوقفة',
+  'plans.card.valid': 'صالحة {d}',
+  'plans.card.anySpeed': 'أي سرعة',
+  'plans.card.noDataLimit': 'بدون حد للبيانات',
+  'plans.card.devices': '{n} جهاز',
+  'plans.card.noRouter': 'لا يوجد راوتر: اختر واحداً',
+  'plans.old.summary': 'باقات MikroTicket القديمة ({n}) — متوقفة',
+  'plans.old.text':
+    'أُنشئت هذه من ملفات MikroTicket. لم تعد تُباع في Hotzonex، لكنها محفوظة حتى تبقى أسماؤها في المبيعات والتقارير السابقة. بطاقات MikroTicket على راوتراتك تبقى تعمل ومبيعاتها ما زالت تُحسب.',
+} satisfies Keys;
+
+const sw = {
+  'plans.subtitle':
+    'Kifurushi ndicho unachouza: bei, muda na kasi. Chagua router zinazokiuza na Hotzonex itatengeneza profile yake juu yake (profile za MikroTicket hazitumiki).',
+  'plans.newButton': '+ Kifurushi kipya',
+  'plans.newPlan': 'Kifurushi kipya',
+  'plans.editTitle': 'Hariri {name}',
+  'plans.editorIntro':
+    'Weka kifurushi na uchague router zinazokiuza. Hotzonex inatengeneza profile yake ya watumiaji kwenye router hizo (yenye jina hzc-…), tofauti na profile za MikroTicket.',
+
+  'plans.field.name': 'Jina la kifurushi',
+  'plans.field.price': 'Bei (SSP)',
+  'plans.field.time': 'Muda unaoruhusiwa',
+  'plans.field.timeHint': 'Jumla ya muda wa kuunganishwa (kikomo cha uptime kwenye router)',
+  'plans.field.validity': 'Muda wa matumizi baada ya kuingia mara ya kwanza',
+  'plans.field.validityHint': 'Vocha inaisha muda huu baada ya kutumika mara ya kwanza, hata kama muda umebaki',
+  'plans.field.noValidity': 'Bila kikomo cha muda',
+  'plans.field.speed': 'Kikomo cha kasi (kupakia/kupakua)',
+  'plans.field.speedHint': 'mfano 2M/2M au 512k/1M. Tupu = bila kikomo',
+  'plans.field.devices': 'Vifaa kwa kila namba',
+  'plans.field.devicesHint': 'Vifaa vingapi vinaweza kutumia namba moja kwa wakati mmoja',
+  'plans.field.data': 'Kikomo cha data (MB)',
+  'plans.field.dataHint': 'Tupu = bila kikomo cha data',
+  'plans.field.none': 'hakuna',
+  'plans.noLimit': 'bila kikomo',
+
+  'plans.unit.minutes': 'dakika',
+  'plans.unit.hours': 'saa',
+  'plans.unit.days': 'siku',
+
+  'plans.routersLabel': 'Router zinazouza kifurushi hiki',
+  'plans.noRouters': 'Bado hakuna router. Ongeza moja kwenye ukurasa wa Router.',
+  'plans.note.made': 'profile imetengenezwa na Hotzonex',
+  'plans.note.own': 'inatumia profile yake {profile}',
+  'plans.note.pending': 'profile itatengenezwa router ikishaunganishwa',
+  'plans.note.willMake': 'Hotzonex inatengeneza profile',
+  'plans.unticked.made': 'Hakiuzwi tena hapa; profile iliyotengenezwa na Hotzonex inaondolewa kwenye router hii (inabaki watumiaji wakiwa juu yake)',
+  'plans.unticked.own': 'Hakiuzwi tena hapa; router inabaki na profile yake',
+  'plans.ownProfileNote':
+    'Router zinazotumia profile zao zinabaki na kasi yao na vifaa kwa kila namba; thamani zilizo juu zinahusu profile zinazotengenezwa na Hotzonex.',
+  'plans.colourLabel': 'Rangi (kadi na vitufe vya Uza)',
+  'plans.colourAria': 'Rangi {c}',
+  'plans.customColour': 'Rangi nyingine',
+  'plans.activeLabel': 'Kifurushi kinatumika (kinaweza kuuzwa na kutengenezewa vocha)',
+  'plans.savePlan': 'Hifadhi kifurushi',
+
+  'plans.saved': '{name} kimehifadhiwa.',
+  'plans.saved.adding': 'Profile yake inaongezwa kwenye router {n}.',
+  'plans.saved.own': 'Router {n} zinatumia profile zao zinazolingana kama zilivyo.',
+  'plans.saved.removing': 'Profile yake inaondolewa kwenye router {n} (inabaki huko watumiaji wakiwa juu yake).',
+  'plans.saved.noLonger': 'Hakiuzwi tena kwenye router {n}; profile yao inabaki kwenye router.',
+  'plans.saved.updated': 'Profile zilizotengenezwa na Hotzonex zinasasishwa kwenye router ndani ya dakika moja.',
+  'plans.err.duplicateRouter': 'Kifurushi chenye jina, bei na muda huo tayari kipo kwenye mojawapo ya router hizi.',
+  'plans.err.duplicateName': 'Kifurushi chenye jina hili tayari kipo. Chagua jina lingine.',
+
+  'plans.delete.made': 'Profile iliyotengenezwa na Hotzonex inafutwa kwenye router pia (inabaki watumiaji wa hotspot wakiwa juu yake).',
+  'plans.delete.own': 'Router zinazotumia profile zao (mfano za MikroTicket) zinabaki nazo; si kifurushi hapa tena.',
+  'plans.delete.confirm': 'Futa kifurushi {name}? {details}',
+  'plans.delete.kept': 'Router zinabaki na profile zao.',
+  'plans.deleted': '{name} kimefutwa.',
+  'plans.delete.routerFailed': 'Router haikuweza kufuta profile.',
+  'plans.deletedFromRouter': '{name} kimefutwa, na profile yake imeondolewa kwenye router.',
+  'plans.switchedOff': '{name} kimezimwa. Profile yake itafutwa kwenye router mara router ikipatikana, kisha kifurushi kitatoweka.',
+
+  'plans.off': 'Kimezimwa',
+  'plans.card.valid': 'kinadumu {d}',
+  'plans.card.anySpeed': 'kasi yoyote',
+  'plans.card.noDataLimit': 'bila kikomo cha data',
+  'plans.card.devices': 'vifaa {n}',
+  'plans.card.noRouter': 'Hakuna router: chagua moja',
+  'plans.old.summary': 'Vifurushi vya zamani vya MikroTicket ({n}) — vimezimwa',
+  'plans.old.text':
+    'Hivi vilitengenezwa kutoka profile za MikroTicket. Haviuzwi tena kwenye Hotzonex, lakini vimehifadhiwa ili mauzo na ripoti za zamani zibaki na majina yao. Kadi za MikroTicket kwenye router zako zinaendelea kufanya kazi na mauzo yake bado yanahesabiwa.',
+} satisfies Keys;
 
 export const plans = { en, ar, sw };

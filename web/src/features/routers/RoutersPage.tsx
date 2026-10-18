@@ -4,7 +4,8 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../../auth/AuthProvider';
 import { PageHeader } from '../../components/PageHeader';
 import { RouterHealth } from '../../components/RouterHealth';
-import { HotspotSnapshot, SetupScriptCard } from '../../components/RouterSetup';
+import { HotspotSnapshot, rich, SetupScriptCard } from '../../components/RouterSetup';
+import { useT } from '../../i18n';
 import { TunnelServerCard } from '../../components/TunnelServer';
 import { useTunnelServer } from '../../hooks/useTunnelServer';
 import { Alert, Badge, Button, Card, Spinner, TextInput } from '../../components/ui';
@@ -18,24 +19,25 @@ import { supabase } from '../../lib/supabase';
 import type { RouterInfo, SiteRow, TestConnectionResult } from '../../lib/types';
 
 function StatusLine({ router }: { router: RouterInfo }) {
+  const { t } = useT();
   const status = routerStatus(router);
   if (status === 'online')
     return (
       <span className="flex items-center gap-2">
-        <Badge color="green">Online</Badge>
-        <span className="text-sm text-slate-500">seen {timeAgo(router.last_seen_at)}</span>
+        <Badge color="green">{t('common.online')}</Badge>
+        <span className="text-sm text-slate-500">{t('routers.seen', { ago: timeAgo(router.last_seen_at) })}</span>
       </span>
     );
   if (status === 'offline')
     return (
       <span className="flex flex-wrap items-center gap-2">
-        <Badge color="red">Offline</Badge>
+        <Badge color="red">{t('common.offline')}</Badge>
         <span className="text-sm text-slate-600">
-          {router.last_seen_at ? `last call ${formatJubaTime(router.last_seen_at)}` : 'never called in'}
+          {router.last_seen_at ? t('routers.lastCall', { time: formatJubaTime(router.last_seen_at) }) : t('routers.neverCalled')}
         </span>
       </span>
     );
-  return <Badge color="gray">{router.last_seen_at ? 'Checking…' : 'Waiting for router'}</Badge>;
+  return <Badge color="gray">{router.last_seen_at ? t('routers.checking') : t('common.waitingRouter')}</Badge>;
 }
 
 type TestState = { routerId: string; phase: 'running' } | { routerId: string; phase: 'done'; ok: boolean; message: string };
@@ -52,12 +54,13 @@ function RouterCard({
   onTest: (r: RouterInfo) => void;
 }) {
   const queryClient = useQueryClient();
+  const { t } = useT();
   const remove = useMutation({
     mutationFn: async () => {
       const { error } = await supabase.from('routers').delete().eq('id', router.id);
       if (error) {
         // The database explains why (vouchers or activated vouchers in the sales history).
-        if (error.code === '23503') throw new Error(error.message || `${router.name} has vouchers or sales and cannot be removed.`);
+        if (error.code === '23503') throw new Error(error.message || t('routers.hasSales', { name: router.name }));
         throw new Error(friendlyError(error));
       }
     },
@@ -78,7 +81,7 @@ function RouterCard({
   function showSetup() {
     const replaces =
       router.last_seen_at && !tunnel
-        ? `This makes a new setup script for ${router.name}. The connector already on the router stops working until you paste the new script. Continue?`
+        ? t('routers.confirm.newScript', { name: router.name })
         : null;
     if (!replaces || window.confirm(replaces)) setup.mutate();
   }
@@ -97,37 +100,37 @@ function RouterCard({
 
       <dl className="mt-4 grid grid-cols-1 gap-x-4 gap-y-2 text-sm min-[420px]:grid-cols-2 lg:grid-cols-4">
         <div>
-          <dt className="text-slate-500">Connection</dt>
+          <dt className="text-slate-500">{t('routers.connection')}</dt>
           <dd className="break-all font-medium">
             {direct
               ? `${router.host ?? '?'}:${router.port ?? ''} · ${router.username ?? ''}`
               : tunnel
-                ? `tunnel ${router.tunnel_ip ?? '?'}:${router.port ?? ''} · ${router.username ?? ''} · no scheduler`
-                : `${router.host ? `${router.host} · ` : ''}connected by script (scheduler)`}
+                ? t('routers.conn.tunnel', { address: `${router.tunnel_ip ?? '?'}:${router.port ?? ''}`, user: router.username ?? '' })
+                : `${router.host ? `${router.host} · ` : ''}${t('routers.conn.cloud')}`}
           </dd>
         </div>
         <div>
-          <dt className="text-slate-500">Hotspot users</dt>
+          <dt className="text-slate-500">{t('routers.hotspotUsers')}</dt>
           <dd className="font-medium">
             {router.hotspot_users
-              ? `${router.hotspot_users.total} · ${router.hotspot_users.unused} unused · ${router.hotspot_users.used} used`
+              ? t('routers.usersCount', { total: router.hotspot_users.total, unused: router.hotspot_users.unused, used: router.hotspot_users.used })
               : '—'}
           </dd>
         </div>
         <div>
-          <dt className="text-slate-500">Users report</dt>
+          <dt className="text-slate-500">{t('routers.usersReport')}</dt>
           <dd className="font-medium">{router.last_usage_at ? timeAgo(router.last_usage_at) : '—'}</dd>
         </div>
         <div>
-          <dt className="text-slate-500">Hotspot</dt>
-          <dd className="font-medium">{router.hotspot_server ?? 'read at first check'}</dd>
+          <dt className="text-slate-500">{t('routers.hotspot')}</dt>
+          <dd className="font-medium">{router.hotspot_server ?? t('routers.readAtFirstCheck')}</dd>
         </div>
         <div>
-          <dt className="text-slate-500">DNS name</dt>
+          <dt className="text-slate-500">{t('routers.dnsName')}</dt>
           <dd className="break-all font-medium">{router.dns_name ?? '—'}</dd>
         </div>
         <div>
-          <dt className="text-slate-500">Model · RouterOS</dt>
+          <dt className="text-slate-500">{t('routers.modelRos')}</dt>
           <dd className="font-medium">
             {router.model ?? '—'} · {router.ros_version ?? '—'}
           </dd>
@@ -136,7 +139,7 @@ function RouterCard({
 
       {router.status !== 'pending' && (
         <div className="mt-3 rounded-xl bg-slate-50 p-3">
-          <h3 className="mb-2 text-sm font-bold text-slate-700">Health</h3>
+          <h3 className="mb-2 text-sm font-bold text-slate-700">{t('routers.health')}</h3>
           <RouterHealth router={router} />
         </div>
       )}
@@ -144,31 +147,28 @@ function RouterCard({
       {!direct && router.status === 'pending' && !router.last_seen_at && !script && (
         <div className="mt-3">
           <Alert tone="info">
-            {tunnel
-              ? 'This router is not connected through the tunnel yet. Click “Tunnel script” and paste it into the router’s terminal (Winbox → New Terminal).'
-              : 'This router has not called in yet. Click “Setup script” and paste it into the router’s terminal (Winbox → New Terminal).'}
+            {tunnel ? t('routers.pending.tunnel') : t('routers.pending.cloud')}
           </Alert>
         </div>
       )}
       {cloud && tunnelServer.data?.ready && (
         <div className="mt-3">
           <Alert tone="info">
-            This router uses the <code>hzc-cloud</code> scheduler. Your tunnel server is ready:{' '}
-            <Link to={`/routers/${router.id}/edit?tunnel=1`} className="font-semibold underline">
-              switch it to the tunnel
-            </Link>{' '}
-            so nothing is scheduled on the router.
+            {rich(t('routers.cloudSwitch'), {
+              sched: <code dir="ltr">hzc-cloud</code>,
+              link: (
+                <Link to={`/routers/${router.id}/edit?tunnel=1`} className="font-semibold underline">
+                  {t('routers.cloudSwitch.link')}
+                </Link>
+              ),
+            })}
           </Alert>
         </div>
       )}
       {status === 'offline' && !router.last_error && (
         <div className="mt-3">
           <Alert tone="warning">
-            {direct
-              ? 'The router has not answered for a while. Check that it is switched on, has internet, and is reachable at its address.'
-              : tunnel
-                ? 'The router does not answer through the tunnel. Check that it is switched on and has internet. If it still does not connect, click “Tunnel script” and paste it into the router’s terminal again (always safe: it is the same script).'
-                : 'The router stopped calling in. Check that it is switched on and has internet. If it was reset or updated, paste its setup script again.'}
+            {direct ? t('routers.offline.direct') : tunnel ? t('routers.offline.tunnel') : t('routers.offline.cloud')}
           </Alert>
         </div>
       )}
@@ -206,37 +206,37 @@ function RouterCard({
       <div className="mt-4 flex flex-wrap gap-2">
         {router.hotspot_info && (
           <Button variant="secondary" onClick={() => setShowHotspot((v) => !v)}>
-            {showHotspot ? 'Hide hotspot setup' : 'Hotspot setup'}
+            {showHotspot ? t('routers.hideHotspotSetup') : t('routers.hotspotSetup')}
           </Button>
         )}
         {!direct && (
           <Button variant="secondary" onClick={showSetup} disabled={setup.isPending}>
-            {setup.isPending ? <Spinner /> : null} {tunnel ? 'Tunnel script' : 'Setup script'}
+            {setup.isPending ? <Spinner /> : null} {tunnel ? t('routers.tunnelScript') : t('routers.setupScript')}
           </Button>
         )}
         <Button variant="secondary" onClick={() => onTest(router)} disabled={testing || (cloud && router.status === 'pending')}>
           {testing ? (
             <>
-              <Spinner /> Testing…
+              <Spinner /> {t('routers.testing')}
             </>
           ) : (
-            'Test again'
+            t('routers.testAgain')
           )}
         </Button>
         <Link
           to={`/routers/${router.id}/edit`}
           className="inline-flex min-h-11 items-center rounded-xl px-4 font-semibold text-slate-800 ring-1 ring-slate-300 hover:bg-slate-50"
         >
-          Edit
+          {t('common.edit')}
         </Link>
         <Button
           variant="danger"
           disabled={remove.isPending}
           onClick={() => {
-            if (window.confirm(`Remove router ${router.name}? This cannot be undone.`)) remove.mutate();
+            if (window.confirm(t('routers.confirm.remove', { name: router.name }))) remove.mutate();
           }}
         >
-          Remove
+          {t('common.remove')}
         </Button>
       </div>
     </Card>
@@ -246,11 +246,12 @@ function RouterCard({
 function SitesPanel() {
   const sites = useSites();
   const queryClient = useQueryClient();
+  const { t } = useT();
   const [name, setName] = useState('');
   const add = useMutation({
     mutationFn: async (siteName: string) => {
       const { error } = await supabase.from('sites').insert({ name: siteName });
-      if (error) throw new Error(error.code === '23505' ? `A site named "${siteName}" already exists.` : friendlyError(error));
+      if (error) throw new Error(error.code === '23505' ? t('routers.siteExists', { name: siteName }) : friendlyError(error));
     },
     onSuccess: () => {
       setName('');
@@ -281,7 +282,7 @@ function SitesPanel() {
 
   return (
     <Card>
-      <h2 className="text-lg font-bold">Sites</h2>
+      <h2 className="text-lg font-bold">{t('routers.sites')}</h2>
       <ul className="mt-2 divide-y divide-slate-100">
         {(sites.data ?? []).map((s) => (
           <li key={s.id} className="flex flex-wrap items-center justify-between gap-2 py-2">
@@ -294,24 +295,21 @@ function SitesPanel() {
                 disabled={toggle.isPending}
                 onChange={(e) => toggle.mutate({ id: s.id, value: e.target.checked })}
               />
-              Sell on first login
+              {t('routers.sellFirstLogin')}
             </label>
           </li>
         ))}
       </ul>
-      <p className="mt-1 text-xs text-slate-500">
-        Sell on first login: when an unused card logs in for the first time, a cash sale is recorded automatically at the plan price, with no seller. Leave it off to record
-        pre-printed cards with “Mark as sold”.
-      </p>
+      <p className="mt-1 text-xs text-slate-500">{t('routers.sellFirstLoginHelp')}</p>
       {toggle.error && (
         <div className="mt-2">
           <Alert tone="error">{toggle.error.message}</Alert>
         </div>
       )}
       <form onSubmit={submit} className="mt-3 flex gap-2">
-        <TextInput placeholder="New site name, e.g. Jebel Iraq" value={name} onChange={(e) => setName(e.target.value)} maxLength={60} />
+        <TextInput placeholder={t('routers.newSitePlaceholder')} value={name} onChange={(e) => setName(e.target.value)} maxLength={60} />
         <Button type="submit" variant="secondary" disabled={!name.trim() || add.isPending}>
-          Add
+          {t('common.add')}
         </Button>
       </form>
       {add.error && (
@@ -330,6 +328,7 @@ export function RoutersPage() {
   const sites = useSites();
   const queryClient = useQueryClient();
   const [tests, setTests] = useState<Record<string, TestState>>({});
+  const { t } = useT();
 
   async function testAgain(router: RouterInfo) {
     setTests((t) => ({ ...t, [router.id]: { routerId: router.id, phase: 'running' } }));
@@ -344,8 +343,8 @@ export function RoutersPage() {
       const result = (job.result ?? {}) as TestConnectionResult;
       const message =
         job.status === 'done'
-          ? [`Connected. ${result.model ?? ''} · RouterOS ${result.ros_version ?? '?'} · up ${result.uptime ?? '?'}`, ...(result.warnings ?? [])].join(' ')
-          : (result.error ?? 'The test failed.');
+          ? [t('routers.testConnected', { model: result.model ?? '', ros: result.ros_version ?? '?', uptime: result.uptime ?? '?' }), ...(result.warnings ?? [])].join(' ')
+          : (result.error ?? t('routers.testFailed'));
       setTests((t) => ({ ...t, [router.id]: { routerId: router.id, phase: 'done', ok: job.status === 'done', message } }));
     } catch (err) {
       setTests((t) => ({ ...t, [router.id]: { routerId: router.id, phase: 'done', ok: false, message: friendlyError(err) } }));
@@ -354,19 +353,19 @@ export function RoutersPage() {
     }
   }
 
-  const siteName = (id: string) => sites.data?.find((s) => s.id === id)?.name ?? 'Unknown site';
+  const siteName = (id: string) => sites.data?.find((s) => s.id === id)?.name ?? t('common.unknownSite');
 
   return (
     <div className="space-y-4">
       <PageHeader
-        title="Routers"
-        subtitle="MikroTik routers, reached at a public IP, through your tunnel server, or calling Hotzonex Cloud by themselves"
+        title={t('nav.routers')}
+        subtitle={t('routers.subtitle')}
         actions={
           <Link
             to="/routers/new"
             className="inline-flex min-h-11 items-center rounded-xl bg-brand-600 px-4 font-semibold text-white hover:bg-brand-700"
           >
-            + Add router
+            {t('routers.addRouter')}
           </Link>
         }
       />
@@ -376,7 +375,7 @@ export function RoutersPage() {
       {routers.error && <Alert tone="error">{friendlyError(routers.error)}</Alert>}
       {routers.data?.length === 0 && (
         <Card>
-          <p className="text-slate-600">No routers yet. Click “Add router” to connect the first one.</p>
+          <p className="text-slate-600">{t('routers.empty')}</p>
         </Card>
       )}
       {routers.data?.map((r) => (
