@@ -1,5 +1,15 @@
 # Changelog
 
+## 18 October 2026 — remove a business for good
+
+- **Businesses → Remove** (platform admins): when an owner leaves Hotzonex Cloud, switch the business
+  off, then remove it for good by typing its name. Its sites, routers, plans, vouchers, sales,
+  expenses, invoices, alerts, staff logins and logo are deleted; this cannot be undone. A short
+  note of each removal is kept (table `removed_businesses`).
+- The 2-step login QR code scans in light and dark mode, with an "Open in authenticator app"
+  button and a copyable key.
+- Migration `20261018090000_remove_business.sql`.
+
 ## 18 October 2026 — the app in English, Arabic and Kiswahili
 
 - Every screen is available in **English, العربية (Arabic, right to left) and Kiswahili**: the

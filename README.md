@@ -230,6 +230,10 @@ environment variable. The service-role key is never put in the web app.
 | Cashier / agent (`seller`) | Sell, Payments, Sales, Cash-up, Security | Own site: sell, print and share; own sales and cash; agents get a commission and credit limit |
 
 **Businesses** is shown only to the people who run Hotzonex Cloud itself (platform admins).
+There a business can be **switched off** (paused: staff cannot log in, nothing is deleted) and,
+once switched off, **removed for good** (Remove → type its name): its sites, routers, plans,
+vouchers, sales, expenses, invoices, alerts, staff logins and logo are deleted. Its routers keep
+working on their own; they are only disconnected from Hotzonex Cloud.
 A cashier's phone tab bar shows Sell, Payments, Sales and Cash-up; owners and managers see
 Dashboard, Sell, Payments and Vouchers (the menu has the rest).
 
