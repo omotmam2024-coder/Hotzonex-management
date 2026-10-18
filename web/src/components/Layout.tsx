@@ -10,6 +10,7 @@ import { BillingBanner } from './BillingBanner';
 import { SupportBar } from './SupportBar';
 import { Icon } from './Icon';
 import { reloadForUpdate, updateReady, watchForUpdates } from '../lib/appUpdate';
+import { CONTACT, whatsappLink } from '../lib/contact';
 import { getThemePref, setThemePref, type ThemePref } from '../lib/theme';
 
 const GROUPS: NavGroup[] = ['Overview', 'Selling', 'Cards & WiFi', 'Business'];
@@ -134,6 +135,17 @@ export function Layout() {
         })}
       </div>
       <div className="shrink-0 space-y-2 border-t border-white/10 p-3">
+        <div className="rounded-xl bg-white/[0.06] p-2.5 text-xs text-white/70">
+          <div className="mb-1 font-semibold text-white/80">{t('common.help')}</div>
+          <a href={whatsappLink('Hotzonex Cloud')} target="_blank" rel="noopener noreferrer" dir="ltr" className="block truncate py-0.5 hover:text-white hover:underline">
+            WhatsApp {CONTACT.phone}
+          </a>
+          {CONTACT.email && (
+            <a href={`mailto:${CONTACT.email}`} dir="ltr" className="block truncate py-0.5 hover:text-white hover:underline">
+              {CONTACT.email}
+            </a>
+          )}
+        </div>
         <LanguageSwitch />
         <ThemeSwitch />
         <div className="flex items-center gap-3 rounded-xl bg-white/[0.06] p-2.5">
