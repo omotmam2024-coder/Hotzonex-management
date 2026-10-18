@@ -2,14 +2,15 @@ import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../../auth/AuthProvider';
 import { PageHeader } from '../../components/PageHeader';
-import { Alert, Badge, Button, Card, Spinner, TextInput } from '../../components/ui';
+import { Alert, Badge, Button, buttonClass, Card, Spinner, TextInput } from '../../components/ui';
+import { TotpQr } from '../../components/TotpQr';
 import { friendlyError } from '../../lib/errors';
 import { useT } from '../../i18n';
 import { supabase } from '../../lib/supabase';
 
 interface Enrolment {
   factorId: string;
-  qr: string;
+  uri: string;
   secret: string;
 }
 
@@ -20,6 +21,16 @@ export function SecurityPage() {
   const queryClient = useQueryClient();
   const [enrolment, setEnrolment] = useState<Enrolment | null>(null);
   const [code, setCode] = useState('');
+  const [keyCopied, setKeyCopied] = useState(false);
+  async function copyKey() {
+    if (!enrolment) return;
+    try {
+      await navigator.clipboard.writeText(enrolment.secret);
+      setKeyCopied(true);
+    } catch {
+      /* copying blocked: the key can still be selected and typed */
+    }
+  }
 
   const factors = useQuery({
     queryKey: ['mfa-factors'],
@@ -39,7 +50,7 @@ export function SecurityPage() {
       }
       const { data, error } = await supabase.auth.mfa.enroll({ factorType: 'totp', friendlyName: `Hotzonex ${new Date().toISOString().slice(0, 10)}` });
       if (error) throw new Error(friendlyError(error));
-      return { factorId: data.id, qr: data.totp.qr_code, secret: data.totp.secret };
+      return { factorId: data.id, uri: data.totp.uri, secret: data.totp.secret };
     },
     onSuccess: setEnrolment,
   });
@@ -94,11 +105,20 @@ export function SecurityPage() {
         {enrolment && (
           <div className="space-y-3 rounded-xl bg-slate-50 p-4">
             <p className="font-semibold">{t('business.security.step1')}</p>
-            <img src={enrolment.qr} alt={t('business.security.qrAlt')} className="h-44 w-44 rounded-lg bg-white p-2" />
-            <p className="text-sm text-slate-600">
-              {t('business.security.cantScan')}{' '}
-              <span dir="ltr" className="select-all break-all font-mono font-semibold">{enrolment.secret}</span>
-            </p>
+            <TotpQr uri={enrolment.uri} label={t('business.security.qrAlt')} />
+            <p className="text-sm text-slate-600">{t('business.security.samePhone')}</p>
+            <a href={enrolment.uri} className={buttonClass('secondary')}>
+              {t('business.security.openApp')}
+            </a>
+            <p className="text-sm text-slate-600">{t('business.security.cantScan')}</p>
+            <div className="flex flex-wrap items-center gap-2">
+              <span dir="ltr" className="select-all break-all rounded-lg bg-white px-3 py-2 font-mono text-base font-semibold tracking-wider ring-1 ring-slate-200">
+                {enrolment.secret.match(/.{1,4}/g)?.join(' ') ?? enrolment.secret}
+              </span>
+              <Button variant="secondary" className="px-3 text-sm" onClick={() => void copyKey()}>
+                {keyCopied ? t('common.copied') : t('business.security.copyKey')}
+              </Button>
+            </div>
             <p className="font-semibold">{t('business.security.step2')}</p>
             <div className="flex flex-wrap gap-2">
               <TextInput
