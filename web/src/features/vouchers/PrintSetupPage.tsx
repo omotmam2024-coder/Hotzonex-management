@@ -9,6 +9,8 @@ import { useT } from '../../i18n';
 import { durationText } from '../../print/duration';
 import { usePlans, useRouters } from '../../hooks/queries';
 import { supabase } from '../../lib/supabase';
+import { readStored, writeStored } from '../../lib/storage';
+import { useAuth } from '../../auth/AuthProvider';
 import { LAYOUTS, type CardsPerPage } from '../../print/layouts';
 
 interface BatchOption {
@@ -23,6 +25,8 @@ interface BatchOption {
 
 type Source = 'batch' | 'unused';
 
+const WIFI_NAME_KEY = 'hzc.cardWifiName';
+
 export function PrintSetupPage() {
   const { t } = useT();
   const navigate = useNavigate();
@@ -36,6 +40,12 @@ export function PrintSetupPage() {
   const [onlyNew, setOnlyNew] = useState(true);
   const [count, setCount] = useState('');
   const [perPage, setPerPage] = useState<CardsPerPage>(40);
+  const { business } = useAuth();
+  const [wifiName, setWifiNameState] = useState(() => readStored<string>('local', WIFI_NAME_KEY) ?? '');
+  const setWifiName = (v: string) => {
+    setWifiNameState(v);
+    writeStored('local', WIFI_NAME_KEY, v.trim() || null);
+  };
 
   const batches = useQuery({
     queryKey: ['print-batches'],
@@ -76,6 +86,7 @@ export function PrintSetupPage() {
 
   const target = useMemo(() => {
     const q = new URLSearchParams({ per: String(perPage) });
+    if (wifiName.trim()) q.set('wifi', wifiName.trim());
     if (source === 'batch') {
       if (!batchId) return null;
       q.set('batch', batchId);
@@ -87,7 +98,7 @@ export function PrintSetupPage() {
       if (count) q.set('count', count);
     }
     return `/print/sheet?${q.toString()}`;
-  }, [source, batchId, routerId, planId, onlyNew, count, perPage]);
+  }, [source, batchId, routerId, planId, onlyNew, count, perPage, wifiName]);
 
   return (
     <div className="max-w-3xl space-y-4">
@@ -148,6 +159,12 @@ export function PrintSetupPage() {
             </div>
           </div>
         )}
+
+        <div className="mt-5">
+          <Field label={t('vouchers.print.wifiName')} hint={t('vouchers.print.wifiNameHint')}>
+            <TextInput value={wifiName} onChange={(e) => setWifiName(e.target.value.slice(0, 32))} placeholder={business?.name ?? ''} />
+          </Field>
+        </div>
 
         <div className="mt-5">
           <span className="mb-2 block text-sm font-medium text-slate-700">{t('vouchers.print.perPage')}</span>

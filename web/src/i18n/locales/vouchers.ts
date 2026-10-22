@@ -134,6 +134,8 @@ const en = {
   'vouchers.print.perPage': 'Cards per A4 page',
   'vouchers.print.fiftyNote': '50 per page fits codes up to 8 digits. These codes are longer.',
   'vouchers.print.openPreview': 'Open print preview',
+  'vouchers.print.wifiName': 'WiFi name on the cards',
+  'vouchers.print.wifiNameHint': 'Printed big under your logo. Empty = your business name.',
 
   // Print sheet
   'vouchers.sheet.chooseFirst': 'Choose a batch or a router first.',
@@ -309,6 +311,8 @@ const ar = {
   'vouchers.print.perPage': 'عدد البطاقات في صفحة A4',
   'vouchers.print.fiftyNote': '50 في الصفحة تناسب الرموز حتى 8 أرقام. هذه الرموز أطول.',
   'vouchers.print.openPreview': 'فتح معاينة الطباعة',
+  'vouchers.print.wifiName': 'اسم الواي فاي على البطاقات',
+  'vouchers.print.wifiNameHint': 'يُطبع بخط كبير تحت شعارك. فارغ = اسم عملك.',
 
   'vouchers.sheet.chooseFirst': 'اختر دفعة أو راوتر أولاً.',
   'vouchers.sheet.loading': 'جارٍ تحميل البطاقات…',
@@ -478,6 +482,8 @@ const sw = {
   'vouchers.print.perPage': 'Kadi kwa ukurasa wa A4',
   'vouchers.print.fiftyNote': '50 kwa ukurasa zinatosha namba za hadi tarakimu 8. Namba hizi ni ndefu zaidi.',
   'vouchers.print.openPreview': 'Fungua muonekano wa kuchapisha',
+  'vouchers.print.wifiName': 'Jina la WiFi kwenye kadi',
+  'vouchers.print.wifiNameHint': 'Linachapishwa kwa herufi kubwa chini ya nembo yako. Tupu = jina la biashara yako.',
 
   'vouchers.sheet.chooseFirst': 'Chagua kundi au router kwanza.',
   'vouchers.sheet.loading': 'Inapakia kadi…',
