@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { after, before, test } from 'node:test';
-import { closeSessions, directTest, removeLeftoverProfiles, disableVoucher, ensureProfileExists, installPortalDirect, pushVoucher, readUsage, removeExpired, removeProfileIfUnused, removeVoucherUsers, restorePortalDirect, upsertManagedProfile, RestClient, RouterError, matchRouterProfile, readRouterUsers, expiredRouterUsers, mikroticketSeconds, routerClockText, setWalledGarden } from './direct.ts';
+import { checkPushed, pushVouchers, closeSessions, directTest, removeLeftoverProfiles, disableVoucher, ensureProfileExists, installPortalDirect, pushVoucher, readUsage, removeExpired, removeProfileIfUnused, removeVoucherUsers, restorePortalDirect, upsertManagedProfile, RestClient, RouterError, matchRouterProfile, readRouterUsers, expiredRouterUsers, mikroticketSeconds, routerClockText, setWalledGarden } from './direct.ts';
 
 type Row = Record<string, string>;
 const state: Record<string, Row[]> = {};
@@ -309,4 +309,32 @@ test('Buy page walled garden: Hotzonex entries replaced, the owner\'s own entrie
   assert.deepEqual(state['/ip/hotspot/walled-garden/ip']!.map((r) => [r['dst-host'], r.action]), [['app.hotzonex.net', 'accept'], ['x.supabase.co', 'accept']]);
   assert.deepEqual(await setWalledGarden(c, [], false), { removed: 4, added: 0 });
   assert.deepEqual(state['/ip/hotspot/walled-garden']!.map((r) => r.comment), ['owner']);
+});
+
+test('many vouchers are pushed a few at a time, and read back by name or from one full list', async () => {
+  reset();
+  const c = client();
+  const opts = { profile: 'mine', server: 'hotspot1', limitUptime: '1h', limitBytes: null };
+  const id = (i: number) => `aaaaaaaa-bbbb-4ccc-8ddd-${String(i).padStart(12, '0')}`;
+  const cards = Array.from({ length: 40 }, (_, i) => ({ id: id(i), code: String(30000000 + i) }));
+  cards.push({ id: id(99), code: '11112222' }); // the router's own user: never touched
+  const names = (await readRouterUsers(c)).comments;
+  const done: { voucher: string; result: string }[] = [];
+  await pushVouchers(c, cards, opts, names, done, 4);
+  assert.equal(done.length, 41);
+  assert.equal(done.filter((d) => d.result === 'added').length, 40);
+  assert.equal(done.find((d) => d.voucher === id(99))?.result, 'conflict');
+  assert.equal(state['/ip/hotspot/user']!.filter((u) => u.comment?.startsWith('hzc:')).length, 40);
+
+  // A few cards: one read per card. Many: one read of the whole list.
+  const few = await checkPushed(c, ['30000000', '30000001', '99999999'], 'mine');
+  assert.deepEqual(few, { checked: 3, missing: ['99999999'], wrongProfile: [] });
+  const many = await checkPushed(c, cards.slice(0, 40).map((v) => v.code), 'other');
+  assert.equal(many.missing.length, 0);
+  assert.equal(many.wrongProfile.length, 40);
+
+  // A router that refuses: the error comes out and no card is counted as pushed.
+  const none: { voucher: string; result: string }[] = [];
+  await assert.rejects(pushVouchers(client('nope'), [{ id: id(50), code: '40000000' }], opts, new Map(), none), (e: unknown) => e instanceof RouterError && e.kind === 'auth');
+  assert.equal(none.length, 0);
 });

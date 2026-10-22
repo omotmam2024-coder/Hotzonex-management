@@ -260,6 +260,38 @@ export async function pushVoucher(
   }
 }
 
+/** Requests sent to the router at the same time while pushing: far faster than one by one, still gentle on small routers. */
+export const PUSH_PARALLEL = 6;
+
+/**
+ * Pushes several vouchers, a few at a time, adding each result to `done` as it comes. When the
+ * router stops answering, no new card is started, the ones under way finish, and the error is
+ * thrown: `done` then holds every card that was pushed (so the progress is never lost).
+ */
+export async function pushVouchers(
+  client: RestClient,
+  vouchers: { id: string; code: string }[],
+  opts: Parameters<typeof pushVoucher>[2],
+  existingByName: Map<string, string>,
+  done: { voucher: string; result: PushResult }[],
+  parallel = PUSH_PARALLEL,
+): Promise<void> {
+  let next = 0;
+  let failure: unknown = null;
+  const worker = async () => {
+    while (next < vouchers.length && failure === null) {
+      const v = vouchers[next++]!;
+      try {
+        done.push({ voucher: v.id, result: await pushVoucher(client, v, opts, existingByName) });
+      } catch (err) {
+        failure ??= err;
+      }
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(parallel, vouchers.length) }, worker));
+  if (failure !== null) throw failure;
+}
+
 /** How the router's own vouchers are made: password = code, or no password (a PIN, as MikroTicket can do). */
 export type PasswordStyle = 'same' | 'empty';
 
@@ -295,14 +327,27 @@ export function ownCodeLength(names: Iterable<string>, comments?: Map<string, st
   return best && best[1] >= 5 ? best[0] : null;
 }
 
+/** Up to this many pushed cards are read back one by one; more are checked against one full user list. */
+const CHECK_ONE_BY_ONE = 24;
+
 /**
  * Reads pushed cards back from the router: each must be there, with the profile it was given.
  * Returns the codes that are missing and those on another profile.
  */
 export async function checkPushed(client: RestClient, codes: string[], profile: string): Promise<{ checked: number; missing: string[]; wrongProfile: string[] }> {
   if (!codes.length) return { checked: 0, missing: [], wrongProfile: [] };
-  const rows = await client.get<Json[]>('/ip/hotspot/user', { '.proplist': 'name,profile' });
-  const byName = new Map(rows.map((r) => [s(r.name), s(r.profile)]));
+  let byName: Map<string, string>;
+  if (codes.length <= CHECK_ONE_BY_ONE) {
+    // A few cards: asked for by name (the router may hold thousands of users).
+    byName = new Map();
+    for (let i = 0; i < codes.length; i += PUSH_PARALLEL) {
+      const rows = await Promise.all(codes.slice(i, i + PUSH_PARALLEL).map((c) => client.get<Json[]>('/ip/hotspot/user', { name: c, '.proplist': 'name,profile' })));
+      for (const r of rows.flat()) byName.set(s(r.name), s(r.profile));
+    }
+  } else {
+    const rows = await client.get<Json[]>('/ip/hotspot/user', { '.proplist': 'name,profile' });
+    byName = new Map(rows.map((r) => [s(r.name), s(r.profile)]));
+  }
   const missing = codes.filter((c) => !byName.has(c));
   const wrongProfile = codes.filter((c) => byName.has(c) && byName.get(c) !== profile);
   return { checked: codes.length, missing, wrongProfile };

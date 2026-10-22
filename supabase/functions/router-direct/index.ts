@@ -16,7 +16,7 @@ import {
   disableVoucher,
   ensureProfileExists,
   installPortalDirect,
-  pushVoucher,
+  pushVouchers,
   readUsage,
   removeExpired,
   setWalledGarden,
@@ -91,7 +91,7 @@ const BUDGET_MS = 100_000; // stay well inside the Edge Function time limit
 const LEASE_MS = BUDGET_MS + 30_000; // one worker per router at a time; expires if a worker is stopped
 const STALE_RUNNING_MS = 5 * 60_000;
 const TEST_WAIT_MS = 2 * 60_000;
-const PUSH_CHUNK = 50;
+const PUSH_CHUNK = 200;
 // A router that was answering is shown offline only after missing two checks in a row (one minute
 // apart): a short internet drop at the site does not flash it offline.
 const OFFLINE_AFTER_MS = 100_000;
@@ -197,14 +197,30 @@ async function runJob(db: SupabaseClient, router: DirectRouter, client: RestClie
     case 'push_vouchers': {
       let users: RouterUsers | null = null;
       let profiles: string[] | null = null;
+      // Cards pushed in this run, read back from the router once at the end (not after every chunk).
+      const pushed: string[] = [];
+      let pushedProfile = '';
+      let codeLength = 0;
+      const checkPushedCards = async () => {
+        if (!pushed.length || !users) return;
+        await recordPushCheck(db, job, {
+          ...(await checkPushed(client, pushed, pushedProfile)),
+          codeLength,
+          ownLength: ownCodeLength(users.comments.keys(), users.comments),
+        });
+      };
       for (;;) {
         if (Date.now() > deadline) {
           // Out of time: continue on the next wake-up (progress is already saved).
+          await checkPushedCards();
           await db.from('router_jobs').update({ status: 'queued', started_at: null }).eq('id', job.id);
           return false;
         }
         const chunk = await nextPushChunk(db, router, job, PUSH_CHUNK);
-        if (!chunk) return true;
+        if (!chunk) {
+          await checkPushedCards();
+          return true;
+        }
         users ??= await readRouterUsers(client);
         profiles ??= await routerProfileNames(client);
         // A router with its own profiles (MikroTicket's): its matching profile is used, nothing is added.
@@ -243,23 +259,21 @@ async function runJob(db: SupabaseClient, router: DirectRouter, client: RestClie
           limitUptime: toRouterOsTime(chunk.plan.uptime_seconds),
           limitBytes: chunk.plan.data_limit_mb ? String(chunk.plan.data_limit_mb * 1024 * 1024) : null,
         };
+        // A few cards at a time: one by one, 1000 cards took many minutes through a tunnel.
         const items: { voucher: string; result: PushResult }[] = [];
         try {
-          for (const v of chunk.vouchers) items.push({ voucher: v.id, result: await pushVoucher(client, v, opts, users.comments) });
+          await pushVouchers(client, chunk.vouchers, opts, users.comments, items);
         } finally {
           await applyPushResults(db, router, job, items);
         }
-        // Checked on the router itself: every card is there, on the right profile, as long as the router's own cards.
-        await recordPushCheck(db, job, {
-          ...(await checkPushed(
-            client,
-            chunk.vouchers.filter((v) => items.some((i) => i.voucher === v.id && (i.result === 'added' || i.result === 'already'))).map((v) => v.code),
-            profile,
-          )),
-          codeLength: chunk.vouchers[0]?.code.length ?? 0,
-          ownLength: ownCodeLength(users.comments.keys(), users.comments),
-        });
+        // Checked on the router itself (at the end of this run): every card is there, on the right
+        // profile, as long as the router's own cards.
+        const ok = new Set(items.filter((i) => i.result === 'added' || i.result === 'already').map((i) => i.voucher));
+        pushed.push(...chunk.vouchers.filter((v) => ok.has(v.id)).map((v) => v.code));
+        pushedProfile = profile;
+        codeLength ||= chunk.vouchers[0]?.code.length ?? 0;
         if (items.every((i) => i.result === 'error')) {
+          await checkPushedCards();
           await finishJob(db, job.id, false, {
             ...(job.result ?? {}),
             error: `The router refused the vouchers. Check that hotspot server "${router.hotspot_server}" and profile "${opts.profile}" exist.`,
