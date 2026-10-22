@@ -1,10 +1,13 @@
 import { LAYOUTS, PAGE_MARGIN_MM, SHEET_HEIGHT_MM, SHEET_WIDTH_MM, type CardsPerPage } from './layouts';
 import type { PrintBrand } from './brand';
 import { VoucherCard, type CardData } from './VoucherCard';
+import { useT } from '../i18n';
 
 /** Splits cards into A4 pages; each page is a fixed grid, so no card is ever split across pages. */
 export function CardSheet({ cards, perPage, brand }: { cards: CardData[]; perPage: CardsPerPage; brand: PrintBrand }) {
+  const { t } = useT();
   const layout = LAYOUTS[perPage];
+  const codeLabel = t('vouchers.receipt.wifiCode');
   const pages: CardData[][] = [];
   for (let i = 0; i < cards.length; i += perPage) pages.push(cards.slice(i, i + perPage));
 
@@ -31,7 +34,7 @@ export function CardSheet({ cards, perPage, brand }: { cards: CardData[]; perPag
             }}
           >
             {page.map((card) => (
-              <VoucherCard key={card.id} card={card} layout={layout} brand={brand} />
+              <VoucherCard key={card.id} card={card} layout={layout} brand={brand} codeLabel={codeLabel} />
             ))}
           </div>
         </div>

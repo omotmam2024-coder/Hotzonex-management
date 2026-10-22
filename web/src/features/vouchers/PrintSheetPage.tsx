@@ -96,6 +96,9 @@ export function PrintSheetPage() {
   let perPage: CardsPerPage = requested === 24 || requested === 50 ? requested : 40;
   if (longest > LAYOUTS[perPage].maxCodeLength) perPage = 40;
   const pages = Math.ceil(list.length / perPage);
+  // The WiFi name printed under the logo: as typed on the setup page, else the business name.
+  const brand = brandOf(business);
+  const cardBrand = { ...brand, name: params.get('wifi')?.trim().slice(0, 32) || brand.name };
 
   async function handlePrint() {
     setError(null);
@@ -192,7 +195,7 @@ export function PrintSheetPage() {
             <Alert tone="warning">{t('vouchers.sheet.noCards')}</Alert>
           </div>
         )}
-        {list.length > 0 && <CardSheet cards={list} perPage={perPage} brand={brandOf(business)} />}
+        {list.length > 0 && <CardSheet cards={list} perPage={perPage} brand={cardBrand} />}
       </div>
     </div>
   );

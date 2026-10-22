@@ -6,4 +6,4 @@ Allow: /terms
 Allow: /login
 Disallow: /
 
-Sitemap: https://app.hotzonex.net/sitemap.xml
+Sitemap: https://www.hotzonex.net/sitemap.xml

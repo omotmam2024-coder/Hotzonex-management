@@ -48,8 +48,8 @@ export function LoginPage() {
     setError(null);
     setBusy(true);
     try {
-      // The link brings the person back to this same address (app.hotzonex.net or the
-      // DigitalOcean one), which must be listed under Redirect URLs in Supabase.
+      // The link brings the person back to this same address (www.hotzonex.net or an
+      // earlier one), which must be listed under Redirect URLs in Supabase.
       const { error: resetError } = await supabase.auth.resetPasswordForEmail(email.trim(), {
         redirectTo: `${window.location.origin}/reset-password`,
       });
