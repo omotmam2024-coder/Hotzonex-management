@@ -3,7 +3,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useBillingOverview, type Invoice } from '../hooks/useBillingOverview';
 import { friendlyError } from '../lib/errors';
 import { useT } from '../i18n';
-import { formatJubaDate, formatJubaTime, formatSSP } from '../lib/format';
+import { formatJubaDate, formatJubaTime, formatSSPWithUsd } from '../lib/format';
 import { supabase } from '../lib/supabase';
 import { OwnerPlanUsage } from './PlanLimits';
 import { Alert, Badge, Button, Card, Spinner, TextInput } from './ui';
@@ -93,7 +93,7 @@ export function BillingPanel() {
         ) : (
           <p className="text-slate-700">
             {b.price_per_router_ssp > 0
-              ? t(b.routers === 1 ? 'business.billing.priceLineOne' : 'business.billing.priceLine', { price: formatSSP(b.price_per_router_ssp), n: b.routers })
+              ? t(b.routers === 1 ? 'business.billing.priceLineOne' : 'business.billing.priceLine', { price: formatSSPWithUsd(b.price_per_router_ssp, b.usd_rate), n: b.routers })
               : t('business.billing.noFee')}
             {b.status === 'trial' && b.trial_ends_at && t('business.billing.trialEnds', { date: formatJubaTime(b.trial_ends_at) })}
           </p>
@@ -116,14 +116,14 @@ export function BillingPanel() {
                 <div className="flex flex-wrap items-start justify-between gap-2">
                   <div>
                     <p className="font-semibold text-slate-900">
-                      {i.number} · {formatSSP(i.amount_ssp)}
+                      {i.number} · {formatSSPWithUsd(i.amount_ssp, b.usd_rate)}
                     </p>
                     <p className="text-sm text-slate-600">
                       {t(i.routers === 1 ? 'business.billing.invoiceLineOne' : 'business.billing.invoiceLine', {
                         start: formatJubaDate(i.period_start),
                         end: formatJubaDate(i.period_end),
                         n: i.routers,
-                        price: formatSSP(i.price_per_router_ssp),
+                        price: formatSSPWithUsd(i.price_per_router_ssp, b.usd_rate),
                       })}
                     </p>
                     {i.status === 'open' && <p className="text-sm text-slate-600">{t('business.billing.due', { date: formatJubaTime(i.due_at) })}</p>}

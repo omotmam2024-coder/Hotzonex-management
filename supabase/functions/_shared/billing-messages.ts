@@ -165,3 +165,10 @@ export function billingDate(value: string | null | undefined, timeZone = 'Africa
 export function ssp(n: number | null | undefined): string {
   return `${new Intl.NumberFormat('en-US').format(n ?? 0)} SSP`;
 }
+
+/** "120,000 SSP (≈ $26.67)" at the platform's dollar rate (pounds for 1 dollar); plain SSP without a rate. */
+export function sspUsd(n: number | null | undefined, rate: number | null | undefined): string {
+  if (!rate || !(rate > 0)) return ssp(n);
+  const usd = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format((n ?? 0) / rate);
+  return `${ssp(n)} (≈ ${usd})`;
+}

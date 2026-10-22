@@ -66,6 +66,12 @@ export function formatUsd(amountSsp: number, usdRate: number | null | undefined)
   return `≈ ${usd.toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
+/** "120,000 SSP (≈ $26.67)" at the platform's dollar rate; plain SSP when no rate is set. */
+export function formatSSPWithUsd(amount: number, usdRate: number | null | undefined): string {
+  const usd = formatUsd(amount, usdRate);
+  return usd ? `${formatSSP(amount)} (${usd})` : formatSSP(amount);
+}
+
 export function formatNumber(n: number): string {
   return numberFmt.format(n);
 }

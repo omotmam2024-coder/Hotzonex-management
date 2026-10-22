@@ -231,6 +231,9 @@ const en = {
   'business.pbilling.title': 'Billing for Hotzonex Cloud',
   'business.pbilling.text':
     'Businesses pay a monthly fee per connected router. An invoice is made each month; unpaid after the grace days, the business is paused (its WiFi keeps working) until you mark the invoice paid. With the price at 0, nobody is invoiced.',
+  'business.pbilling.usdRate': 'Dollar rate (pounds for 1 US dollar)',
+  'business.pbilling.usdRateHint': 'For example 4500. Empty = no dollar amounts are shown next to the prices and invoices.',
+  'business.pbilling.usdRateExample': 'Shown as {price}',
   'business.pbilling.price': 'Price per router / month (SSP)',
   'business.pbilling.grace': 'Days to pay (grace)',
   'business.pbilling.trialDays': 'Free trial days (new sign-ups)',
@@ -522,6 +525,9 @@ const ar = {
   'business.pbilling.title': 'فواتير Hotzonex Cloud',
   'business.pbilling.text':
     'تدفع الأنشطة رسوماً شهرية لكل راوتر متصل. تُصدر فاتورة كل شهر؛ إذا لم تُدفع بعد أيام المهلة، يُوقف النشاط (ويبقى الواي فاي يعمل) حتى تعلّم الفاتورة كمدفوعة. إذا كان السعر 0، لا تُصدر فواتير لأحد.',
+  'business.pbilling.usdRate': 'سعر الدولار (عدد الجنيهات لكل دولار أمريكي)',
+  'business.pbilling.usdRateHint': 'مثلاً 4500. فارغ = لا تظهر المبالغ بالدولار بجانب الأسعار والفواتير.',
+  'business.pbilling.usdRateExample': 'يظهر هكذا: {price}',
   'business.pbilling.price': 'السعر لكل راوتر / شهر (SSP)',
   'business.pbilling.grace': 'أيام الدفع (المهلة)',
   'business.pbilling.trialDays': 'أيام التجربة المجانية (للمشتركين الجدد)',
@@ -810,6 +816,9 @@ const sw = {
   'business.pbilling.title': 'Malipo ya Hotzonex Cloud',
   'business.pbilling.text':
     'Biashara zinalipa ada ya mwezi kwa kila router iliyounganishwa. Ankara inatengenezwa kila mwezi; isipolipwa baada ya siku za muda wa ziada, biashara inasimamishwa (WiFi yake inaendelea kufanya kazi) hadi uweke alama kuwa ankara imelipwa. Bei ikiwa 0, hakuna anayetozwa.',
+  'business.pbilling.usdRate': 'Kiwango cha dola (pauni kwa dola 1 ya Marekani)',
+  'business.pbilling.usdRateHint': 'Mfano 4500. Tupu = hakuna kiasi cha dola kitakachoonyeshwa kando ya bei na ankara.',
+  'business.pbilling.usdRateExample': 'Itaonyeshwa kama {price}',
   'business.pbilling.price': 'Bei kwa router / mwezi (SSP)',
   'business.pbilling.grace': 'Siku za kulipa (muda wa ziada)',
   'business.pbilling.trialDays': 'Siku za majaribio ya bure (wanaojisajili wapya)',

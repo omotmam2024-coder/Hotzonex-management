@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { friendlyError } from '../lib/errors';
 import { useT } from '../i18n';
-import { formatJubaDate, formatJubaTime, formatSSP, jubaToday } from '../lib/format';
+import { formatJubaDate, formatJubaTime, formatSSPWithUsd, jubaToday } from '../lib/format';
 import { fromJson, supabase } from '../lib/supabase';
 import { BusinessPlanControl, PlansCard } from './PlanLimits';
 import { Alert, Badge, Button, Card, Checkbox, Field, Spinner, TextArea, TextInput } from './ui';
@@ -37,7 +37,7 @@ interface PlatformBusiness {
 }
 
 interface PlatformBillingData {
-  config: { price_per_router_ssp: number; instructions: string; grace_days: number; trial_days: number };
+  config: { price_per_router_ssp: number; instructions: string; grace_days: number; trial_days: number; usd_rate: number | null };
   businesses: PlatformBusiness[];
 }
 
@@ -77,7 +77,7 @@ function jubaEndOfDay(day: string): string {
 function ConfigCard({ config }: { config: PlatformBillingData['config'] }) {
   const { t } = useT();
   const queryClient = useQueryClient();
-  const [f, setF] = useState({ price: String(config.price_per_router_ssp), howto: config.instructions, grace: String(config.grace_days), trial: String(config.trial_days) });
+  const [f, setF] = useState({ price: String(config.price_per_router_ssp), howto: config.instructions, grace: String(config.grace_days), trial: String(config.trial_days), usd: config.usd_rate === null ? '' : String(config.usd_rate) });
   const save = useMutation({
     mutationFn: async () => {
       const { error } = await supabase.rpc('platform_set_billing_config', {
@@ -87,9 +87,12 @@ function ConfigCard({ config }: { config: PlatformBillingData['config'] }) {
         p_trial_days: Number(f.trial || 0),
       });
       if (error) throw new Error(friendlyError(error));
+      const rate = await supabase.rpc('platform_set_billing_usd_rate', { p_rate: f.usd.trim() === '' ? 0 : Number(f.usd) });
+      if (rate.error) throw new Error(friendlyError(rate.error));
     },
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: KEY }),
   });
+  const rateNumber = Number(f.usd);
   const num = (k: 'price' | 'grace' | 'trial') => (e: React.ChangeEvent<HTMLInputElement>) => setF((x) => ({ ...x, [k]: e.target.value.replace(/\D/g, '').slice(0, 9) }));
   return (
     <Card className="space-y-3">
@@ -106,6 +109,18 @@ function ConfigCard({ config }: { config: PlatformBillingData['config'] }) {
           <TextInput inputMode="numeric" value={f.trial} onChange={num('trial')} />
         </Field>
       </div>
+      <Field
+        label={t('business.pbilling.usdRate')}
+        hint={rateNumber > 0 ? t('business.pbilling.usdRateExample', { price: formatSSPWithUsd(Number(f.price || 0), rateNumber) }) : t('business.pbilling.usdRateHint')}
+      >
+        <TextInput
+          inputMode="decimal"
+          dir="ltr"
+          value={f.usd}
+          placeholder="4500"
+          onChange={(e) => setF((x) => ({ ...x, usd: e.target.value.replace(',', '.').replace(/[^\d.]/g, '').replace(/(\..*)\./g, '$1').replace(/(\.\d{2}).+/, '$1').slice(0, 10) }))}
+        />
+      </Field>
       <Field label={t('business.pbilling.howto')} hint={t('business.pbilling.howtoHint')}>
         <TextArea value={f.howto} onChange={(e) => setF((x) => ({ ...x, howto: e.target.value.slice(0, 500) }))} rows={2} />
       </Field>
@@ -118,7 +133,7 @@ function ConfigCard({ config }: { config: PlatformBillingData['config'] }) {
   );
 }
 
-function BusinessBilling({ b, stdPrice }: { b: PlatformBusiness; stdPrice: number }) {
+function BusinessBilling({ b, stdPrice, usdRate }: { b: PlatformBusiness; stdPrice: number; usdRate: number | null }) {
   const { t } = useT();
   const queryClient = useQueryClient();
   const [exempt, setExempt] = useState(Boolean(b.exempt));
@@ -199,7 +214,7 @@ function BusinessBilling({ b, stdPrice }: { b: PlatformBusiness; stdPrice: numbe
       </div>
       <div className="grid gap-2 sm:grid-cols-[auto_12rem_12rem_auto] sm:items-end">
         <Checkbox label={t('business.pbilling.notBilled')} checked={exempt} onChange={setExempt} />
-        <Field label={t('business.pbilling.ownPrice')} hint={t('business.limits.emptyStandard', { price: formatSSP(stdPrice) })}>
+        <Field label={t('business.pbilling.ownPrice')} hint={t('business.limits.emptyStandard', { price: formatSSPWithUsd(stdPrice, usdRate) })}>
           <TextInput inputMode="numeric" value={price} onChange={(e) => setPrice(e.target.value.replace(/\D/g, '').slice(0, 9))} />
         </Field>
         <Field label={t('business.pbilling.trialUntil')}>
@@ -216,7 +231,7 @@ function BusinessBilling({ b, stdPrice }: { b: PlatformBusiness; stdPrice: numbe
           {b.invoices.map((i) => (
             <li key={i.id} className="flex flex-wrap items-center justify-between gap-2">
               <span>
-                <b>{i.number}</b> · {formatSSP(i.amount_ssp)} · {t(i.routers === 1 ? 'business.limits.router' : 'business.limits.routers', { n: i.routers })} ·{' '}
+                <b>{i.number}</b> · {formatSSPWithUsd(i.amount_ssp, usdRate)} · {t(i.routers === 1 ? 'business.limits.router' : 'business.limits.routers', { n: i.routers })} ·{' '}
                 {i.status === 'open'
                   ? t('business.pbilling.due', { date: formatJubaTime(i.due_at) })
                   : i.status === 'paid'
@@ -231,7 +246,7 @@ function BusinessBilling({ b, stdPrice }: { b: PlatformBusiness; stdPrice: numbe
               {i.status === 'open' && (
                 <span className="flex gap-2">
                   <Button
-                    onClick={() => markInvoice(i.id, 'paid', t('business.pbilling.confirmPaid', { amount: formatSSP(i.amount_ssp), number: i.number }))}
+                    onClick={() => markInvoice(i.id, 'paid', t('business.pbilling.confirmPaid', { amount: formatSSPWithUsd(i.amount_ssp, usdRate), number: i.number }))}
                     disabled={mark.isPending}
                   >
                     {t('business.pbilling.markPaid')}
@@ -267,12 +282,12 @@ export function PlatformBilling() {
   return (
     <div className="space-y-4">
       <ConfigCard config={d.config} />
-      <PlansCard stdPrice={d.config.price_per_router_ssp} />
+      <PlansCard stdPrice={d.config.price_per_router_ssp} usdRate={d.config.usd_rate} />
       <Card>
         <h2 className="mb-1 text-lg font-bold">{t('business.pbilling.businesses')}</h2>
         <ul className="divide-y divide-slate-100">
           {d.businesses.map((b) => (
-            <BusinessBilling key={b.tenant_id} b={b} stdPrice={d.config.price_per_router_ssp} />
+            <BusinessBilling key={b.tenant_id} b={b} stdPrice={d.config.price_per_router_ssp} usdRate={d.config.usd_rate} />
           ))}
         </ul>
       </Card>

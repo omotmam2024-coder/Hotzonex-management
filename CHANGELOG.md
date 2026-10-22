@@ -1,5 +1,14 @@
 # Changelog
 
+## 22 October 2026 — dollars on what businesses pay
+
+- **Dollar amounts for business payments.** Set the **dollar rate** (pounds for 1 US dollar) under
+  Businesses → Billing for Hotzonex Cloud. The dollar amount then shows next to the SSP price on the
+  landing page, on the owner's Billing page (price, invoices, banner), in the platform billing screen
+  and subscription plans, and in the WhatsApp/Telegram billing messages, for example
+  `120,000 SSP (≈ $26.67)`. Empty rate = SSP only, as before.
+- Migration `20261022100000_billing_usd_rate.sql` (applied).
+
 ## 18 October 2026 — check a voucher
 
 - **Check voucher** (menu → Selling, every role): type the code a customer complains about or brings

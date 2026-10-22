@@ -1777,6 +1777,7 @@ export type Database = {
         }
         Returns: undefined
       }
+      platform_set_billing_usd_rate: { Args: { p_rate: number }; Returns: undefined }
       platform_set_billing_config: {
         Args: {
           p_grace_days: number

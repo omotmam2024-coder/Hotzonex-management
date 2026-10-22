@@ -35,7 +35,7 @@ import {
   LANGS,
   PRICE_UNIT,
   renderBilling,
-  ssp,
+  sspUsd,
   unknownVars,
   type Lang,
   type Templates,
@@ -156,10 +156,11 @@ async function billingContext(db: SupabaseClient, alerts: BillingAlert[]) {
   if (!alerts.length) return { contactPhone, render: () => null as string | null };
   const tenants = [...new Set(alerts.map((a) => a.tenant_id))];
   const invoiceIds = [...new Set(alerts.map((a) => billingInvoiceId(a.key)).filter((id): id is string => !!id))];
-  const [custom, howto, std, tb, inv, routers] = await Promise.all([
+  const [custom, howto, std, usdRaw, tb, inv, routers] = await Promise.all([
     customTemplates(db),
     config(db, 'billing_instructions'),
     config(db, 'billing_price_per_router_ssp'),
+    config(db, 'billing_usd_rate'),
     db.from('tenant_billing').select('tenant_id, contact_phone, trial_ends_at, price_per_router_ssp, subscription_plans(price_per_router_ssp)').in('tenant_id', tenants),
     invoiceIds.length
       ? db.from('invoices').select('id, number, amount_ssp, period_start, period_end, due_at').in('id', invoiceIds)
@@ -177,6 +178,7 @@ async function billingContext(db: SupabaseClient, alerts: BillingAlert[]) {
     if (n) contactPhone.set(r.tenant_id, n);
   }
 
+  const usdRate = Number(usdRaw) > 0 ? Number(usdRaw) : null;
   const render = (a: BillingAlert, lang: Lang): string | null => {
     const code = billingCode(a.key);
     if (!code) return null;
@@ -187,15 +189,15 @@ async function billingContext(db: SupabaseClient, alerts: BillingAlert[]) {
     const vars: Record<string, string | number | null> = {
       business: a.tenants?.name ?? '',
       days,
-      price: price > 0 ? `${ssp(price)} ${PRICE_UNIT[lang]}` : '',
+      price: price > 0 ? `${sspUsd(price, usdRate)} ${PRICE_UNIT[lang]}` : '',
       pay: howto ?? '',
       invoice: i?.number ?? null,
-      amount: i ? ssp(i.amount_ssp) : null,
+      amount: i ? sspUsd(i.amount_ssp, usdRate) : null,
       period: i ? `${billingDate(i.period_start)} – ${billingDate(i.period_end)}` : null,
       due: i ? billingDate(i.due_at) : null,
       date: code === 'trial_ending' ? billingDate(b?.trial_ends_at) : i ? billingDate(i.period_end) : null,
     };
-    if (code === 'renew_soon') vars.amount = ssp(Math.max(routerCount.get(a.tenant_id) ?? 0, 1) * price);
+    if (code === 'renew_soon') vars.amount = sspUsd(Math.max(routerCount.get(a.tenant_id) ?? 0, 1) * price, usdRate);
     // A message that needs an invoice we cannot find falls back to the plain English alert.
     if (['invoice', 'due_soon', 'suspended', 'paid', 'renew_soon'].includes(code) && !i) return null;
     return renderBilling(code, lang, vars, custom);

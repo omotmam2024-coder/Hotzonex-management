@@ -25,6 +25,8 @@ interface BillingOverview {
   routers: number;
   business_active: boolean;
   instructions: string;
+  /** Pounds for one US dollar; null = no dollar amounts. */
+  usd_rate?: number | null;
   invoices: Invoice[];
 }
 

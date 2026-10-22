@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { CONTACT, whatsappLink } from '../../lib/contact';
-import { formatNumber, formatSSP } from '../../lib/format';
+import { formatNumber, formatSSP, formatUsd } from '../../lib/format';
 import { supabaseAnonKey, supabaseUrl } from '../../lib/supabase';
 import { LanguageSwitch } from '../../components/LanguageSwitch';
 import { translate, useT, type TKey } from '../../i18n';
@@ -18,6 +18,8 @@ interface PublicPlan {
 }
 
 interface Pricing {
+  /** Pounds for one US dollar; null = no dollar prices shown. */
+  usd_rate?: number | null;
   standard_price_per_router_ssp: number;
   trial_days: number;
   plans: PublicPlan[];
@@ -206,6 +208,7 @@ export function LandingPage() {
                   <p className="mt-4">
                     <span className="text-3xl font-extrabold">{formatSSP(price)}</span>
                     <span className="text-slate-600"> {t('public.landing.perRouter')}</span>
+                    {formatUsd(price, pricing.usd_rate) && <span className="mt-1 block text-lg font-semibold text-slate-700">{formatUsd(price, pricing.usd_rate)}</span>}
                   </p>
                   <ul className="mt-4 flex-1 space-y-1 text-slate-700">
                     <li>✓ {limit(p.max_routers, 'public.landing.routerOne', 'public.landing.routerMany', 'public.landing.routerUnlimited')}</li>

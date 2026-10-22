@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { friendlyError } from '../lib/errors';
 import { useT } from '../i18n';
 import { translate } from '../i18n/translate';
-import { formatNumber, formatSSP } from '../lib/format';
+import { formatNumber, formatSSPWithUsd } from '../lib/format';
 import { fromJson, supabase } from '../lib/supabase';
 import { validate } from '../lib/validation';
 import { Alert, Badge, Button, Card, Checkbox, Field, Select, Spinner, TextInput } from './ui';
@@ -95,7 +95,7 @@ const toForm = (p: SubscriptionPlan | null): PlanForm => ({
   is_public: p?.is_public ?? true,
 });
 
-function PlanEditor({ plan, stdPrice, onDone }: { plan: SubscriptionPlan | null; stdPrice: number; onDone: () => void }) {
+function PlanEditor({ plan, stdPrice, usdRate, onDone }: { plan: SubscriptionPlan | null; stdPrice: number; usdRate: number | null; onDone: () => void }) {
   const { t } = useT();
   const queryClient = useQueryClient();
   const [form, setForm] = useState<PlanForm>(() => toForm(plan));
@@ -140,7 +140,7 @@ function PlanEditor({ plan, stdPrice, onDone }: { plan: SubscriptionPlan | null;
         <TextInput value={form.description} onChange={set('description')} />
       </Field>
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
-        {num('price', t('business.limits.price'), t('business.limits.emptyStandard', { price: formatSSP(stdPrice) }))}
+        {num('price', t('business.limits.price'), t('business.limits.emptyStandard', { price: formatSSPWithUsd(stdPrice, usdRate) }))}
         {num('max_routers', t('business.limits.routersField'))}
         {num('max_sites', t('business.limits.sitesField'))}
         {num('max_staff', t('business.limits.staffField'))}
@@ -161,7 +161,7 @@ function PlanEditor({ plan, stdPrice, onDone }: { plan: SubscriptionPlan | null;
 }
 
 /** Platform owner: the plans businesses can be on, with their limits and prices. */
-export function PlansCard({ stdPrice }: { stdPrice: number }) {
+export function PlansCard({ stdPrice, usdRate = null }: { stdPrice: number; usdRate?: number | null }) {
   const { t } = useT();
   const plans = usePlatformPlans();
   const [editing, setEditing] = useState<string | 'new' | null>(null);
@@ -180,13 +180,13 @@ export function PlansCard({ stdPrice }: { stdPrice: number }) {
           </Button>
         )}
       </div>
-      {editing === 'new' && <PlanEditor plan={null} stdPrice={stdPrice} onDone={() => setEditing(null)} />}
+      {editing === 'new' && <PlanEditor plan={null} stdPrice={stdPrice} usdRate={usdRate} onDone={() => setEditing(null)} />}
       {plans.data.plans.length === 0 && editing !== 'new' && <p className="text-sm text-slate-600">{t('business.limits.noPlans')}</p>}
       <ul className="divide-y divide-slate-100">
         {plans.data.plans.map((p) => (
           <li key={p.id} className="space-y-2 py-3">
             {editing === p.id ? (
-              <PlanEditor plan={p} stdPrice={stdPrice} onDone={() => setEditing(null)} />
+              <PlanEditor plan={p} stdPrice={stdPrice} usdRate={usdRate} onDone={() => setEditing(null)} />
             ) : (
               <div className="flex flex-wrap items-start justify-between gap-2">
                 <div>
@@ -195,7 +195,7 @@ export function PlansCard({ stdPrice }: { stdPrice: number }) {
                   </p>
                   <p className="text-sm text-slate-600">{planSummary(p)}</p>
                   <p className="text-sm text-slate-600">
-                    {t('business.limits.perRouter', { price: formatSSP(p.price_per_router_ssp ?? stdPrice) })}
+                    {t('business.limits.perRouter', { price: formatSSPWithUsd(p.price_per_router_ssp ?? stdPrice, usdRate) })}
                     {p.price_per_router_ssp === null ? t('business.limits.standardPrice') : ''}
                   </p>
                 </div>

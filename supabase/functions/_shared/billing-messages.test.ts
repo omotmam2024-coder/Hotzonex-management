@@ -12,6 +12,7 @@ import {
   LANGS,
   renderBilling,
   ssp,
+  sspUsd,
   unknownVars,
 } from './billing-messages.ts';
 
@@ -64,4 +65,12 @@ test('unknown words are reported; dates are the same in every language', () => {
   assert.equal(billingDate('2026-10-31'), '31/10/2026');
   assert.equal(billingDate('2026-10-31T22:30:00Z'), '01/11/2026'); // Juba is UTC+2
   assert.equal(billingDate(null), '');
+});
+
+test('amounts show dollars when a rate is set', () => {
+  assert.equal(sspUsd(120000, 4500), '120,000 SSP (≈ $26.67)');
+  assert.equal(sspUsd(120000, null), '120,000 SSP');
+  assert.equal(sspUsd(120000, 0), '120,000 SSP');
+  assert.equal(sspUsd(4500, 4500), '4,500 SSP (≈ $1.00)');
+  assert.equal(renderBilling('paid', 'en', { business: 'Juba WiFi', invoice: 'HZC-2026-00001', amount: sspUsd(120000, 4500) }), '✅ Juba WiFi: thank you! Hotzonex Cloud invoice HZC-2026-00001 (120,000 SSP (≈ $26.67)) is paid. Your service continues.');
 });
