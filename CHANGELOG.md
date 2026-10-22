@@ -1,5 +1,20 @@
 # Changelog
 
+## 23 October 2026 — security audit before production
+
+- **Businesses kept apart on routers**: a router's reply can no longer remove or switch off another
+  business's plan, disable another business's cards, or delete another router's cards. Jobs sent
+  from the app may only name the business's own plans.
+- **Direct routers**: only real public addresses are accepted. Numeric tricks such as
+  `2130706433` are refused, the name is checked again before every connection (IPv4 and IPv6), and
+  redirects are not followed.
+- **Check voucher**: sellers can make 30 checks per 10 minutes and do not see cards that were never
+  printed or sold, so the check cannot be used to guess working codes.
+- **Business details and staff accounts** change only through the screens that check them.
+- **Cash handovers**: sellers see only their own.
+- **Framing**: the app refuses to show inside another website's frame.
+- **Database**: 21 missing indexes added; secret compared in constant time in the router worker.
+
 ## 22 October 2026 — simpler Vouchers, Generate and Routers
 
 - **Vouchers**: on a phone each voucher is a card (big code, status, plan, router, sold time,
