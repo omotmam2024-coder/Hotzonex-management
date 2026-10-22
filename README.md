@@ -22,8 +22,9 @@ What it does:
 
 Money is whole South Sudanese Pounds (SSP); the web app shows times in Africa/Juba (UTC+2).
 
-Live address: <https://app.hotzonex.net>, hosted on **DigitalOcean App Platform**, which deploys
-automatically from the branch `claude/clever-mccarthy-1780c7`. Database, logins and Edge Functions
+Live address: <https://www.hotzonex.net> (`hotzonex.net` redirects there), hosted on **Vercel**
+(project `hotzonex-cloud`), which deploys automatically from the branch `claude/clever-mccarthy-1780c7`.
+The earlier address `app.hotzonex.net` (DigitalOcean) is no longer the live one. Database, logins and Edge Functions
 are on Supabase (project `tyiwnaxdejtsdofgnuow`).
 
 ## How it fits together
@@ -140,14 +141,15 @@ it opens even when the connection is poor. A new version is picked up on the nex
 
 Every push to the branch `claude/clever-mccarthy-1780c7` redeploys the web app on DigitalOcean.
 
-### Vercel — not supported
+### Vercel
 
-DigitalOcean App Platform is the only supported host. `web/vercel.json` is an old file kept in the
-repository, but a Vercel copy of the app would **not work**: the Edge Functions only answer the
-addresses in `supabase/functions/_shared/cors.ts` (`app.hotzonex.net`, the DigitalOcean address
-and local development), and no Vercel address is on that list.
-The extra security headers in that file (X-Frame-Options and others) are therefore **not** sent on
-DigitalOcean today (see CHANGELOG → Known follow-ups).
+The app is live on Vercel with `web/vercel.json` (project root `web`; build `npm run build`, output
+`dist`; the same two `VITE_SUPABASE_*` variables). The Edge Functions answer only the addresses in
+`supabase/functions/_shared/cors.ts` (`www.hotzonex.net`, `hotzonex.net`, the earlier
+`app.hotzonex.net` and DigitalOcean addresses, and local development): a new address must be added
+there and the functions deployed again. In Supabase **Authentication → URL Configuration** set the
+**Site URL** to `https://www.hotzonex.net` and add `https://www.hotzonex.net/**` and
+`https://hotzonex.net/**` under **Redirect URLs**.
 
 ## 3. Connect each router
 

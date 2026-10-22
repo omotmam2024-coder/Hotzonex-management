@@ -1,5 +1,7 @@
-/** The websites that may call these functions from a browser (the app and its DigitalOcean address, and local development). */
+/** The websites that may call these functions from a browser (the app on hotzonex.net, its earlier addresses, and local development). */
 const ALLOWED_ORIGINS = new Set([
+  'https://www.hotzonex.net',
+  'https://hotzonex.net',
   'https://app.hotzonex.net',
   'https://hotzonex-cloud-rum4d.ondigitalocean.app',
   'http://localhost:5173',
@@ -9,11 +11,11 @@ const ALLOWED_ORIGINS = new Set([
 /** CORS headers for this request: only allowed websites are named (other pages' browsers refuse the reply). */
 export function corsFor(req: Request): Record<string, string> {
   const origin = req.headers.get('Origin') ?? '';
-  return { ...corsHeaders, 'Access-Control-Allow-Origin': ALLOWED_ORIGINS.has(origin) ? origin : 'https://app.hotzonex.net', Vary: 'Origin' };
+  return { ...corsHeaders, 'Access-Control-Allow-Origin': ALLOWED_ORIGINS.has(origin) ? origin : 'https://www.hotzonex.net', Vary: 'Origin' };
 }
 
 export const corsHeaders: Record<string, string> = {
-  'Access-Control-Allow-Origin': 'https://app.hotzonex.net',
+  'Access-Control-Allow-Origin': 'https://www.hotzonex.net',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
