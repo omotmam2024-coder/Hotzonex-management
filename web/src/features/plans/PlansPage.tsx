@@ -12,7 +12,7 @@ import { RouterTimeoutError, waitForJob } from '../../lib/jobs';
 import { profileLabel } from '../../lib/mikroticket';
 import { usePlans, useRouters } from '../../hooks/queries';
 import { supabase } from '../../lib/supabase';
-import type { Plan, RouterInfo } from '../../lib/types';
+import { planOnRouter, type Plan, type RouterInfo } from '../../lib/types';
 import { planSchema, validate } from '../../lib/validation';
 
 const SWATCHES = ['#16a34a', '#2563eb', '#dc2626', '#f59e0b', '#7c3aed', '#db2777', '#0891b2', '#475569'];
@@ -64,7 +64,8 @@ interface PlanForm {
   routerIds: string[];
 }
 
-function newPlan(routers: RouterInfo[]): PlanForm {
+/** A new plan, ticked only for the router whose plans are being shown (none when there is no router). */
+function newPlan(routerIds: string[]): PlanForm {
   return {
     id: null,
     name: '',
@@ -80,7 +81,7 @@ function newPlan(routers: RouterInfo[]): PlanForm {
     sharedUsers: '1',
     color: SWATCHES[0] ?? '#16a34a',
     isActive: true,
-    routerIds: routers.map((r) => r.id),
+    routerIds,
   };
 }
 
@@ -366,6 +367,8 @@ function friendlyPlanError(err: unknown): string {
   return err instanceof Error && !e.code ? translateMessage(err.message) : friendlyError(err);
 }
 
+const TAB_KEY = 'hzc-plans-router';
+
 export function PlansPage() {
   const plans = usePlans();
   const routersQuery = useRouters();
@@ -375,6 +378,22 @@ export function PlansPage() {
   const queryClient = useQueryClient();
   const { t } = useT();
   const routerName = (id: string) => routers.find((r) => r.id === id)?.name ?? t('common.router');
+  // Each router's plans on their own tab ('none' = plans not on any router yet).
+  const [tab, setTab] = useState<string>(() => {
+    try {
+      return localStorage.getItem(TAB_KEY) ?? '';
+    } catch {
+      return '';
+    }
+  });
+  const chooseTab = (id: string) => {
+    setTab(id);
+    try {
+      localStorage.setItem(TAB_KEY, id);
+    } catch {
+      // Not remembered on this device; still works.
+    }
+  };
 
   const remove = useMutation({
     mutationFn: async (p: Plan) => {
@@ -410,6 +429,13 @@ export function PlansPage() {
   // The old plans made from MikroTicket profiles stay out of the way (switched off, kept for reports).
   const oldMikroticket = (plans.data ?? []).filter((p) => isMikroticketPlan(p) && !p.is_active);
   const currentPlans = (plans.data ?? []).filter((p) => !oldMikroticket.includes(p));
+  const unlinked = currentPlans.filter((p) => (p.plan_routers ?? []).length === 0);
+  const tabs = [...routers.map((r) => ({ id: r.id, name: r.name, n: currentPlans.filter((p) => planOnRouter(p, r.id)).length }))];
+  if (unlinked.length) tabs.push({ id: 'none', name: t('plans.tab.none'), n: unlinked.length });
+  const activeTab = tabs.some((x) => x.id === tab) ? tab : (tabs[0]?.id ?? '');
+  const shown = activeTab === 'none' ? unlinked : activeTab ? currentPlans.filter((p) => planOnRouter(p, activeTab)) : currentPlans;
+  const tabRouter = routers.find((r) => r.id === activeTab);
+  const startNew = () => open(newPlan(tabRouter ? [tabRouter.id] : []), null);
 
   function open(form: PlanForm, plan: Plan | null) {
     setNotice(null);
@@ -422,7 +448,7 @@ export function PlansPage() {
       <PageHeader
         title={t('nav.plans')}
         subtitle={t('plans.subtitle')}
-        actions={!editing && <Button onClick={() => open(newPlan(routers), null)}>{t('plans.newButton')}</Button>}
+        actions={!editing && <Button onClick={startNew}>{tabRouter ? t('plans.newFor', { router: tabRouter.name }) : t('plans.newButton')}</Button>}
       />
 
       {notice && <Alert tone="success">{notice}</Alert>}
@@ -444,8 +470,36 @@ export function PlansPage() {
       {plans.isLoading && <Spinner className="h-8 w-8 text-brand-600" />}
       {plans.error && <Alert tone="error">{friendlyError(plans.error)}</Alert>}
 
+      {tabs.length > 1 && (
+        <div className="flex gap-2 overflow-x-auto pb-1" role="tablist" aria-label={t('plans.tab.label')}>
+          {tabs.map((x) => (
+            <button
+              key={x.id}
+              type="button"
+              role="tab"
+              aria-selected={x.id === activeTab}
+              onClick={() => chooseTab(x.id)}
+              className={`inline-flex min-h-11 shrink-0 items-center gap-2 rounded-xl px-4 font-semibold ring-1 ${x.id === activeTab ? 'bg-brand-600 text-white ring-brand-600' : 'bg-white text-slate-700 ring-slate-300 hover:bg-slate-50'}`}
+            >
+              {x.name}
+              <span className={`rounded-full px-2 text-xs ${x.id === activeTab ? 'bg-white/20' : 'bg-slate-100 text-slate-600'}`}>{x.n}</span>
+            </button>
+          ))}
+        </div>
+      )}
+      {tabRouter && <p className="text-sm text-slate-600">{t('plans.tab.text', { router: tabRouter.name })}</p>}
+
+      {!plans.isLoading && shown.length === 0 && !editing && (
+        <Card className="space-y-3 text-center">
+          <p className="text-slate-700">{tabRouter ? t('plans.tab.empty', { router: tabRouter.name }) : t('plans.tab.emptyAll')}</p>
+          <div>
+            <Button onClick={startNew}>{tabRouter ? t('plans.newFor', { router: tabRouter.name }) : t('plans.newButton')}</Button>
+          </div>
+        </Card>
+      )}
+
       <div className="grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-3 xl:grid-cols-4">
-        {currentPlans.map((p) => (
+        {shown.map((p) => (
           <Card key={p.id} className={`overflow-hidden !p-0 ${p.is_active ? '' : 'opacity-60'}`}>
             <div className="h-1.5" style={{ backgroundColor: p.color }} />
             <div className="p-3">

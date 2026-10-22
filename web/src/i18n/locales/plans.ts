@@ -4,6 +4,12 @@ const en = {
   'plans.subtitle':
     "A plan is what you sell: price, time and speed. Tick the routers that sell it and Hotzonex makes its own profile on them (MikroTicket's profiles are not used).",
   'plans.newButton': '+ New plan',
+  'plans.newFor': '+ New plan for {router}',
+  'plans.tab.label': 'Plans by router',
+  'plans.tab.none': 'Not on a router',
+  'plans.tab.text': 'Plans sold on {router}. Each router has its own plans; tick another router in a plan only if it should be sold there too.',
+  'plans.tab.empty': '{router} has no plans yet.',
+  'plans.tab.emptyAll': 'No plans yet.',
   'plans.newPlan': 'New plan',
   'plans.editTitle': 'Edit {name}',
   'plans.editorIntro':
@@ -82,6 +88,12 @@ const ar = {
   'plans.subtitle':
     'الباقة هي ما تبيعه: السعر والوقت والسرعة. اختر الراوترات التي تبيعها وسيُنشئ Hotzonex ملفه الخاص عليها (لا تُستخدم ملفات MikroTicket).',
   'plans.newButton': '+ باقة جديدة',
+  'plans.newFor': '+ باقة جديدة لـ {router}',
+  'plans.tab.label': 'الباقات حسب الراوتر',
+  'plans.tab.none': 'بدون راوتر',
+  'plans.tab.text': 'الباقات التي تُباع على {router}. لكل راوتر باقاته الخاصة؛ اختر راوتراً آخر في الباقة فقط إذا كانت ستُباع هناك أيضاً.',
+  'plans.tab.empty': 'لا توجد باقات على {router} بعد.',
+  'plans.tab.emptyAll': 'لا توجد باقات بعد.',
   'plans.newPlan': 'باقة جديدة',
   'plans.editTitle': 'تعديل {name}',
   'plans.editorIntro':
@@ -158,6 +170,12 @@ const sw = {
   'plans.subtitle':
     'Kifurushi ndicho unachouza: bei, muda na kasi. Chagua router zinazokiuza na Hotzonex itatengeneza profile yake juu yake (profile za MikroTicket hazitumiki).',
   'plans.newButton': '+ Kifurushi kipya',
+  'plans.newFor': '+ Kifurushi kipya cha {router}',
+  'plans.tab.label': 'Vifurushi kwa router',
+  'plans.tab.none': 'Bila router',
+  'plans.tab.text': 'Vifurushi vinavyouzwa kwenye {router}. Kila router ina vifurushi vyake; chagua router nyingine kwenye kifurushi ikiwa tu kitauzwa huko pia.',
+  'plans.tab.empty': '{router} bado haina vifurushi.',
+  'plans.tab.emptyAll': 'Bado hakuna vifurushi.',
   'plans.newPlan': 'Kifurushi kipya',
   'plans.editTitle': 'Hariri {name}',
   'plans.editorIntro':

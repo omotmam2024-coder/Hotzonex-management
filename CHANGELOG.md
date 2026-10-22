@@ -1,5 +1,13 @@
 # Changelog
 
+## 22 October 2026 — plans per router
+
+- **Plans page by router**: one tab per router (with its number of plans) shows only that router's
+  plans; plans not on any router have their own tab. The chosen tab is remembered on the device.
+- **New plan for <router>** is ticked only for the router being shown (before, every router was
+  ticked, so new plans appeared on all routers). Tick more routers in a plan only to sell it there too.
+- Sell and Generate vouchers already show only the chosen router's plans.
+
 ## 22 October 2026 — dollars on what businesses pay
 
 - **Dollar amounts for business payments.** Set the **dollar rate** (pounds for 1 US dollar) under
