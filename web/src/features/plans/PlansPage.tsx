@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { ForceRemove } from '../../components/ForceRemove';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { PageHeader } from '../../components/PageHeader';
 import { Alert, Badge, Button, Card, Checkbox, Field, Select, Spinner, TextInput } from '../../components/ui';
@@ -375,6 +376,7 @@ export function PlansPage() {
   const routers = routersQuery.data ?? [];
   const [editing, setEditing] = useState<{ form: PlanForm; plan: Plan | null } | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [forcePlan, setForcePlan] = useState<Plan | null>(null);
   const queryClient = useQueryClient();
   const { t } = useT();
   const routerName = (id: string) => routers.find((r) => r.id === id)?.name ?? t('common.router');
@@ -439,6 +441,7 @@ export function PlansPage() {
 
   function open(form: PlanForm, plan: Plan | null) {
     setNotice(null);
+    setForcePlan(null);
     remove.reset();
     setEditing({ form, plan });
   }
@@ -452,7 +455,29 @@ export function PlansPage() {
       />
 
       {notice && <Alert tone="success">{notice}</Alert>}
-      {remove.error && <Alert tone="error">{remove.error.message}</Alert>}
+      {remove.error && !forcePlan && (
+        <div className="space-y-2">
+          <Alert tone="error">{remove.error.message}</Alert>
+          {remove.variables && (
+            <Button variant="danger" onClick={() => setForcePlan(remove.variables ?? null)}>
+              {t('force.openPlan', { name: remove.variables.name })}
+            </Button>
+          )}
+        </div>
+      )}
+      {forcePlan && (
+        <ForceRemove
+          kind="plan"
+          id={forcePlan.id}
+          name={forcePlan.name}
+          onClose={() => setForcePlan(null)}
+          onDone={(text) => {
+            setForcePlan(null);
+            remove.reset();
+            setNotice(text);
+          }}
+        />
+      )}
       {editing && (
         <PlanEditor
           key={editing.plan?.id ?? 'new'}

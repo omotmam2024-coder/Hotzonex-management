@@ -1,5 +1,14 @@
 # Changelog
 
+## 22 October 2026 — remove completely
+
+- **Owners can remove a router or a plan completely**, even with vouchers and sales. When the normal
+  Remove/Delete refuses, **Remove completely…** shows what goes (sales and their total, vouchers,
+  batches, router logins, plans only on that router), and the name must be typed. The sales leave all
+  reports, totals and cash-up. Every removal is written to the audit log. A plan's unsold cards and
+  its Hotzonex profile are removed from the routers; a removed router itself is not changed.
+- Migration `20261022120000_force_remove.sql`.
+
 ## 22 October 2026 — plans per router
 
 - **Plans page by router**: one tab per router (with its number of plans) shows only that router's

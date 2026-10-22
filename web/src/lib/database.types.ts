@@ -1668,6 +1668,9 @@ export type Database = {
       billing_tenant_of_caller: { Args: never; Returns: string }
       billing_usage: { Args: never; Returns: Json }
       can_access_site: { Args: { target_site: string }; Returns: boolean }
+      force_remove_plan: { Args: { p_plan_id: string; p_name: string }; Returns: Json }
+      force_remove_router: { Args: { p_router_id: string; p_name: string }; Returns: Json }
+      removal_preview: { Args: { p_kind: string; p_id: string }; Returns: Json }
       cash_up: { Args: { p_date: string; p_site_id?: string }; Returns: Json }
       check_voucher: { Args: { p_code: string }; Returns: Json }
       confirm_payment_request: { Args: { p_id: string }; Returns: Json }

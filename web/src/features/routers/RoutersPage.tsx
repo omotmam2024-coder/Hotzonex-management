@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react';
+import { ForceRemove } from '../../components/ForceRemove';
 import { Link } from 'react-router-dom';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../../auth/AuthProvider';
@@ -67,6 +68,7 @@ function RouterCard({
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['routers'] }),
   });
 
+  const [forcing, setForcing] = useState(false);
   const [script, setScript] = useState<string | null>(null);
   const [showHotspot, setShowHotspot] = useState(false);
   const direct = router.connection === 'direct';
@@ -197,11 +199,15 @@ function RouterCard({
           <Alert tone={test.ok ? 'success' : 'error'}>{test.message}</Alert>
         </div>
       )}
-      {remove.error && (
-        <div className="mt-3">
+      {remove.error && !forcing && (
+        <div className="mt-3 space-y-2">
           <Alert tone="error">{remove.error.message}</Alert>
+          <Button variant="danger" onClick={() => setForcing(true)}>
+            {t('force.openRouter')}
+          </Button>
         </div>
       )}
+      {forcing && <ForceRemove kind="router" id={router.id} name={router.name} onClose={() => setForcing(false)} onDone={() => setForcing(false)} />}
 
       <div className="mt-4 flex flex-wrap gap-2">
         {router.hotspot_info && (
