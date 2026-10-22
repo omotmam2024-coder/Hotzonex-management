@@ -6,7 +6,7 @@
 // Limited to a few sign-ups per device a day. The trial length comes from app_config
 // (billing_trial_days); billing starts when it ends (see billing_run in the database).
 import { serviceClient } from '../_shared/auth.ts';
-import { HttpError, readBody, serveJson } from '../_shared/cors.ts';
+import { HttpError, passwordProblem, readBody, serveJson } from '../_shared/cors.ts';
 import { cleanPhone } from '../_shared/buy.ts';
 import { checkSignup, InputError, type SignupInput } from '../_shared/signup.ts';
 
@@ -67,6 +67,8 @@ serveJson(async (req) => {
     });
     if (userError || !created.user) {
       if (/already|registered|exists/i.test(userError?.message ?? '')) throw new HttpError(409, `${s.email} already has a login. Log in instead.`);
+      const weak = passwordProblem(userError?.message);
+      if (weak) throw new HttpError(400, weak);
       throw new Error(userError?.message || 'Could not create the login.');
     }
     userId = created.user.id;

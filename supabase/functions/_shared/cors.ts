@@ -25,6 +25,15 @@ export function json(body: unknown, status = 200): Response {
   });
 }
 
+/** Supabase refuses passwords found in leaked-password lists; say so instead of a general error. */
+export const WEAK_PASSWORD = 'This password is too common and easy to guess. Choose a stronger one: at least 8 characters, mixing words, numbers and symbols.';
+export function passwordProblem(message: string | undefined): string | null {
+  const m = message ?? '';
+  if (/weak|easy to guess|pwned|leaked|compromised/i.test(m)) return WEAK_PASSWORD;
+  if (/password/i.test(m)) return m;
+  return null;
+}
+
 /** A failure whose message is safe and useful to show to staff. */
 export class HttpError extends Error {
   constructor(

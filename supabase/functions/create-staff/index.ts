@@ -9,7 +9,7 @@
 //      → { tenant_id, site_id, admin_id }   (a new business with its first site and admin)
 import type { SupabaseClient } from 'npm:@supabase/supabase-js@2.117.3';
 import { audit, type Caller, requireAdmin, serviceClient } from '../_shared/auth.ts';
-import { HttpError, readBody, serveJson } from '../_shared/cors.ts';
+import { HttpError, passwordProblem, readBody, serveJson } from '../_shared/cors.ts';
 
 type Role = 'admin' | 'manager' | 'seller';
 const ROLES: Role[] = ['admin', 'manager', 'seller'];
@@ -56,6 +56,8 @@ async function createLogin(admin: SupabaseClient, email: string, password: strin
   if (error || !created.user) {
     const msg = error?.message ?? '';
     if (/already|registered|exists/i.test(msg)) throw new HttpError(409, `${email} already has a login.`);
+    const weak = passwordProblem(msg);
+    if (weak) throw new HttpError(400, weak);
     throw new Error(msg || 'Could not create the login.');
   }
   return created.user.id;
@@ -135,7 +137,7 @@ serveJson(async (req) => {
       ...(password ? { password } : {}),
       ban_duration: isActive ? 'none' : '876000h',
     });
-    if (authError) throw new Error(authError.message);
+    if (authError) throw passwordProblem(authError.message) ? new HttpError(400, passwordProblem(authError.message)!) : new Error(authError.message);
 
     await audit(admin, caller, 'staff.updated', {
       staff_id: id,
