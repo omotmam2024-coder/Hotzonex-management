@@ -2,8 +2,7 @@ import { Suspense, useEffect, useRef, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '../auth/AuthProvider';
 import { groupLabel, NAV_ITEMS, navForRole, ROLE_LABELS, tabsForRole, type NavGroup, type NavItem } from '../lib/nav';
-import { LanguageSwitch } from './LanguageSwitch';
-import { useT } from '../i18n';
+import { LANGUAGES, useT } from '../i18n';
 import { FullScreenSpinner } from './FullScreen';
 import { ErrorBoundary } from './ErrorBoundary';
 import { BillingBanner } from './BillingBanner';
@@ -56,28 +55,115 @@ const THEMES = [
   { key: 'system', label: 'theme.auto', icon: 'auto' },
 ] as const satisfies readonly { key: ThemePref; label: string; icon: 'sun' | 'moon' | 'auto' }[];
 
-/** Light / Dark / Auto (follows the phone), saved on this device. */
-function ThemeSwitch() {
-  const { t } = useT();
+/**
+ * The bottom of the menu: who is logged in. Tapping it opens a small menu with the language,
+ * Light / Dark / Auto (saved on this device), help from Hotzonex Cloud and Log out.
+ */
+function AccountMenu({ name, detail, business, onLogout }: { name: string; detail: string; business: string | null; onLogout: () => void }) {
+  const { t, lang, setLang } = useT();
+  const [open, setOpen] = useState(false);
   const [pref, setPref] = useState<ThemePref>(getThemePref);
+  const box = useRef<HTMLDivElement>(null);
+  const location = useLocation();
+  useEffect(() => setOpen(false), [location.pathname]);
+  useEffect(() => {
+    if (!open) return;
+    const away = (e: MouseEvent | TouchEvent) => {
+      if (box.current && !box.current.contains(e.target as Node)) setOpen(false);
+    };
+    const esc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false);
+    };
+    document.addEventListener('mousedown', away);
+    document.addEventListener('touchstart', away);
+    document.addEventListener('keydown', esc);
+    return () => {
+      document.removeEventListener('mousedown', away);
+      document.removeEventListener('touchstart', away);
+      document.removeEventListener('keydown', esc);
+    };
+  }, [open]);
+
+  const chip = (on: boolean) =>
+    `inline-flex min-h-9 flex-1 items-center justify-center gap-1.5 rounded-lg px-2 text-xs font-semibold transition ${on ? 'bg-brand-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'}`;
+  const rowBase = 'flex min-h-11 w-full items-center gap-3 rounded-lg px-3 text-sm font-medium';
+  const row = `${rowBase} text-slate-700 hover:bg-slate-100`;
+
   return (
-    <div className="grid grid-cols-3 gap-1" role="radiogroup" aria-label={t('theme.label')}>
-      {THEMES.map((theme) => (
-        <button
-          key={theme.key}
-          type="button"
-          role="radio"
-          aria-checked={pref === theme.key}
-          onClick={() => {
-            setThemePref(theme.key);
-            setPref(theme.key);
-          }}
-          className={`inline-flex min-h-10 items-center justify-center gap-1.5 rounded-lg text-xs font-semibold ${pref === theme.key ? 'bg-white/15 text-white' : 'text-white/60 hover:bg-white/10 hover:text-white'}`}
-        >
-          <Icon name={theme.icon} className="h-4 w-4" />
-          {t(theme.label)}
-        </button>
-      ))}
+    <div ref={box} className="relative">
+      {open && (
+        <div role="menu" className="absolute inset-x-0 bottom-full z-50 mb-2 space-y-3 rounded-2xl bg-white p-3 text-slate-900 shadow-2xl ring-1 ring-slate-200">
+          <div>
+            <p className="mb-1.5 px-1 text-[11px] font-semibold uppercase tracking-wide text-slate-500">{t('lang.label')}</p>
+            <div className="flex gap-1 rounded-xl bg-slate-50 p-1 ring-1 ring-slate-200" role="radiogroup" aria-label={t('lang.label')}>
+              {LANGUAGES.map((l) => (
+                <button key={l.key} type="button" role="radio" lang={l.key} aria-checked={lang === l.key} onClick={() => setLang(l.key)} className={chip(lang === l.key)}>
+                  {l.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div>
+            <p className="mb-1.5 px-1 text-[11px] font-semibold uppercase tracking-wide text-slate-500">{t('theme.label')}</p>
+            <div className="flex gap-1 rounded-xl bg-slate-50 p-1 ring-1 ring-slate-200" role="radiogroup" aria-label={t('theme.label')}>
+              {THEMES.map((theme) => (
+                <button
+                  key={theme.key}
+                  type="button"
+                  role="radio"
+                  aria-checked={pref === theme.key}
+                  onClick={() => {
+                    setThemePref(theme.key);
+                    setPref(theme.key);
+                  }}
+                  className={chip(pref === theme.key)}
+                >
+                  <Icon name={theme.icon} className="h-3.5 w-3.5" />
+                  {t(theme.label)}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="border-t border-slate-100 pt-2">
+            <p className="mb-1 px-1 text-[11px] font-semibold uppercase tracking-wide text-slate-500">{t('common.help')}</p>
+            <a href={whatsappLink('Hotzonex Cloud')} target="_blank" rel="noopener noreferrer" className={row}>
+              <Icon name="whatsapp" className="h-5 w-5 shrink-0 text-[#25D366]" />
+              <span className="min-w-0 flex-1 truncate" dir="ltr">
+                {CONTACT.phone}
+              </span>
+            </a>
+            {CONTACT.email && (
+              <a href={`mailto:${CONTACT.email}`} className={row}>
+                <Icon name="mail" className="h-5 w-5 shrink-0 text-slate-500" />
+                <span className="min-w-0 flex-1 truncate" dir="ltr">
+                  {CONTACT.email}
+                </span>
+              </a>
+            )}
+          </div>
+          <div className="border-t border-slate-100 pt-2">
+            <button type="button" onClick={onLogout} className={`${rowBase} text-red-700 hover:bg-red-50`}>
+              <Icon name="logout" className="h-5 w-5 shrink-0" />
+              {t('common.logout')}
+            </button>
+          </div>
+        </div>
+      )}
+      <button
+        type="button"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        onClick={() => setOpen((v) => !v)}
+        className={`flex w-full items-center gap-3 rounded-xl p-2.5 text-start transition hover:bg-white/10 ${open ? 'bg-white/10' : ''}`}
+      >
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-500 text-sm font-bold">{initials(name)}</span>
+        <span className="min-w-0 flex-1 text-sm leading-tight">
+          <span className="block truncate font-semibold">{name}</span>
+          <span className="block truncate text-xs text-white/60">{detail}</span>
+          {business && <span className="block truncate text-xs text-white/50">{business}</span>}
+        </span>
+        <Icon name="chevron" className={`h-5 w-5 shrink-0 text-white/60 transition ${open ? '' : 'rotate-180'}`} />
+      </button>
     </div>
   );
 }
@@ -135,56 +221,8 @@ export function Layout() {
           );
         })}
       </div>
-      <div className="shrink-0 space-y-2 border-t border-white/10 p-3">
-        <div>
-          <div className="mb-1.5 px-1 text-[11px] font-semibold uppercase tracking-wide text-white/40">{t('common.help')}</div>
-          <div className="grid grid-cols-2 gap-2">
-            <a
-              href={whatsappLink('Hotzonex Cloud')}
-              target="_blank"
-              rel="noopener noreferrer"
-              title={CONTACT.phone}
-              className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-white/[0.06] px-2 text-xs font-semibold text-white/80 hover:bg-white/10 hover:text-white"
-            >
-              <Icon name="whatsapp" className="h-4 w-4 shrink-0 text-[#25D366]" />
-              WhatsApp
-            </a>
-            {CONTACT.email && (
-              <a
-                href={`mailto:${CONTACT.email}`}
-                title={CONTACT.email}
-                className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-white/[0.06] px-2 text-xs font-semibold text-white/80 hover:bg-white/10 hover:text-white"
-              >
-                <Icon name="mail" className="h-4 w-4 shrink-0" />
-                {t('common.email')}
-              </a>
-            )}
-          </div>
-        </div>
-        <div className="space-y-1 rounded-xl bg-white/[0.06] p-1">
-          <LanguageSwitch bare />
-          <div className="mx-2 border-t border-white/10" />
-          <ThemeSwitch />
-        </div>
-        <div className="flex items-center gap-3 rounded-xl bg-white/[0.06] p-2.5">
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-500 text-sm font-bold">{initials(profile.full_name)}</span>
-          <div className="min-w-0 flex-1 text-sm leading-tight">
-            <div className="truncate font-semibold">{profile.full_name}</div>
-            <div className="truncate text-white/60">
-              {ROLE_LABELS[profile.role]} · {siteLabel}
-            </div>
-            {business && <div className="truncate text-xs text-white/60">{business.name}</div>}
-          </div>
-          <button
-            type="button"
-            onClick={() => void signOut()}
-            className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-white/60 hover:bg-white/10 hover:text-white"
-            aria-label={t('common.logout')}
-            title={t('common.logout')}
-          >
-            <Icon name="logout" />
-          </button>
-        </div>
+      <div className="shrink-0 border-t border-white/10 p-2">
+        <AccountMenu name={profile.full_name} detail={`${ROLE_LABELS[profile.role]} · ${siteLabel}`} business={business?.name ?? null} onLogout={() => void signOut()} />
       </div>
     </nav>
   );
