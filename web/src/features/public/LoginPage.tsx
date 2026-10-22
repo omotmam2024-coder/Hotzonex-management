@@ -24,7 +24,9 @@ export function LoginPage() {
   if (status === 'mfa') return <TwoStepCode />;
   if (status !== 'signed_out') {
     const from = (location.state as { from?: string } | null)?.from;
-    const target = from && from !== '/login' ? from : profile ? homePathFor(profile.role) : '/';
+    // Only a path inside this app: never "//host" or "/\host", which browsers treat as another site.
+    const safe = from && /^\/(?![/\\])/.test(from) && from !== '/login';
+    const target = safe ? from : profile ? homePathFor(profile.role) : '/';
     return <Navigate to={target} replace />;
   }
 
