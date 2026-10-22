@@ -26,6 +26,7 @@ import type { SupabaseClient } from 'npm:@supabase/supabase-js@2.117.3';
 import { audit, type Caller, requireAdmin, serviceClient } from '../_shared/auth.ts';
 import { HttpError, readBody, serveJson } from '../_shared/cors.ts';
 import { decryptSecret, encryptSecret } from '../_shared/crypto.ts';
+import { isDnsName, isPrivateIpv4, isPrivateIpv6 } from '../_shared/netcheck.ts';
 import { setupScript } from '../_shared/routeros.ts';
 import { generateWgKeyPair, nextTunnelIp, tunnelSetupScript } from '../_shared/tunnel.ts';
 
@@ -49,19 +50,11 @@ function text(body: Record<string, unknown>, key: string, label: string, max = 1
   return value;
 }
 
-/** Addresses that only work inside a local network (or are not router addresses at all). */
-function isPrivateIpv4(host: string): boolean {
-  const m = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(host);
-  if (!m) return false;
-  const [a, b] = [Number(m[1]), Number(m[2])];
-  return a === 10 || a === 127 || a === 0 || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || (a === 169 && b === 254) || (a === 100 && b >= 64 && b <= 127);
-}
-
 function parseHost(raw: string): string {
   const host = raw.trim().replace(/^https?:\/\//i, '').replace(/\/.*$/, '').replace(/:\d+$/, '').toLowerCase();
   const ipv4 = /^\d{1,3}(\.\d{1,3}){3}$/.test(host);
   if (ipv4 && host.split('.').some((o) => Number(o) > 255)) throw new HttpError(400, `"${raw}" is not a valid IP address.`);
-  if (!ipv4 && !HOST_RE.test(host)) throw new HttpError(400, `"${raw}" is not a valid IP address or name.`);
+  if (!ipv4 && (!HOST_RE.test(host) || !isDnsName(host))) throw new HttpError(400, `"${raw}" is not a valid IP address or name.`);
   return host;
 }
 
@@ -75,11 +68,11 @@ async function checkPublicName(host: string): Promise<void> {
   if (host === 'localhost' || /\.(localhost|local|internal|lan|home|corp)$/.test(host)) throw new HttpError(400, `"${host}" ${blocked}`);
   let addresses: string[] = [];
   try {
-    addresses = await Deno.resolveDns(host, 'A');
+    addresses = [...(await Deno.resolveDns(host, 'A').catch(() => [] as string[])), ...(await Deno.resolveDns(host, 'AAAA').catch(() => [] as string[]))];
   } catch {
     return; // Not found here: the connection test reports it.
   }
-  if (addresses.some(isPrivateIpv4)) throw new HttpError(400, `"${host}" ${blocked}`);
+  if (addresses.some((ip) => isPrivateIpv4(ip) || isPrivateIpv6(ip))) throw new HttpError(400, `"${host}" ${blocked}`);
 }
 
 async function parseFields(admin: SupabaseClient, caller: Caller, body: Record<string, unknown>): Promise<RouterFields> {

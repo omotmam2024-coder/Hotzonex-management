@@ -12,3 +12,15 @@
     /* storage blocked: stay light */
   }
 })();
+
+// Never shown inside another site's frame: a hidden frame could trick a signed-in owner into
+// clicking buttons (the hosting cannot send a frame-ancestors header for a static site).
+(function () {
+  if (window.top === window.self) return;
+  document.documentElement.style.display = 'none';
+  try {
+    window.top.location = window.self.location.href;
+  } catch (e) {
+    /* the other site blocks it: the page simply stays hidden */
+  }
+})();

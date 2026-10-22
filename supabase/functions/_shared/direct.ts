@@ -2,6 +2,7 @@
 // DNS name with the router's admin username and password. Used by the router-direct worker.
 // Same rules as the cloud connector: read the router's own hotspot setup without changing it,
 // add plan profiles only when missing, touch only hotspot users tagged hzc:<voucher id>.
+import { assertPublicHost } from './netcheck.ts';
 import { emptyHotspotInfo, fromRouterOsTime, type ActiveRow, type HotspotInfo, type ProfileSpec, type UserUsage } from './routeros.ts';
 
 export interface DirectTarget {
@@ -34,10 +35,13 @@ export class RestClient {
   private readonly authHeader: string;
   private readonly target: DirectTarget;
   private readonly timeoutMs: number;
+  private readonly checkHost: (host: string) => Promise<void>;
 
-  constructor(target: DirectTarget, timeoutMs = 10_000) {
+  /** checkHost: tests talking to a fake router on this machine pass a check that allows it. */
+  constructor(target: DirectTarget, timeoutMs = 10_000, checkHost: (host: string) => Promise<void> = assertPublicHost) {
     this.target = target;
     this.timeoutMs = timeoutMs;
+    this.checkHost = checkHost;
     const scheme = target.useHttps ? 'https' : 'http';
     const defaultPort = target.useHttps ? 443 : 80;
     const host = target.host.includes(':') ? `[${target.host}]` : target.host;
@@ -81,10 +85,19 @@ export class RestClient {
     const where = `${this.target.host}:${this.target.port}`;
     const relay = this.target.relay;
 
+    // Direct routers only: the address must still lead to the internet, not to Hotzonex Cloud's own network.
+    if (!relay) {
+      try {
+        await this.checkHost(this.target.host);
+      } catch (err) {
+        throw new RouterError('unreachable', `${err instanceof Error ? err.message : String(err)} For a router on a local network, use the Tunnel option.`);
+      }
+    }
     let res: Response;
     try {
       res = await fetch(url, {
         method,
+        redirect: 'manual',
         headers: {
           Authorization: this.authHeader,
           Accept: 'application/json',
@@ -114,6 +127,7 @@ export class RestClient {
       throw new RouterError('timeout', `The router is not connected to the tunnel (${where}). Check that it has internet and that the tunnel script was pasted.`);
     }
     if (relay && res.status === 404 && !text.startsWith('{')) throw new RouterError('api', 'The tunnel server refused the request. Run the install command on the VPS again.');
+    if (res.status >= 300 && res.status < 400) throw new RouterError('api', `${where} sent the request somewhere else (HTTP ${res.status}). Use the router's own address and port.`);
     if (res.status === 401) throw new RouterError('auth', 'Wrong router username or password.');
     if (res.status === 403) throw new RouterError('forbidden', `User ${this.target.username} may not use the REST API. Its group needs the read, write, api and rest-api policies.`);
     if (!res.ok) {

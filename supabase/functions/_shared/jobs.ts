@@ -194,7 +194,7 @@ export async function applyPushResults(
   let conflictCodes: string[] = [];
   if (conflicts.length) {
     // The code belongs to another hotspot user on this router; the voucher is taken out of stock.
-    const { data } = await db.from('vouchers').update({ status: 'disabled' }).in('id', conflicts).eq('on_router', false).select('code');
+    const { data } = await db.from('vouchers').update({ status: 'disabled' }).in('id', conflicts).eq('router_id', router.id).eq('on_router', false).select('code');
     conflictCodes = (data ?? []).map((v) => v.code as string);
   }
 
@@ -537,7 +537,7 @@ const isOwnProfileName = (n: string) => Boolean(n) && n !== 'default' && !n.star
  * off (vouchers and sales keep their plan). Kept as it is while it is still ticked for another
  * router. Call after this router's link to the plan is gone.
  */
-export async function retirePlan(db: SupabaseClient, _tenantId: string, plan: { id: string; router_profile_name: string }): Promise<'deleted' | 'switched_off' | 'kept'> {
+export async function retirePlan(db: SupabaseClient, tenantId: string, plan: { id: string; router_profile_name: string }): Promise<'deleted' | 'switched_off' | 'kept'> {
   // Still ticked for another router: the plan stays.
   const { count: links } = await db.from('plan_routers').select('plan_id', { count: 'exact', head: true }).eq('plan_id', plan.id);
   if ((links ?? 0) > 0) return 'kept';
@@ -549,12 +549,12 @@ export async function retirePlan(db: SupabaseClient, _tenantId: string, plan: { 
     db.from('router_logins').select('id', { count: 'exact', head: true }).eq('plan_id', plan.id).eq('used', true),
   ]);
   if (refs.some((r) => r.error || (r.count ?? 0) > 0)) {
-    await db.from('plans').update({ is_active: false }).eq('id', plan.id);
+    await db.from('plans').update({ is_active: false }).eq('id', plan.id).eq('tenant_id', tenantId);
     return 'switched_off';
   }
-  const { error } = await db.from('plans').delete().eq('id', plan.id);
+  const { error } = await db.from('plans').delete().eq('id', plan.id).eq('tenant_id', tenantId);
   if (error) {
-    await db.from('plans').update({ is_active: false }).eq('id', plan.id);
+    await db.from('plans').update({ is_active: false }).eq('id', plan.id).eq('tenant_id', tenantId);
     return 'switched_off';
   }
   return 'deleted';
@@ -581,7 +581,13 @@ export async function retireRemovedProfiles(db: SupabaseClient, router: RouterRe
 
 /** Finishes a "delete these vouchers" job once the router no longer has them. */
 export async function finishVoucherDelete(db: SupabaseClient, job: Job, removedOnRouter: number): Promise<void> {
-  const ids = jobVouchers(job).map((v) => v.id);
+  // Only this router's vouchers: the job's list is never trusted to stay inside one business.
+  const listed = jobVouchers(job).map((v) => v.id);
+  let ids: string[] = [];
+  for (const part of chunks(listed, 200)) {
+    const { data } = await db.from('vouchers').select('id').in('id', part).eq('router_id', job.router_id ?? '');
+    ids = ids.concat((data ?? []).map((v) => v.id as string));
+  }
   const deleted = await deleteVoucherRows(db, ids);
   await finishJob(db, job.id, true, { removed_on_router: removedOnRouter, deleted });
 }
@@ -625,7 +631,7 @@ export async function finishProfileRemoval(db: SupabaseClient, router: RouterRef
   const planId = str(job.payload.plan_id);
   // The plan is no longer on this router; it goes when no other router carries it.
   if (planId) await db.from('plan_routers').delete().eq('router_id', router.id).eq('plan_id', planId);
-  const { data: plan } = planId ? await db.from('plans').select('id, router_profile_name').eq('id', planId).maybeSingle() : { data: null };
+  const { data: plan } = planId ? await db.from('plans').select('id, router_profile_name').eq('id', planId).eq('tenant_id', router.tenant_id).maybeSingle() : { data: null };
   const outcome = plan ? await retirePlan(db, router.tenant_id, plan as { id: string; router_profile_name: string }) : 'deleted';
   await finishJob(db, job.id, true, { removed_profile: name, plan: outcome });
 }

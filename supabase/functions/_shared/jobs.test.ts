@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import type { SupabaseClient } from 'npm:@supabase/supabase-js@2.117.3';
-import { applyRouterRemovals, finishProfileRemoval, finishVoucherDelete, recordPushCheck, retireRemovedProfiles, type Job, type RouterRef } from './jobs.ts';
+import { applyPushResults, applyRouterRemovals, finishProfileRemoval, finishVoucherDelete, recordPushCheck, retireRemovedProfiles, type Job, type RouterRef } from './jobs.ts';
 
 type Row = Record<string, unknown>;
 
@@ -97,7 +97,7 @@ test('an empty user list is treated as a failed read: nothing is deleted', async
 test('vouchers deleted in Hotzonex: rows go after the router, and an empty batch goes too', async () => {
   const t = world();
   t.sales = [];
-  const job = { id: 'j1', payload: { delete: true, vouchers: [{ id: 'v3', code: '3333' }, { id: 'v4', code: '4444' }] } } as unknown as Job;
+  const job = { id: 'j1', router_id: 'r1', payload: { delete: true, vouchers: [{ id: 'v3', code: '3333' }, { id: 'v4', code: '4444' }] } } as unknown as Job;
   t.router_jobs.push({ id: 'j1', status: 'running' });
   await finishVoucherDelete(fakeDb(t), job, 1);
   assert.deepEqual(t.vouchers.map((v) => v.id), ['v1', 'v2']);
@@ -185,4 +185,24 @@ test('push check: missing cards, wrong profile and code length become plain warn
   const clean = { id: 'j2', result: {} } as unknown as Job;
   t.router_jobs.push({ id: 'j2', status: 'running' });
   assert.deepEqual(await recordPushCheck(db, clean, { checked: 3, missing: [], wrongProfile: [], codeLength: 7, ownLength: 7 }), []);
+});
+
+test("a profile-removal job naming another business's plan leaves that plan alone", async () => {
+  const t = world();
+  t.plans = [{ id: 'px', tenant_id: 'tenant-2', router_profile_name: 'Guest', is_active: true }];
+  t.routers = [{ id: 'r1', tenant_id: T, hotspot_info: { user_profiles: [{ name: 'default' }] } }];
+  t.router_jobs = [{ id: 'j1', status: 'running' }];
+  const job = { id: 'j1', router_id: 'r1', payload: { remove_profile: 'Guest', plan_id: 'px' } } as unknown as Job;
+  await finishProfileRemoval(fakeDb(t), router, job, 0);
+  assert.deepEqual(t.plans, [{ id: 'px', tenant_id: 'tenant-2', router_profile_name: 'Guest', is_active: true }]);
+});
+
+test("push results can only disable this router's own vouchers", async () => {
+  const t = world();
+  t.vouchers.push({ id: 'vx', code: '9999', status: 'unused', on_router: false, router_id: 'r-other', batch_id: 'bx', plan_id: 'p1' });
+  const job = { id: 'j1', router_id: 'r1', payload: {}, result: {} } as unknown as Job;
+  t.router_jobs.push({ id: 'j1', status: 'running' });
+  const out = await applyPushResults(fakeDb(t), router, job, [{ voucher: 'vx', result: 'conflict' }]);
+  assert.equal(t.vouchers.find((v) => v.id === 'vx')!.status, 'unused');
+  assert.ok(!JSON.stringify(out).includes('9999'));
 });

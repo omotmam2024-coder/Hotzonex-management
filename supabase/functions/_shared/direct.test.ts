@@ -93,7 +93,7 @@ before(async () => {
 });
 after(() => server.close());
 
-const client = (password = 'secret') => new RestClient({ host: '127.0.0.1', port, useHttps: false, username: 'admin', password }, 3000);
+const client = (password = 'secret') => new RestClient({ host: '127.0.0.1', port, useHttps: false, username: 'admin', password }, 3000, async () => {});
 const V = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee';
 
 test('wrong password gives a plain error', async () => {
@@ -309,4 +309,9 @@ test('Buy page walled garden: Hotzonex entries replaced, the owner\'s own entrie
   assert.deepEqual(state['/ip/hotspot/walled-garden/ip']!.map((r) => [r['dst-host'], r.action]), [['app.hotzonex.net', 'accept'], ['x.supabase.co', 'accept']]);
   assert.deepEqual(await setWalledGarden(c, [], false), { removed: 4, added: 0 });
   assert.deepEqual(state['/ip/hotspot/walled-garden']!.map((r) => r.comment), ['owner']);
+});
+
+test('a direct router on a private address is refused before any request is sent', async () => {
+  const c = new RestClient({ host: '127.0.0.1', port, useHttps: false, username: 'admin', password: 'secret' }, 3000);
+  await assert.rejects(c.get('/system/resource'), (e: unknown) => e instanceof RouterError && e.kind === 'unreachable' && /not a public address/.test(e.message));
 });

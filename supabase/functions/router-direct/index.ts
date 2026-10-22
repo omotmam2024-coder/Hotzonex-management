@@ -10,6 +10,7 @@
 import type { SupabaseClient } from 'npm:@supabase/supabase-js@2.117.3';
 import { serviceClient } from '../_shared/auth.ts';
 import { decryptSecret } from '../_shared/crypto.ts';
+import { sameSecret } from '../_shared/netcheck.ts';
 import {
   closeSessions,
   directTest,
@@ -569,7 +570,7 @@ Deno.serve(async (req) => {
   const db = serviceClient();
   const secret = req.headers.get('x-hzc-worker') ?? '';
   const { data: cfg } = await db.from('app_config').select('value').eq('key', 'direct_worker_secret').maybeSingle();
-  if (!cfg?.value || secret !== cfg.value) return json({ error: 'Not allowed.' }, 401);
+  if (!cfg?.value || !sameSecret(secret, cfg.value)) return json({ error: 'Not allowed.' }, 401);
 
   const body = (await req.json().catch(() => ({}))) as { router_id?: unknown };
   const routerId = typeof body.router_id === 'string' ? body.router_id : null;
