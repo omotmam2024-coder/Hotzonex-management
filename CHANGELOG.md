@@ -1,5 +1,13 @@
 # Changelog
 
+## 22 October 2026 — tunnel server keeps up by itself
+
+- The tunnel server's router-list sync never stops any more: it runs every 30 seconds by the clock,
+  never fails (a problem is logged and retried), restarts WireGuard if applying the list fails, and
+  starts it if it is down. A new router therefore connects as soon as its own script is pasted on
+  the router; nothing has to be run on the server. Run the server's install command **once** more
+  to get this version (Routers → Tunnel server → Show install command).
+
 ## 22 October 2026 — remove completely
 
 - **Owners can remove a router or a plan completely**, even with vouchers and sales. When the normal

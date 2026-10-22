@@ -156,16 +156,24 @@ echo "== Router list sync (every 30 s)"
 cat > /usr/local/bin/hzc-wg-sync <<'EOF'
 #!/usr/bin/env bash
 # Writes the WireGuard peers (one per router) from Hotzonex and applies them without dropping tunnels.
-set -euo pipefail
+# Never fails: a problem is logged and the next run (30 s later) tries again, so a router added in
+# Hotzonex connects as soon as its own script is pasted, with nothing to run here.
+set -uo pipefail
 . /etc/hotzonex/env
+ip link show wg0 >/dev/null 2>&1 || systemctl start wg-quick@wg0 || logger -t hzc-wg-sync "wg0 could not start"
 peers="$(curl -fsS --max-time 20 -H "x-hzc-relay: $HZC_SECRET" "$HZC_FN?f=peers")" || exit 0
 case "$peers" in "# hzc-peers"*) ;; *) exit 0;; esac
 new="$(cat /etc/hotzonex/wg0-interface.conf; printf '\\n%s\\n' "$peers")"
 if [ "$new" != "$(cat /etc/wireguard/wg0.conf 2>/dev/null)" ]; then
   (umask 077; printf '%s\\n' "$new" > /etc/wireguard/wg0.conf.new)
   mv /etc/wireguard/wg0.conf.new /etc/wireguard/wg0.conf
-  if ip link show wg0 >/dev/null 2>&1; then wg syncconf wg0 <(wg-quick strip wg0); fi
+  if ! wg syncconf wg0 <(wg-quick strip wg0); then
+    logger -t hzc-wg-sync "syncconf failed, restarting wg0"
+    systemctl restart wg-quick@wg0 || logger -t hzc-wg-sync "wg0 restart failed"
+  fi
+  logger -t hzc-wg-sync "router list updated: $(grep -c '^\\[Peer\\]' /etc/wireguard/wg0.conf) router(s)"
 fi
+exit 0
 EOF
 chmod 755 /usr/local/bin/hzc-wg-sync
 cat > /etc/systemd/system/hzc-wg-sync.service <<'EOF'
@@ -180,9 +188,10 @@ cat > /etc/systemd/system/hzc-wg-sync.timer <<'EOF'
 [Unit]
 Description=Hotzonex router list sync every 30 seconds
 [Timer]
+# By the clock (not "30 s after the last run"), so one failed run never stops the schedule.
 OnBootSec=20s
-OnUnitActiveSec=30s
-AccuracySec=5s
+OnCalendar=*-*-* *:*:00,30
+AccuracySec=1s
 [Install]
 WantedBy=timers.target
 EOF
@@ -222,6 +231,9 @@ fi
 systemctl daemon-reload
 systemctl enable --now wg-quick@wg0
 systemctl enable --now hzc-wg-sync.timer
+systemctl restart hzc-wg-sync.timer
+systemctl reset-failed hzc-wg-sync.service 2>/dev/null || true
+/usr/local/bin/hzc-wg-sync
 systemctl enable caddy
 systemctl restart caddy
 
