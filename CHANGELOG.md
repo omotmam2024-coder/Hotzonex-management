@@ -1,5 +1,20 @@
 # Changelog
 
+## 22 October 2026 — simpler payments and invoices
+
+- **Payments (mobile money)**: each payment to check is one big card: amount, the phone it came
+  from and the transaction ID in large letters, and two buttons: **Yes, the money arrived** (then
+  **Give the card**) or **No, not received** (then a reason to tap). No pop-up boxes. The card code
+  given is shown in big digits. Earlier payments are folded away. Setting up selling is 3 numbered
+  steps (turn on, your mobile-money number, print the poster); the page address is optional.
+- **Billing / invoices for businesses**: a big status at the top (free trial and days left, invoice
+  to pay, paused, all paid), plan, real price (the plan's own price), routers and **the next invoice
+  date and amount**. The invoices list is always shown, with "your first invoice comes on …" during
+  the trial. Each invoice opens as a proper **invoice page** to print or save as PDF, with a box to
+  type the transaction ID. "How to pay" is 3 numbered steps.
+- Platform admins see when a trial business gets its first invoice.
+- Migration `20261022140000_billing_overview_next_invoice.sql` (applied).
+
 ## 22 October 2026 — tunnel server keeps up by itself
 
 - The tunnel server's router-list sync never stops any more: it runs every 30 seconds by the clock,

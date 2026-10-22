@@ -226,6 +226,13 @@ function BusinessBilling({ b, stdPrice, usdRate }: { b: PlatformBusiness; stdPri
       </div>
       <BusinessPlanControl tenantId={b.tenant_id} onExtendTrial={extendTrial} />
       {save.error && <Alert tone="error">{friendlyError(save.error)}</Alert>}
+      {b.invoices.length === 0 && !b.exempt && (
+        <p className="rounded-xl bg-slate-50 p-3 text-sm text-slate-600">
+          {b.status === 'trial' && b.trial_ends_at
+            ? t('business.pbilling.noInvoicesTrial', { date: formatJubaDate(b.trial_ends_at) })
+            : t('business.pbilling.noInvoicesYet')}
+        </p>
+      )}
       {b.invoices.length > 0 && (
         <ul className="space-y-1 rounded-xl bg-slate-50 p-3 text-sm">
           {b.invoices.map((i) => (

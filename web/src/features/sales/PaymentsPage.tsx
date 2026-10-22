@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import qrcode from 'qrcode-generator';
 import { useAuth } from '../../auth/AuthProvider';
@@ -132,68 +132,95 @@ function BuySettings({ site }: { site: SiteRow }) {
 
   const live = site.buy_enabled && site.buy_slug;
   const svg = useMemo(() => (live ? qrSvg(buyUrl(site.buy_slug!)) : ''), [live, site.buy_slug]);
+  const missingNumber = enabled && !instructions.trim();
 
   return (
-    <div className="space-y-3 rounded-xl border border-slate-200 p-4">
+    <div className="space-y-4 rounded-2xl border border-slate-200 p-4">
       <div className="flex flex-wrap items-center gap-2">
-        <h3 className="font-bold">{site.name}</h3>
+        <h3 className="text-lg font-bold">{site.name}</h3>
         {live ? <Badge color="green">{t('sales.buy.open')}</Badge> : <Badge color="gray">{t('sales.buy.closed')}</Badge>}
       </div>
-      <Checkbox label={t('sales.buy.enable')} checked={enabled} onChange={setEnabled} />
+
+      <Step n={1} title={t('sales.mm.step1')}>
+        <Checkbox label={t('sales.buy.enable')} checked={enabled} onChange={setEnabled} />
+      </Step>
+
       {enabled && (
-        <>
-          <Field label={t('sales.buy.address')} hint={`${window.location.origin}/buy/${slug || '…'}`}>
-            <TextInput dir="ltr" value={slug} onChange={(e) => setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '').slice(0, 40))} />
-          </Field>
-          <Field label={t('sales.buy.sendMoney')} hint={t('sales.buy.sendMoneyHint')}>
-            <TextArea value={instructions} onChange={(e) => setInstructions(e.target.value.slice(0, 500))} rows={3} />
-          </Field>
-        </>
-      )}
-      <Button onClick={() => save.mutate()} disabled={save.isPending}>
-        {save.isPending && <Spinner />} {t('common.save')}
-      </Button>
-      {save.isSuccess && (
-        <Alert tone="success">
-          {t('sales.buy.saved')} {enabled ? t('sales.buy.savedOpen') : t('sales.buy.savedClosed')}
-        </Alert>
-      )}
-      {save.error && <Alert tone="error">{friendlyError(save.error)}</Alert>}
-      {live && (
-        <div className="flex flex-wrap items-center gap-4 pt-2">
-          <div className="h-32 w-32" dangerouslySetInnerHTML={{ __html: svg }} />
-          <div className="space-y-2">
-            <a href={buyUrl(site.buy_slug!)} target="_blank" rel="noopener" className="block break-all font-semibold text-brand-700 underline">
-              {buyUrl(site.buy_slug!)}
-            </a>
-            <Field label={t('sales.buy.wifiName')} hint={t('sales.buy.wifiNameHint')}>
-              <TextInput value={wifiName} onChange={(e) => setWifiName(e.target.value.slice(0, 32))} placeholder={t('sales.buy.wifiNamePlaceholder')} />
+        <Step n={2} title={t('sales.mm.step2')}>
+          <TextArea
+            value={instructions}
+            onChange={(e) => setInstructions(e.target.value.slice(0, 500))}
+            rows={2}
+            placeholder={t('sales.mm.numberExample')}
+            aria-label={t('sales.mm.step2')}
+          />
+          <p className="text-xs text-slate-500">{t('sales.mm.numberHint')}</p>
+          <details className="text-sm">
+            <summary className="cursor-pointer py-1 font-medium text-brand-700">{t('sales.mm.changeAddress')}</summary>
+            <Field label={t('sales.buy.address')} hint={`${window.location.origin}/buy/${slug || '…'}`}>
+              <TextInput dir="ltr" value={slug} onChange={(e) => setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '').slice(0, 40))} />
             </Field>
-            <Button variant="secondary" onClick={() => printPoster(site, business?.name ?? '', wifiName, dir)}>
-              {t('sales.buy.printPoster')}
-            </Button>
+          </details>
+        </Step>
+      )}
+
+      <div className="flex flex-wrap items-center gap-2">
+        <Button onClick={() => save.mutate()} disabled={save.isPending || missingNumber} className="min-h-12">
+          {save.isPending && <Spinner />} {t('common.save')}
+        </Button>
+        {missingNumber && <span className="text-sm text-amber-800">{t('sales.mm.needNumber')}</span>}
+      </div>
+      {save.isSuccess && <Alert tone="success">{enabled ? t('sales.mm.savedOpen') : t('sales.buy.savedClosed')}</Alert>}
+      {save.error && <Alert tone="error">{friendlyError(save.error)}</Alert>}
+
+      {live && (
+        <Step n={3} title={t('sales.mm.step3')}>
+          <div className="flex flex-wrap items-start gap-4">
+            <div className="h-32 w-32 shrink-0 rounded-lg bg-white p-1 ring-1 ring-slate-200" dangerouslySetInnerHTML={{ __html: svg }} />
+            <div className="min-w-0 flex-1 space-y-2">
+              <a href={buyUrl(site.buy_slug!)} target="_blank" rel="noopener" dir="ltr" className="block break-all text-sm font-semibold text-brand-700 underline">
+                {buyUrl(site.buy_slug!)}
+              </a>
+              <Field label={t('sales.buy.wifiName')} hint={t('sales.buy.wifiNameHint')}>
+                <TextInput value={wifiName} onChange={(e) => setWifiName(e.target.value.slice(0, 32))} placeholder={t('sales.buy.wifiNamePlaceholder')} />
+              </Field>
+              <Button variant="secondary" onClick={() => printPoster(site, business?.name ?? '', wifiName, dir)}>
+                {t('sales.buy.printPoster')}
+              </Button>
+            </div>
           </div>
-        </div>
+        </Step>
       )}
     </div>
   );
 }
 
-function PaymentItem({
-  p,
-  siteName,
-  planName,
-  onAction,
-  onConfirmed,
-}: {
-  p: PaymentRow;
-  siteName: string;
-  planName: string;
-  onAction: () => void;
-  onConfirmed: (result: ConfirmResult) => void;
-}) {
+function Step({ n, title, children }: { n: number; title: string; children: ReactNode }) {
+  return (
+    <div className="flex gap-3">
+      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand-600 text-sm font-bold text-white">{n}</span>
+      <div className="min-w-0 flex-1 space-y-2 pt-1">
+        <p className="font-semibold text-slate-900">{title}</p>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function timeAgoShort(iso: string): string {
+  const min = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
+  if (min < 1) return translate('common.justNow');
+  if (min < 60) return translate('common.minAgo', { n: min });
+  return formatJubaTime(iso);
+}
+
+const REJECT_REASONS = ['sales.mm.reason.notReceived', 'sales.mm.reason.wrongAmount', 'sales.mm.reason.wrongId'] as const;
+
+/** A payment to check: the amount, who sent it and the transaction ID, then one big decision. */
+function WaitingPayment({ p, siteName, planName, onConfirmed }: { p: PaymentRow; siteName: string; planName: string; onConfirmed: (result: ConfirmResult) => void }) {
   const { t } = useT();
   const queryClient = useQueryClient();
+  const [step, setStep] = useState<'look' | 'confirm' | 'reject'>('look');
   // A double tap must not confirm twice: the second tap comes before isPending re-renders.
   const inFlight = useRef(false);
   const confirm = useMutation({
@@ -202,20 +229,15 @@ function PaymentItem({
       if (error) throw new Error(friendlyError(error));
       return fromJson<ConfirmResult>(data);
     },
-    // Reported to the page: the row moves to "Recent" and remounts, which would lose its own state.
     onSuccess: (result) => {
       onConfirmed(result);
       void queryClient.invalidateQueries({ queryKey: ['payments'] });
       invalidateSalesData(queryClient);
     },
+    onSettled: () => {
+      inFlight.current = false;
+    },
   });
-  function confirmPayment() {
-    if (inFlight.current) return;
-    if (!window.confirm(t('sales.pay.confirmQuestion', { amount: formatSSP(p.amount_ssp), phone: p.phone, ref: p.txn_ref }))) return;
-    inFlight.current = true;
-    onAction();
-    confirm.mutate(undefined, { onSettled: () => (inFlight.current = false) });
-  }
   const reject = useMutation({
     mutationFn: async (reason: string) => {
       const { error } = await supabase.rpc('reject_payment_request', { p_id: p.id, p_reason: reason });
@@ -223,48 +245,90 @@ function PaymentItem({
     },
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['payments'] }),
   });
+  const busy = confirm.isPending || reject.isPending;
 
   return (
-    <li className="py-3">
-      <div className="flex flex-wrap items-start justify-between gap-3">
+    <li className="rounded-2xl bg-white p-4 shadow-card ring-1 ring-slate-200">
+      <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
-          <p className="font-semibold text-slate-900">
-            {planName} · {formatSSP(p.amount_ssp)}
-          </p>
-          <p className="text-sm text-slate-700">
-            {PROVIDER[p.provider] ?? p.provider} · <span dir="ltr">{p.phone}</span> · {t('sales.pay.ref')} <b className="font-mono">{p.txn_ref}</b>
-          </p>
-          <p className="text-xs text-slate-500">
-            {siteName} · {formatJubaTime(p.created_at)}
-          </p>
-          {p.status === 'rejected' && p.reject_reason && <p className="text-sm text-red-700">{t('sales.pay.rejected', { reason: p.reject_reason })}</p>}
+          <div className="text-3xl font-extrabold tabular-nums text-slate-900">{formatSSP(p.amount_ssp)}</div>
+          <div className="text-sm text-slate-600">
+            {planName} · {siteName} · {timeAgoShort(p.created_at)}
+          </div>
         </div>
-        {p.status === 'pending' ? (
-          <div className="flex gap-2">
-            <Button
-              onClick={confirmPayment}
-              disabled={confirm.isPending || reject.isPending}
-            >
-              {confirm.isPending && <Spinner />} {t('sales.pay.confirm')}
+        <Badge color="blue">{PROVIDER[p.provider] ?? p.provider}</Badge>
+      </div>
+      <dl className="mt-3 grid gap-2 sm:grid-cols-2">
+        <div className="rounded-xl bg-slate-50 p-3">
+          <dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">{t('sales.mm.from')}</dt>
+          <dd dir="ltr" className="text-lg font-bold text-slate-900">
+            {p.phone}
+          </dd>
+        </div>
+        <div className="rounded-xl bg-slate-50 p-3">
+          <dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">{t('sales.mm.txn')}</dt>
+          <dd dir="ltr" className="break-all font-mono text-lg font-bold text-slate-900">
+            {p.txn_ref}
+          </dd>
+        </div>
+      </dl>
+
+      {step === 'look' && (
+        <>
+          <p className="mt-3 text-sm text-slate-700">{t('sales.mm.check')}</p>
+          <div className="mt-3 grid gap-2 sm:grid-cols-2">
+            <Button onClick={() => setStep('confirm')} disabled={busy} className="min-h-12 !bg-green-600 hover:!bg-green-700">
+              ✓ {t('sales.mm.arrived')}
             </Button>
-            <Button
-              variant="danger"
-              onClick={() => {
-                const reason = window.prompt(t('sales.pay.rejectWhy'), t('sales.pay.rejectDefault'));
-                if (!reason) return;
-                onAction();
-                reject.mutate(reason);
-              }}
-              disabled={confirm.isPending || reject.isPending}
-            >
-              {t('sales.pay.reject')}
+            <Button variant="danger" onClick={() => setStep('reject')} disabled={busy} className="min-h-12">
+              ✗ {t('sales.mm.notArrived')}
             </Button>
           </div>
-        ) : (
-          <Badge color={PAYMENT_STATUS[p.status].color}>{PAYMENT_STATUS[p.status].label}</Badge>
-        )}
-      </div>
-      {(confirm.error ?? reject.error) && <Alert tone="error">{friendlyError(confirm.error ?? reject.error)}</Alert>}
+        </>
+      )}
+
+      {step === 'confirm' && (
+        <div className="mt-3 space-y-2 rounded-xl bg-green-50 p-3 ring-1 ring-green-200">
+          <p className="font-semibold text-green-900">{t('sales.mm.sure', { amount: formatSSP(p.amount_ssp), ref: p.txn_ref })}</p>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              onClick={() => {
+                if (inFlight.current) return;
+                inFlight.current = true;
+                confirm.mutate();
+              }}
+              disabled={busy}
+              className="min-h-12 !bg-green-600 hover:!bg-green-700"
+            >
+              {confirm.isPending && <Spinner />} {t('sales.mm.giveCard')}
+            </Button>
+            <Button variant="secondary" onClick={() => setStep('look')} disabled={busy}>
+              {t('sales.mm.back')}
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {step === 'reject' && (
+        <div className="mt-3 space-y-2 rounded-xl bg-red-50 p-3 ring-1 ring-red-200">
+          <p className="font-semibold text-red-900">{t('sales.mm.why')}</p>
+          <div className="grid gap-2 sm:grid-cols-3">
+            {REJECT_REASONS.map((key) => (
+              <Button key={key} variant="danger" onClick={() => reject.mutate(t(key))} disabled={busy}>
+                {t(key)}
+              </Button>
+            ))}
+          </div>
+          <Button variant="secondary" onClick={() => setStep('look')} disabled={busy}>
+            {t('sales.mm.back')}
+          </Button>
+        </div>
+      )}
+      {(confirm.error ?? reject.error) && (
+        <div className="mt-2">
+          <Alert tone="error">{friendlyError(confirm.error ?? reject.error)}</Alert>
+        </div>
+      )}
     </li>
   );
 }
@@ -274,9 +338,8 @@ export function PaymentsPage() {
   const { profile } = useAuth();
   const sites = useSites();
   const plans = usePlans();
-  // The last confirmed card, kept here: the confirmed row moves to "Recent" and remounts.
+  // The last card given, kept here: the confirmed payment leaves the list.
   const [confirmed, setConfirmed] = useState<ConfirmResult | null>(null);
-  const clearConfirmed = () => setConfirmed(null);
   const payments = useQuery({
     queryKey: ['payments'],
     refetchInterval: 10_000,
@@ -295,55 +358,84 @@ export function PaymentsPage() {
   const planName = (id: string) => plans.data?.find((p) => p.id === id)?.name ?? t('sales.pay.card');
   const pending = (payments.data ?? []).filter((p) => p.status === 'pending');
   const done = (payments.data ?? []).filter((p) => p.status !== 'pending').slice(0, 30);
+  const anyOpen = (sites.data ?? []).some((s) => s.buy_enabled && s.buy_slug);
+  const isOwner = profile?.role === 'admin';
 
   return (
-    <div className="space-y-4">
-      <PageHeader title={t('nav.payments')} subtitle={t('sales.pay.subtitle')} />
+    <div className="mx-auto max-w-3xl space-y-4">
+      <PageHeader title={t('nav.payments')} subtitle={t('sales.mm.subtitle')} />
+
       {confirmed && (
-        <Alert tone="success">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <span>
-              {t('sales.pay.givenCard')} <b className="font-mono">{confirmed.code}</b> {confirmed.on_router ? t('sales.pay.givenDone') : t('sales.pay.givenAdding')}
-            </span>
-            <button type="button" className={`${textButtonClass} text-green-800`} onClick={clearConfirmed}>
-              {t('sales.pay.dismiss')}
-            </button>
-          </div>
-        </Alert>
+        <div className="rounded-2xl bg-green-50 p-5 text-center ring-1 ring-green-200">
+          <p className="font-semibold text-green-800">{t('sales.mm.given')}</p>
+          <p dir="ltr" className="my-2 font-mono text-5xl font-extrabold tracking-wider text-slate-900">
+            {confirmed.code}
+          </p>
+          <p className="text-sm text-green-800">{confirmed.on_router ? t('sales.mm.givenText') : t('sales.mm.givenAdding')}</p>
+          <button type="button" className={`${textButtonClass} mt-1 text-green-800`} onClick={() => setConfirmed(null)}>
+            {t('sales.pay.dismiss')}
+          </button>
+        </div>
       )}
-      <Card>
-        <h2 className="mb-2 text-lg font-bold">{t('payment.pending')} {pending.length > 0 && <Badge color="blue">{pending.length}</Badge>}</h2>
+
+      {!anyOpen && sites.data && (
+        <Alert tone="info">{isOwner ? t('sales.mm.offOwner') : t('sales.mm.offStaff')}</Alert>
+      )}
+
+      <section className="space-y-3">
+        <h2 className="flex items-center gap-2 text-lg font-bold">
+          {t('sales.mm.toCheck')} {pending.length > 0 && <Badge color="blue">{pending.length}</Badge>}
+        </h2>
         {payments.isLoading ? (
           <Spinner />
         ) : pending.length ? (
-          <ul className="divide-y divide-slate-100">
+          <ul className="space-y-3">
             {pending.map((p) => (
-              <PaymentItem key={p.id} p={p} siteName={siteName(p.site_id)} planName={planName(p.plan_id)} onAction={clearConfirmed} onConfirmed={setConfirmed} />
+              <WaitingPayment
+                key={p.id}
+                p={p}
+                siteName={siteName(p.site_id)}
+                planName={planName(p.plan_id)}
+                onConfirmed={(r) => {
+                  setConfirmed(r);
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }}
+              />
             ))}
           </ul>
         ) : (
-          <p className="text-slate-600">{t('sales.pay.none')}</p>
+          <p className="rounded-2xl bg-white p-5 text-center text-slate-600 ring-1 ring-slate-200">{t('sales.mm.nothing')}</p>
         )}
         {payments.error && <Alert tone="error">{friendlyError(payments.error)}</Alert>}
-      </Card>
+      </section>
 
       {done.length > 0 && (
-        <Card>
-          <h2 className="mb-2 text-lg font-bold">{t('sales.pay.recent')}</h2>
-          <ul className="divide-y divide-slate-100">
+        <details className="rounded-2xl bg-white p-4 ring-1 ring-slate-200">
+          <summary className="flex min-h-11 cursor-pointer items-center font-semibold text-slate-800">{t('sales.mm.earlier', { n: done.length })}</summary>
+          <ul className="mt-2 divide-y divide-slate-100 text-sm">
             {done.map((p) => (
-              <PaymentItem key={p.id} p={p} siteName={siteName(p.site_id)} planName={planName(p.plan_id)} onAction={clearConfirmed} onConfirmed={setConfirmed} />
+              <li key={p.id} className="flex flex-wrap items-center justify-between gap-2 py-2">
+                <span>
+                  <b className="tabular-nums">{formatSSP(p.amount_ssp)}</b> · {planName(p.plan_id)} · <span dir="ltr">{p.phone}</span> ·{' '}
+                  <span dir="ltr" className="font-mono">
+                    {p.txn_ref}
+                  </span>
+                  <span className="block text-xs text-slate-500">
+                    {formatJubaTime(p.decided_at ?? p.created_at)}
+                    {p.status === 'rejected' && p.reject_reason ? ` · ${p.reject_reason}` : ''}
+                  </span>
+                </span>
+                <Badge color={PAYMENT_STATUS[p.status].color}>{PAYMENT_STATUS[p.status].label}</Badge>
+              </li>
             ))}
           </ul>
-        </Card>
+        </details>
       )}
 
-      {profile?.role === 'admin' && (
+      {isOwner && (
         <Card className="space-y-3">
-          <h2 className="text-lg font-bold">{t('sales.buy.title')}</h2>
-          <p className="text-sm text-slate-600">
-            {t('sales.buy.intro')}
-          </p>
+          <h2 className="text-lg font-bold">{t('sales.mm.setupTitle')}</h2>
+          <p className="text-sm text-slate-600">{t('sales.mm.setupText')}</p>
           {(sites.data ?? []).map((s) => (
             <BuySettings key={s.id} site={s} />
           ))}

@@ -17,11 +17,16 @@ export interface Invoice {
   paid_at: string | null;
 }
 
-interface BillingOverview {
+export interface BillingOverview {
   status: 'trial' | 'active' | 'suspended';
   exempt: boolean;
   trial_ends_at: string | null;
   price_per_router_ssp: number;
+  plan_name?: string | null;
+  business_name?: string | null;
+  /** The day the next invoice is made (YYYY-MM-DD); null when nothing is billed. */
+  next_invoice_on?: string | null;
+  next_invoice_amount?: number | null;
   routers: number;
   business_active: boolean;
   instructions: string;

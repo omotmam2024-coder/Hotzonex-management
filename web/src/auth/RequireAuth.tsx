@@ -61,7 +61,7 @@ function PausedBusiness({ onSignOut }: { onSignOut: () => void }) {
           <h1 className="text-xl font-bold text-slate-900">{t('public.auth.pausedTitle')}</h1>
           <p className="mt-2 text-slate-700">{t('public.auth.pausedText')}</p>
         </div>
-        <BillingPanel />
+        <BillingPanel invoiceLinks={false} />
         <button type="button" onClick={onSignOut} className="w-full text-center text-sm font-semibold text-slate-600 underline">
           {t('common.logout')}
         </button>

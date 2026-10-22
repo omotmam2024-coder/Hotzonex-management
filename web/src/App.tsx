@@ -40,6 +40,7 @@ const LandingPage = page(() => import('./features/public/LandingPage'), 'Landing
 const WelcomePage = page(() => import('./features/business/WelcomePage'), 'WelcomePage');
 const BusinessSettingsPage = page(() => import('./features/business/BusinessSettingsPage'), 'BusinessSettingsPage');
 const BillingPage = page(() => import('./features/business/BillingPage'), 'BillingPage');
+const InvoicePage = page(() => import('./features/business/InvoicePage'), 'InvoicePage');
 const SecurityPage = page(() => import('./features/business/SecurityPage'), 'SecurityPage');
 const AlertsPage = page(() => import('./features/reports/AlertsPage'), 'AlertsPage');
 const ResetPasswordPage = page(() => import('./features/public/ResetPasswordPage'), 'ResetPasswordPage');
@@ -135,6 +136,7 @@ export function App() {
             </Route>
             <Route element={<RequireRole roles={rolesFor('/billing')} />}>
               <Route path="/billing" element={<BillingPage />} />
+              <Route path="/billing/invoice/:id" element={<InvoicePage />} />
             </Route>
             <Route element={<RequireRole roles={rolesFor('/security')} />}>
               <Route path="/security" element={<SecurityPage />} />
