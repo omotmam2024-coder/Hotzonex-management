@@ -1,5 +1,18 @@
 # Changelog
 
+## 22 October 2026 — simpler Vouchers, Generate and Routers
+
+- **Vouchers**: on a phone each voucher is a card (big code, status, plan, router, sold time,
+  "Not on the router yet" when it is still being added). Only Search and Status show; router, plan
+  and batch are under **More filters**. Wide screens keep the table.
+- **Generate vouchers**: 3 numbered steps: which router (shown, not asked, when there is only one),
+  which card (tap a coloured plan button), how many (50 / 100 / 200 / 500 or type a number). The
+  code length is set from the router and folded away. Generate stays grey until a router and plan
+  are chosen.
+- **Routers**: each router shows a big **Working** / **Not answering** box and how many cards are
+  on it. Buttons in front: **Check now** and **Edit** (a new router shows its setup script button
+  first). Connection details, health, hotspot setup and Remove are under **More**.
+
 ## 22 October 2026 — simpler payments and invoices
 
 - **Payments (mobile money)**: each payment to check is one big card: amount, the phone it came

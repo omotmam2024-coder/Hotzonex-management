@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import qrcode from 'qrcode-generator';
 import { useAuth } from '../../auth/AuthProvider';
+import { Step } from '../../components/Step';
 import { PageHeader } from '../../components/PageHeader';
 import { Alert, Badge, Button, Card, Checkbox, Field, Spinner, TextArea, TextInput, textButtonClass } from '../../components/ui';
 import { friendlyError } from '../../lib/errors';
@@ -191,18 +192,6 @@ function BuySettings({ site }: { site: SiteRow }) {
           </div>
         </Step>
       )}
-    </div>
-  );
-}
-
-function Step({ n, title, children }: { n: number; title: string; children: ReactNode }) {
-  return (
-    <div className="flex gap-3">
-      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand-600 text-sm font-bold text-white">{n}</span>
-      <div className="min-w-0 flex-1 space-y-2 pt-1">
-        <p className="font-semibold text-slate-900">{title}</p>
-        {children}
-      </div>
     </div>
   );
 }

@@ -2,8 +2,12 @@
 // Words in {braces} are filled in by the page (names, numbers, commands in <code>): keep them exactly.
 
 const en = {
+  'routers.big.online': 'Working',
+  'routers.big.offline': 'Not answering',
+  'routers.big.cards': 'Cards on this router: {unused} not used yet, {used} used',
+  'routers.more': 'More: details, health, remove',
   // Routers page
-  'routers.subtitle': 'MikroTik routers, reached at a public IP, through your tunnel server, or calling Hotzonex Cloud by themselves',
+  'routers.subtitle': 'Your MikroTik routers. Green means the router is working.',
   'routers.addRouter': '+ Add router',
   'routers.empty': 'No routers yet. Click “Add router” to connect the first one.',
   'routers.seen': 'seen {ago}',
@@ -40,7 +44,7 @@ const en = {
   'routers.tunnelScript': 'Tunnel script',
   'routers.setupScript': 'Setup script',
   'routers.testing': 'Testing…',
-  'routers.testAgain': 'Test again',
+  'routers.testAgain': 'Check now',
   'routers.testConnected': 'Connected. {model} · RouterOS {ros} · up {uptime}',
   'routers.testFailed': 'The test failed.',
   'routers.sites': 'Sites',
@@ -230,7 +234,11 @@ const en = {
 type Keys = Record<keyof typeof en, string>;
 
 const ar = {
-  'routers.subtitle': 'راوترات MikroTik، يُوصل إليها عبر عنوان IP عام، أو عبر خادم النفق الخاص بك، أو تتصل بـ Hotzonex Cloud بنفسها',
+  'routers.big.online': 'يعمل',
+  'routers.big.offline': 'لا يستجيب',
+  'routers.big.cards': 'البطاقات على هذا الراوتر: {unused} لم تُستخدم بعد، {used} مستخدمة',
+  'routers.more': 'المزيد: التفاصيل، الحالة، الحذف',
+  'routers.subtitle': 'راوترات MikroTik الخاصة بك. الأخضر يعني أن الراوتر يعمل.',
   'routers.addRouter': '+ إضافة راوتر',
   'routers.empty': 'لا توجد راوترات بعد. اضغط “إضافة راوتر” لربط أول راوتر.',
   'routers.seen': 'شوهد {ago}',
@@ -264,7 +272,7 @@ const ar = {
   'routers.tunnelScript': 'سكربت النفق',
   'routers.setupScript': 'سكربت الإعداد',
   'routers.testing': 'جارٍ الاختبار…',
-  'routers.testAgain': 'اختبر مرة أخرى',
+  'routers.testAgain': 'افحص الآن',
   'routers.testConnected': 'متصل. {model} · RouterOS {ros} · يعمل منذ {uptime}',
   'routers.testFailed': 'فشل الاختبار.',
   'routers.sites': 'المواقع',
@@ -444,7 +452,11 @@ const ar = {
 } satisfies Keys;
 
 const sw = {
-  'routers.subtitle': 'Router za MikroTik, zinazofikiwa kwa IP ya umma, kupitia tunnel server yako, au zinazopiga Hotzonex Cloud zenyewe',
+  'routers.big.online': 'Inafanya kazi',
+  'routers.big.offline': 'Haijibu',
+  'routers.big.cards': 'Kadi kwenye router hii: {unused} bado hazijatumika, {used} zimetumika',
+  'routers.more': 'Zaidi: maelezo, afya, ondoa',
+  'routers.subtitle': 'Router zako za MikroTik. Kijani maana yake router inafanya kazi.',
   'routers.addRouter': '+ Ongeza router',
   'routers.empty': 'Bado hakuna router. Bonyeza “Ongeza router” kuunganisha ya kwanza.',
   'routers.seen': 'imeonekana {ago}',
@@ -481,7 +493,7 @@ const sw = {
   'routers.tunnelScript': 'Script ya tunnel',
   'routers.setupScript': 'Script ya kuweka',
   'routers.testing': 'Inajaribu…',
-  'routers.testAgain': 'Jaribu tena',
+  'routers.testAgain': 'Kagua sasa',
   'routers.testConnected': 'Imeunganishwa. {model} · RouterOS {ros} · imewaka {uptime}',
   'routers.testFailed': 'Jaribio limeshindwa.',
   'routers.sites': 'Matawi',

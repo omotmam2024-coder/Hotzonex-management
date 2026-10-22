@@ -165,29 +165,9 @@ export function VouchersPage() {
       />
 
       <Card>
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+        <div className="grid gap-3 sm:grid-cols-2">
           <Field label={t('vouchers.searchCode')}>
             <TextInput inputMode="numeric" dir="ltr" placeholder={t('vouchers.typeDigits')} value={codeInput} onChange={(e) => setCodeInput(e.target.value)} />
-          </Field>
-          <Field label={t('common.router')}>
-            <Select value={routerId} onChange={(e) => setFilter('router', e.target.value)}>
-              <option value="">{t('vouchers.allRouters')}</option>
-              {(routers.data ?? []).map((r) => (
-                <option key={r.id} value={r.id}>
-                  {r.name}
-                </option>
-              ))}
-            </Select>
-          </Field>
-          <Field label={t('common.plan')}>
-            <Select value={planId} onChange={(e) => setFilter('plan', e.target.value)}>
-              <option value="">{t('common.allPlans')}</option>
-              {(plans.data ?? []).map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                </option>
-              ))}
-            </Select>
           </Field>
           <Field label={t('vouchers.status')}>
             <Select value={status} onChange={(e) => setFilter('status', e.target.value)}>
@@ -199,17 +179,43 @@ export function VouchersPage() {
               ))}
             </Select>
           </Field>
-          <Field label={t('vouchers.batch')}>
-            <Select value={batchId} onChange={(e) => setFilter('batch', e.target.value)}>
-              <option value="">{t('vouchers.allBatches')}</option>
-              {(batches.data ?? []).map((b) => (
-                <option key={b.id} value={b.id}>
-                  {formatJubaTime(b.created_at)} · {b.quantity} × {b.plan_name} · {b.router_name}
-                </option>
-              ))}
-            </Select>
-          </Field>
         </div>
+        {/* Router, plan and batch are for finding a group of cards: tucked away until needed. */}
+        <details className="mt-3" open={Boolean(routerId || planId || batchId) || undefined}>
+          <summary className="flex min-h-11 cursor-pointer items-center font-semibold text-brand-700">{t('vouchers.moreFilters')}</summary>
+          <div className="mt-2 grid gap-3 sm:grid-cols-3">
+            <Field label={t('common.router')}>
+              <Select value={routerId} onChange={(e) => setFilter('router', e.target.value)}>
+                <option value="">{t('vouchers.allRouters')}</option>
+                {(routers.data ?? []).map((r) => (
+                  <option key={r.id} value={r.id}>
+                    {r.name}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+            <Field label={t('common.plan')}>
+              <Select value={planId} onChange={(e) => setFilter('plan', e.target.value)}>
+                <option value="">{t('common.allPlans')}</option>
+                {(plans.data ?? []).map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+            <Field label={t('vouchers.batch')}>
+              <Select value={batchId} onChange={(e) => setFilter('batch', e.target.value)}>
+                <option value="">{t('vouchers.allBatches')}</option>
+                {(batches.data ?? []).map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {formatJubaTime(b.created_at)} · {b.quantity} × {b.plan_name} · {b.router_name}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+          </div>
+        </details>
         {hasFilters && (
           <button type="button" className={`${textButtonClass} mt-1 text-brand-700`} onClick={() => setParams({}, { replace: true })}>
             {t('vouchers.clearFilters')}
@@ -236,7 +242,51 @@ export function VouchersPage() {
             {t('vouchers.pageOf', { page: page + 1, pages })}
           </span>
         </div>
-        <div className="overflow-x-auto">
+        {/* Phone: one card per voucher, nothing to scroll sideways. */}
+        <ul className="divide-y divide-slate-100 border-t border-slate-200 sm:hidden">
+          {rows.map((v) => {
+            const plan = planById.get(v.plan_id);
+            const badge = VOUCHER_STATUS[v.status];
+            return (
+              <li key={v.id} className="flex items-start gap-3 px-4 py-3">
+                {isAdmin && (
+                  <input
+                    type="checkbox"
+                    className="mt-1.5 h-5 w-5 shrink-0"
+                    aria-label={t('vouchers.selectCode', { code: v.code })}
+                    checked={selected.has(v.id)}
+                    disabled={!DELETABLE.includes(v.status)}
+                    onChange={() => toggle(v.id)}
+                  />
+                )}
+                <div className="min-w-0 flex-1 space-y-1">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span dir="ltr" className="font-mono text-xl font-bold tracking-wider text-slate-900">
+                      {v.code}
+                    </span>
+                    <Badge color={badge.color}>{badge.label}</Badge>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-slate-600">
+                    <span className="flex items-center gap-1.5">
+                      <span className="h-3 w-3 rounded-full" style={{ backgroundColor: plan?.color ?? '#94a3b8' }} />
+                      {plan?.name ?? '—'}
+                    </span>
+                    <span>{routerById.get(v.router_id)?.name ?? '—'}</span>
+                    {v.sold_at && <span>{t('vouchers.soldOn', { time: formatJubaTime(v.sold_at) })}</span>}
+                  </div>
+                  {!v.on_router && <p className="text-sm font-medium text-amber-700">{t('vouchers.notOnRouterYet')}</p>}
+                  {v.on_router && v.status !== 'disabled' && (
+                    <Link to={`/print/receipt/${v.id}`} className={`${textButtonClass} text-brand-700`}>
+                      {t('vouchers.receiptLink')}
+                    </Link>
+                  )}
+                </div>
+              </li>
+            );
+          })}
+          {vouchers.data && vouchers.data.rows.length === 0 && <li className="px-4 py-6 text-center text-slate-500">{t('vouchers.noMatch')}</li>}
+        </ul>
+        <div className="hidden overflow-x-auto sm:block">
           <table className="w-full min-w-[700px] text-start text-sm">
             <thead className="border-y border-slate-200 bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
               <tr>

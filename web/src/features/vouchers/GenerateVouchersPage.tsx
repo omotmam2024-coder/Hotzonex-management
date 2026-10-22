@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../../auth/AuthProvider';
 import { PageHeader } from '../../components/PageHeader';
+import { Step } from '../../components/Step';
 import { Alert, Badge, Button, buttonClass, Card, Field, Select, Spinner, TextInput } from '../../components/ui';
 import { friendlyError } from '../../lib/errors';
 import { formatJubaTime, formatNumber, formatSSP } from '../../lib/format';
@@ -220,42 +221,103 @@ export function GenerateVouchersPage() {
       />
 
       <Card className="max-w-3xl">
-        <form onSubmit={submit} className="space-y-4" noValidate>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field label={t('common.site')}>
-              <Select value={siteId} onChange={(e) => setSiteId(e.target.value)} disabled={Boolean(fixedSite)}>
-                <option value="">{t('vouchers.gen.chooseSite')}</option>
-                {(sites.data ?? []).map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name}
-                  </option>
-                ))}
-              </Select>
-            </Field>
-            <Field label={t('common.router')}>
-              <Select value={routerId} onChange={(e) => setRouterId(e.target.value)} disabled={!siteId}>
-                <option value="">{siteId && siteRouters.length === 0 ? t('vouchers.gen.noRouters') : t('vouchers.gen.chooseRouter')}</option>
-                {siteRouters.map((r) => (
-                  <option key={r.id} value={r.id}>
-                    {r.name} {r.status === 'offline' ? t('vouchers.gen.offlineTag') : ''}
-                  </option>
-                ))}
-              </Select>
-            </Field>
-            <Field label={t('common.plan')}>
-              <Select value={planId} onChange={(e) => setPlanId(e.target.value)}>
-                <option value="">{t('vouchers.gen.choosePlan')}</option>
-                {activePlans.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name} — {formatSSP(p.price_ssp)} · {durationText(p.uptime_seconds)}
-                  </option>
-                ))}
-              </Select>
-            </Field>
-            <div className="grid grid-cols-2 gap-4">
-              <Field label={t('vouchers.gen.quantity')} hint={t('vouchers.gen.quantityHint')}>
-                <TextInput inputMode="numeric" dir="ltr" value={quantity} onChange={(e) => setQuantity(e.target.value.replace(/\D/g, '').slice(0, 4))} />
+        <form onSubmit={submit} className="space-y-5" noValidate>
+          <Step n={1} title={t('vouchers.gen.step.where')}>
+            {/* One site or one router: nothing to choose, just say which. */}
+            {!fixedSite && (sites.data ?? []).length > 1 && (
+              <Field label={t('common.site')}>
+                <Select value={siteId} onChange={(e) => setSiteId(e.target.value)}>
+                  <option value="">{t('vouchers.gen.chooseSite')}</option>
+                  {(sites.data ?? []).map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name}
+                    </option>
+                  ))}
+                </Select>
               </Field>
+            )}
+            {siteId && siteRouters.length === 0 ? (
+              <Alert tone="warning">{t('vouchers.gen.noRouters')}</Alert>
+            ) : siteRouters.length === 1 && router ? (
+              <p className="rounded-xl bg-slate-50 p-3 font-semibold text-slate-900">
+                {router.name} {router.status === 'offline' ? t('vouchers.gen.offlineTag') : ''}
+              </p>
+            ) : (
+              <Field label={t('common.router')}>
+                <Select value={routerId} onChange={(e) => setRouterId(e.target.value)} disabled={!siteId}>
+                  <option value="">{t('vouchers.gen.chooseRouter')}</option>
+                  {siteRouters.map((r) => (
+                    <option key={r.id} value={r.id}>
+                      {r.name} {r.status === 'offline' ? t('vouchers.gen.offlineTag') : ''}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+            )}
+          </Step>
+
+          <Step n={2} title={t('vouchers.gen.step.plan')}>
+            {activePlans.length === 0 ? (
+              <p className="text-slate-600">{t('vouchers.gen.noPlans')}</p>
+            ) : (
+              <div className="grid grid-cols-1 gap-2 min-[420px]:grid-cols-2">
+                {activePlans.map((p) => {
+                  const picked = p.id === planId;
+                  return (
+                    <button
+                      key={p.id}
+                      type="button"
+                      aria-pressed={picked}
+                      onClick={() => setPlanId(p.id)}
+                      className={`flex min-h-14 items-center gap-3 rounded-xl p-3 text-start ring-2 transition ${picked ? 'bg-brand-50 ring-brand-600' : 'bg-white ring-slate-200 hover:ring-slate-300'}`}
+                    >
+                      <span className="h-8 w-2 shrink-0 rounded-full" style={{ backgroundColor: p.color }} />
+                      <span className="min-w-0 flex-1">
+                        <span className="block font-bold text-slate-900">{p.name}</span>
+                        <span className="block text-sm text-slate-600">
+                          {formatSSP(p.price_ssp)} · {durationText(p.uptime_seconds)}
+                        </span>
+                      </span>
+                      {picked && <span className="text-xl font-bold text-brand-700">✓</span>}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </Step>
+
+          <Step n={3} title={t('vouchers.gen.step.howMany')}>
+            <div className="flex flex-wrap gap-2">
+              {['50', '100', '200', '500'].map((n) => (
+                <button
+                  key={n}
+                  type="button"
+                  aria-pressed={quantity === n}
+                  onClick={() => setQuantity(n)}
+                  className={`min-h-11 min-w-16 rounded-xl px-4 font-bold ring-2 ${quantity === n ? 'bg-brand-600 text-white ring-brand-600' : 'bg-white text-slate-800 ring-slate-200'}`}
+                >
+                  {n}
+                </button>
+              ))}
+              <div className="w-28">
+                <TextInput
+                  aria-label={t('vouchers.gen.quantity')}
+                  inputMode="numeric"
+                  dir="ltr"
+                  value={quantity}
+                  onChange={(e) => setQuantity(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                />
+              </div>
+            </div>
+            <p className="text-sm text-slate-500">{t('vouchers.gen.quantityHint')}</p>
+          </Step>
+
+          {/* The code length is set from the router's own cards; most people never change it. */}
+          <details open={Boolean(ownLength && Number(codeLength) !== ownLength) || undefined}>
+            <summary className="flex min-h-11 cursor-pointer items-center text-sm font-semibold text-slate-700">
+              {t('vouchers.gen.lengthSummary', { n: codeLength })}
+            </summary>
+            <div className="mt-2 max-w-48">
               <Field label={t('vouchers.gen.codeLength')} hint={ownLength ? t('vouchers.gen.digitsRouter', { n: ownLength }) : t('vouchers.gen.digits')}>
                 <Select value={codeLength} onChange={(e) => setCodeLength(e.target.value)}>
                   {[6, 7, 8, 9, 10].map((n) => (
@@ -266,7 +328,7 @@ export function GenerateVouchersPage() {
                 </Select>
               </Field>
             </div>
-          </div>
+          </details>
 
           {ownLength && Number(codeLength) !== ownLength && (
             <Alert tone="warning">
@@ -284,7 +346,7 @@ export function GenerateVouchersPage() {
           {generate.error && <Alert tone="error">{generate.error.message}</Alert>}
           {notice && <Alert tone="success">{notice}</Alert>}
 
-          <Button type="submit" disabled={generate.isPending} className="min-h-12 px-8 text-lg">
+          <Button type="submit" disabled={generate.isPending || !routerId || !planId} className="min-h-12 w-full px-8 text-lg sm:w-auto">
             {generate.isPending && <Spinner />} {t('vouchers.gen.generate')}
           </Button>
         </form>

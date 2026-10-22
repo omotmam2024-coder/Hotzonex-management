@@ -2,6 +2,14 @@
 // The "vouchers.receipt.*" and "vouchers.dur.*" texts are printed for hotspot customers: keep them short.
 
 const en = {
+  'vouchers.moreFilters': 'More filters: router, plan, batch',
+  'vouchers.soldOn': 'sold {time}',
+  'vouchers.notOnRouterYet': 'Not on the router yet',
+  'vouchers.gen.step.where': 'Which router?',
+  'vouchers.gen.step.plan': 'Which card? Tap one',
+  'vouchers.gen.step.howMany': 'How many cards?',
+  'vouchers.gen.noPlans': 'No plans for this router yet. Add one on the Plans page.',
+  'vouchers.gen.lengthSummary': 'Codes have {n} digits (change)',
   'vouchers.check.title': 'Check a voucher',
   'vouchers.check.subtitle': 'A customer complains or brings a card back? Type the code to see at once whether it was used.',
   'vouchers.check.placeholder': 'Voucher code',
@@ -172,6 +180,14 @@ const en = {
 type Keys = Record<keyof typeof en, string>;
 
 const ar = {
+  'vouchers.moreFilters': 'تصفية أكثر: الراوتر، الباقة، الدفعة',
+  'vouchers.soldOn': 'بيعت {time}',
+  'vouchers.notOnRouterYet': 'ليست على الراوتر بعد',
+  'vouchers.gen.step.where': 'أي راوتر؟',
+  'vouchers.gen.step.plan': 'أي بطاقة؟ اضغط على واحدة',
+  'vouchers.gen.step.howMany': 'كم بطاقة؟',
+  'vouchers.gen.noPlans': 'لا توجد باقات لهذا الراوتر بعد. أضف واحدة من صفحة الباقات.',
+  'vouchers.gen.lengthSummary': 'الرموز من {n} أرقام (تغيير)',
   'vouchers.check.title': 'فحص قسيمة',
   'vouchers.check.subtitle': 'عميل يشتكي أو أعاد بطاقة؟ اكتب الرمز لترى فوراً إن كانت قد استُخدمت.',
   'vouchers.check.placeholder': 'رمز القسيمة',
@@ -333,6 +349,14 @@ const ar = {
 } satisfies Keys;
 
 const sw = {
+  'vouchers.moreFilters': 'Vichujio zaidi: router, mpango, kundi',
+  'vouchers.soldOn': 'imeuzwa {time}',
+  'vouchers.notOnRouterYet': 'Bado haipo kwenye router',
+  'vouchers.gen.step.where': 'Router ipi?',
+  'vouchers.gen.step.plan': 'Kadi ipi? Gusa moja',
+  'vouchers.gen.step.howMany': 'Kadi ngapi?',
+  'vouchers.gen.noPlans': 'Bado hakuna mipango ya router hii. Ongeza mmoja kwenye ukurasa wa Mipango.',
+  'vouchers.gen.lengthSummary': 'Namba zina tarakimu {n} (badilisha)',
   'vouchers.check.title': 'Kagua vocha',
   'vouchers.check.subtitle': 'Mteja analalamika au amerudisha kadi? Andika namba uone mara moja kama imetumika.',
   'vouchers.check.placeholder': 'Namba ya vocha',

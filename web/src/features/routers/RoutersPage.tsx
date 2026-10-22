@@ -9,9 +9,9 @@ import { HotspotSnapshot, rich, SetupScriptCard } from '../../components/RouterS
 import { useT } from '../../i18n';
 import { TunnelServerCard } from '../../components/TunnelServer';
 import { useTunnelServer } from '../../hooks/useTunnelServer';
-import { Alert, Badge, Button, Card, Spinner, TextInput } from '../../components/ui';
+import { Alert, Badge, Button, buttonClass, Card, Spinner, TextInput } from '../../components/ui';
 import { friendlyError } from '../../lib/errors';
-import { formatJubaTime, timeAgo } from '../../lib/format';
+import { formatJubaTime, formatNumber, timeAgo } from '../../lib/format';
 import { invokeFunction } from '../../lib/functions';
 import { waitForJob } from '../../lib/jobs';
 import { useRouters, useSites } from '../../hooks/queries';
@@ -19,26 +19,34 @@ import { routerStatus } from '../../lib/routers';
 import { supabase } from '../../lib/supabase';
 import type { RouterInfo, SiteRow, TestConnectionResult } from '../../lib/types';
 
-function StatusLine({ router }: { router: RouterInfo }) {
+/** The router's state in big words: is it working right now? */
+function StatusPanel({ router }: { router: RouterInfo }) {
   const { t } = useT();
   const status = routerStatus(router);
-  if (status === 'online')
-    return (
-      <span className="flex items-center gap-2">
-        <Badge color="green">{t('common.online')}</Badge>
-        <span className="text-sm text-slate-500">{t('routers.seen', { ago: timeAgo(router.last_seen_at) })}</span>
-      </span>
-    );
-  if (status === 'offline')
-    return (
-      <span className="flex flex-wrap items-center gap-2">
-        <Badge color="red">{t('common.offline')}</Badge>
-        <span className="text-sm text-slate-600">
-          {router.last_seen_at ? t('routers.lastCall', { time: formatJubaTime(router.last_seen_at) }) : t('routers.neverCalled')}
-        </span>
-      </span>
-    );
-  return <Badge color="gray">{router.last_seen_at ? t('routers.checking') : t('common.waitingRouter')}</Badge>;
+  let tone = 'bg-slate-50 text-slate-700 ring-slate-200';
+  let dot = 'bg-slate-400';
+  let title = router.last_seen_at ? t('routers.checking') : t('common.waitingRouter');
+  let text = '';
+  if (status === 'online') {
+    tone = 'bg-green-50 text-green-800 ring-green-200';
+    dot = 'bg-green-500';
+    title = t('routers.big.online');
+    text = t('routers.seen', { ago: timeAgo(router.last_seen_at) });
+  } else if (status === 'offline') {
+    tone = 'bg-red-50 text-red-800 ring-red-200';
+    dot = 'bg-red-500';
+    title = t('routers.big.offline');
+    text = router.last_seen_at ? t('routers.lastCall', { time: formatJubaTime(router.last_seen_at) }) : t('routers.neverCalled');
+  }
+  return (
+    <div className={`flex items-center gap-3 rounded-2xl p-3 ring-1 ${tone}`}>
+      <span className={`h-4 w-4 shrink-0 rounded-full ${dot}`} />
+      <div className="min-w-0">
+        <div className="text-xl font-extrabold">{title}</div>
+        {text && <div className="text-sm">{text}</div>}
+      </div>
+    </div>
+  );
 }
 
 type TestState = { routerId: string; phase: 'running' } | { routerId: string; phase: 'done'; ok: boolean; message: string };
@@ -90,60 +98,20 @@ function RouterCard({
 
   const testing = test?.phase === 'running';
   const status = routerStatus(router);
+  const needsScript = !direct && router.status === 'pending';
   return (
     <Card>
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0">
-          <h2 className="truncate text-lg font-bold text-slate-900">{router.name}</h2>
-          <p className="text-sm text-slate-600">{siteName}</p>
-        </div>
-        <StatusLine router={router} />
+      <div className="min-w-0">
+        <h2 className="truncate text-lg font-bold text-slate-900">{router.name}</h2>
+        <p className="text-sm text-slate-600">{siteName}</p>
       </div>
-
-      <dl className="mt-4 grid grid-cols-1 gap-x-4 gap-y-2 text-sm min-[420px]:grid-cols-2 lg:grid-cols-4">
-        <div>
-          <dt className="text-slate-500">{t('routers.connection')}</dt>
-          <dd className="break-all font-medium">
-            {direct
-              ? `${router.host ?? '?'}:${router.port ?? ''} · ${router.username ?? ''}`
-              : tunnel
-                ? t('routers.conn.tunnel', { address: `${router.tunnel_ip ?? '?'}:${router.port ?? ''}`, user: router.username ?? '' })
-                : `${router.host ? `${router.host} · ` : ''}${t('routers.conn.cloud')}`}
-          </dd>
-        </div>
-        <div>
-          <dt className="text-slate-500">{t('routers.hotspotUsers')}</dt>
-          <dd className="font-medium">
-            {router.hotspot_users
-              ? t('routers.usersCount', { total: router.hotspot_users.total, unused: router.hotspot_users.unused, used: router.hotspot_users.used })
-              : '—'}
-          </dd>
-        </div>
-        <div>
-          <dt className="text-slate-500">{t('routers.usersReport')}</dt>
-          <dd className="font-medium">{router.last_usage_at ? timeAgo(router.last_usage_at) : '—'}</dd>
-        </div>
-        <div>
-          <dt className="text-slate-500">{t('routers.hotspot')}</dt>
-          <dd className="font-medium">{router.hotspot_server ?? t('routers.readAtFirstCheck')}</dd>
-        </div>
-        <div>
-          <dt className="text-slate-500">{t('routers.dnsName')}</dt>
-          <dd className="break-all font-medium">{router.dns_name ?? '—'}</dd>
-        </div>
-        <div>
-          <dt className="text-slate-500">{t('routers.modelRos')}</dt>
-          <dd className="font-medium">
-            {router.model ?? '—'} · {router.ros_version ?? '—'}
-          </dd>
-        </div>
-      </dl>
-
-      {router.status !== 'pending' && (
-        <div className="mt-3 rounded-xl bg-slate-50 p-3">
-          <h3 className="mb-2 text-sm font-bold text-slate-700">{t('routers.health')}</h3>
-          <RouterHealth router={router} />
-        </div>
+      <div className="mt-3">
+        <StatusPanel router={router} />
+      </div>
+      {router.hotspot_users && (
+        <p className="mt-3 text-slate-800">
+          {t('routers.big.cards', { unused: formatNumber(router.hotspot_users.unused), used: formatNumber(router.hotspot_users.used) })}
+        </p>
       )}
 
       {!direct && router.status === 'pending' && !router.last_seen_at && !script && (
@@ -210,13 +178,9 @@ function RouterCard({
       {forcing && <ForceRemove kind="router" id={router.id} name={router.name} onClose={() => setForcing(false)} onDone={() => setForcing(false)} />}
 
       <div className="mt-4 flex flex-wrap gap-2">
-        {router.hotspot_info && (
-          <Button variant="secondary" onClick={() => setShowHotspot((v) => !v)}>
-            {showHotspot ? t('routers.hideHotspotSetup') : t('routers.hotspotSetup')}
-          </Button>
-        )}
-        {!direct && (
-          <Button variant="secondary" onClick={showSetup} disabled={setup.isPending}>
+        {/* A new router still needs its script: that is the one thing to do, so it comes first. */}
+        {needsScript && (
+          <Button onClick={showSetup} disabled={setup.isPending}>
             {setup.isPending ? <Spinner /> : null} {tunnel ? t('routers.tunnelScript') : t('routers.setupScript')}
           </Button>
         )}
@@ -229,22 +193,83 @@ function RouterCard({
             t('routers.testAgain')
           )}
         </Button>
-        <Link
-          to={`/routers/${router.id}/edit`}
-          className="inline-flex min-h-11 items-center rounded-xl px-4 font-semibold text-slate-800 ring-1 ring-slate-300 hover:bg-slate-50"
-        >
+        <Link to={`/routers/${router.id}/edit`} className={buttonClass('secondary')}>
           {t('common.edit')}
         </Link>
-        <Button
-          variant="danger"
-          disabled={remove.isPending}
-          onClick={() => {
-            if (window.confirm(t('routers.confirm.remove', { name: router.name }))) remove.mutate();
-          }}
-        >
-          {t('common.remove')}
-        </Button>
       </div>
+
+      {/* Technical details and rarely used buttons: there when needed, out of the way otherwise. */}
+      <details className="mt-3 rounded-xl bg-slate-50 px-3">
+        <summary className="flex min-h-11 cursor-pointer items-center font-semibold text-slate-700">{t('routers.more')}</summary>
+        <div className="space-y-3 pb-3">
+          <dl className="grid grid-cols-1 gap-x-4 gap-y-2 text-sm min-[420px]:grid-cols-2 lg:grid-cols-4">
+            <div>
+              <dt className="text-slate-500">{t('routers.connection')}</dt>
+              <dd className="break-all font-medium">
+                {direct
+                  ? `${router.host ?? '?'}:${router.port ?? ''} · ${router.username ?? ''}`
+                  : tunnel
+                    ? t('routers.conn.tunnel', { address: `${router.tunnel_ip ?? '?'}:${router.port ?? ''}`, user: router.username ?? '' })
+                    : `${router.host ? `${router.host} · ` : ''}${t('routers.conn.cloud')}`}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-slate-500">{t('routers.hotspotUsers')}</dt>
+              <dd className="font-medium">
+                {router.hotspot_users
+                  ? t('routers.usersCount', { total: router.hotspot_users.total, unused: router.hotspot_users.unused, used: router.hotspot_users.used })
+                  : '—'}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-slate-500">{t('routers.usersReport')}</dt>
+              <dd className="font-medium">{router.last_usage_at ? timeAgo(router.last_usage_at) : '—'}</dd>
+            </div>
+            <div>
+              <dt className="text-slate-500">{t('routers.hotspot')}</dt>
+              <dd className="font-medium">{router.hotspot_server ?? t('routers.readAtFirstCheck')}</dd>
+            </div>
+            <div>
+              <dt className="text-slate-500">{t('routers.dnsName')}</dt>
+              <dd className="break-all font-medium">{router.dns_name ?? '—'}</dd>
+            </div>
+            <div>
+              <dt className="text-slate-500">{t('routers.modelRos')}</dt>
+              <dd className="font-medium">
+                {router.model ?? '—'} · {router.ros_version ?? '—'}
+              </dd>
+            </div>
+          </dl>
+          {router.status !== 'pending' && (
+            <div className="rounded-xl bg-white p-3">
+              <h3 className="mb-2 text-sm font-bold text-slate-700">{t('routers.health')}</h3>
+              <RouterHealth router={router} />
+            </div>
+          )}
+
+          <div className="flex flex-wrap gap-2">
+            {router.hotspot_info && (
+              <Button variant="secondary" onClick={() => setShowHotspot((v) => !v)}>
+                {showHotspot ? t('routers.hideHotspotSetup') : t('routers.hotspotSetup')}
+              </Button>
+            )}
+            {!direct && !needsScript && (
+              <Button variant="secondary" onClick={showSetup} disabled={setup.isPending}>
+                {setup.isPending ? <Spinner /> : null} {tunnel ? t('routers.tunnelScript') : t('routers.setupScript')}
+              </Button>
+            )}
+            <Button
+              variant="danger"
+              disabled={remove.isPending}
+              onClick={() => {
+                if (window.confirm(t('routers.confirm.remove', { name: router.name }))) remove.mutate();
+              }}
+            >
+              {t('common.remove')}
+            </Button>
+          </div>
+        </div>
+      </details>
     </Card>
   );
 }
