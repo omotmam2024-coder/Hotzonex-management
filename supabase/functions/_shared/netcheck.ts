@@ -49,6 +49,14 @@ export async function assertPublicHost(host: string): Promise<void> {
   if (a.some(isPrivateIpv4) || aaaa.some(isPrivateIpv6)) throw new Error(`${host} leads to a private address.`);
 }
 
+/**
+ * The port Hotzonex logs in to a router at its public address. That login crosses the internet,
+ * so it is always HTTPS (the router's www-ssl service): the form's default web port 80 becomes 443.
+ */
+export function directPort(port: number): number {
+  return port === 80 ? 443 : port;
+}
+
 /** Constant-time comparison of two strings. */
 export function sameSecret(a: string, b: string): boolean {
   if (a.length !== b.length) return false;

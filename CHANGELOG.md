@@ -1,5 +1,13 @@
 # Changelog
 
+## 23 October 2026 — router passwords never sent in the clear
+
+- **Routers at a public address** (direct) are logged in to over **HTTPS only**: Hotzonex no longer
+  sends a router's admin username and password over plain HTTP. Port 80 on the router form is read
+  as 443; another port is used with HTTPS. A direct router saved before this change shows "reached
+  over the internet without HTTPS" until it is opened and saved once. Tunnel and script routers are
+  unchanged (the tunnel is already encrypted by WireGuard).
+
 ## 23 October 2026 — delete in the Businesses billing section
 
 - **Invoices**: every invoice of a business has a **Delete** button (removed completely, kept in the

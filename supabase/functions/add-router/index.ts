@@ -26,7 +26,7 @@ import type { SupabaseClient } from 'npm:@supabase/supabase-js@2.117.3';
 import { audit, type Caller, requireAdmin, serviceClient } from '../_shared/auth.ts';
 import { HttpError, readBody, serveJson } from '../_shared/cors.ts';
 import { decryptSecret, encryptSecret } from '../_shared/crypto.ts';
-import { isDnsName, isPrivateIpv4, isPrivateIpv6 } from '../_shared/netcheck.ts';
+import { directPort, isDnsName, isPrivateIpv4, isPrivateIpv6 } from '../_shared/netcheck.ts';
 import { setupScript } from '../_shared/routeros.ts';
 import { generateWgKeyPair, nextTunnelIp, tunnelSetupScript } from '../_shared/tunnel.ts';
 
@@ -92,13 +92,16 @@ async function parseFields(admin: SupabaseClient, caller: Caller, body: Record<s
   }
   if (!UUID_RE.test(siteId)) throw new HttpError(400, 'Choose a site.');
 
+  // A router at a public address is logged in to over the internet: only over HTTPS, so its admin
+  // password is never sent in the clear. Private addresses use the tunnel or the script instead.
+  const direct = !isPrivateIpv4(host);
   return {
     name: comment || host,
     site_id: siteId,
-    connection: isPrivateIpv4(host) ? 'cloud' : 'direct',
+    connection: direct ? 'direct' : 'cloud',
     host,
-    port,
-    use_https: port === 443,
+    port: direct ? directPort(port) : port,
+    use_https: direct,
     username: text(body, 'username', 'Username', 64),
   };
 }

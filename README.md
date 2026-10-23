@@ -168,8 +168,10 @@ On the website: **Routers → Add router** and fill in, like a MikroTik app:
   `hzc-cloud` (permissions `read,write,test,ftp`) so the router talks to Hotzonex Cloud. Needs
   RouterOS 7.19+. The password is not stored for these routers.
 - **Public IP or DNS name**: Hotzonex logs in to the router's REST API directly with the username
-  and password (stored encrypted). The `www` service (port 80) or `www-ssl` (port 443, needs a
-  trusted certificate) must be reachable from the internet.
+  and password (stored encrypted), **over HTTPS only**, so the password never crosses the internet
+  in the clear. The router's `www-ssl` service (port 443, or the port you type; port 80 is read as
+  443) must be reachable from the internet with a trusted certificate (for example
+  `/certificate enable-ssl-certificate dns-name=<your IP Cloud name>`). Without one, use the tunnel.
 
 Either way the first check only **reads** the router's hotspot servers, server profiles and user
 profiles. Hotzonex picks the running hotspot server and its DNS name automatically (you can change
