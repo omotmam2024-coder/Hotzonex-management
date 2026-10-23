@@ -31,6 +31,17 @@ try {
 }
 const persister = createSyncStoragePersister({ storage, key: 'hzc.cache', throttleTime: 2000 });
 
+// An email link (confirm sign-up, invite, reset password) that Supabase sent to the front page,
+// its fallback when the app's own address is not in its Redirect URLs, still carries its one-time
+// login or its error: hand it to the page that uses it.
+{
+  const link = new URLSearchParams(window.location.hash.slice(1));
+  const path = window.location.pathname;
+  if ((link.get('access_token') || link.get('error_code')) && path !== '/confirm-email' && path !== '/reset-password') {
+    window.history.replaceState(null, '', `${link.get('type') === 'recovery' ? '/reset-password' : '/confirm-email'}${window.location.hash}`);
+  }
+}
+
 const root = document.getElementById('root');
 if (!root) throw new Error('Root element #root not found');
 
