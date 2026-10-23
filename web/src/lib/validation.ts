@@ -95,6 +95,12 @@ export const buyRequestSchema = z.object({
     .refine((v) => /^[A-Z0-9.-]{4,40}$/.test(v), 'Type the transaction ID from your payment message (letters and digits).'),
 });
 
+/** Paying with MTN MoMo on the Buy page: MoMo sends the prompt to this number. */
+export const buyMomoSchema = z.object({
+  plan_id: uuid('Choose your card.'),
+  phone: phoneSchema('Type your MTN MoMo number.'),
+});
+
 export const cashHandoverSchema = z.object({
   amount: wholeNumber('Type the amount received.').refine((n) => n !== 0 && Math.abs(n) <= 100_000_000, 'Type the amount received.'),
   note: z.string().trim().max(200, 'The note is too long (max 200 characters).'),

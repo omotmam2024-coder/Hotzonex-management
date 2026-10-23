@@ -1,8 +1,8 @@
 /**
  * Type overrides layered on top of the generated `database.types.ts`.
  *
- * Pending migrations: none. Every migration in supabase/migrations is applied and the types were
- * regenerated from the live project.
+ * Pending migrations: 20261024090000_momo_api.sql (MTN MoMo API payments). Every other migration
+ * in supabase/migrations is applied and the types were regenerated from the live project.
  *
  * When a new migration adds tables, columns or functions the app needs before it is applied (and
  * before the types are regenerated), declare them in `PendingTables` / `PendingFunctions` below and
@@ -11,7 +11,7 @@
  * The "Generator gaps" section is different: it corrects what the generator cannot see
  * (trigger-filled tenant_id, arguments that accept null) and stays after regenerating.
  */
-import type { Database } from './database.types';
+import type { Database, Json } from './database.types';
 
 /** Flattens an intersection into one object type (keeps optional and readonly modifiers). */
 type Simplify<T> = { [K in keyof T]: T[K] } & {};
@@ -23,13 +23,20 @@ type TableDef = { Row: object; Insert: object; Update: object; Relationships: re
 
 type Public = Database['public'];
 
-/** Tables / columns from migrations not yet applied (none right now). */
-// eslint-disable-next-line @typescript-eslint/no-empty-object-type
-type PendingTables = {};
+type PaymentRequests = Public['Tables']['payment_requests'];
 
-/** Functions from migrations not yet applied (none right now). */
-// eslint-disable-next-line @typescript-eslint/no-empty-object-type
-type PendingFunctions = {};
+/** Tables / columns from migrations not yet applied (20261024090000_momo_api.sql). */
+type PendingTables = {
+  payment_requests: Merge<
+    PaymentRequests,
+    { Row: Merge<PaymentRequests['Row'], { method: string; momo_ref: string | null; momo_txn_id: string | null; checked_at: string | null }> }
+  >;
+};
+
+/** Functions from migrations not yet applied (20261024090000_momo_api.sql). */
+type PendingFunctions = {
+  momo_account: { Args: never; Returns: Json };
+};
 
 // ---------------------------------------------------------------------------------------------
 // Generator gaps. Unlike everything above, these STAY after regenerating: the generator cannot see

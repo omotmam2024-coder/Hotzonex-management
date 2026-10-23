@@ -50,11 +50,16 @@ verify_jwt = false
 [functions.delete-items]
 verify_jwt = true
 
+# The owner's MTN MoMo API login (save / test / remove); it then checks the caller is an active admin.
+[functions.momo]
+verify_jwt = true
+
 # Telegram updates and the database (pg_net) call it; it checks their secrets itself, and admins' logins for link/test/unlink.
 [functions.alerts]
 verify_jwt = false
 
-# The public Buy page (customers have no login); it limits requests itself.
+# The public Buy page (customers have no login); it limits requests itself. Its "momo_sweep"
+# action is called by the database (pg_net) and checks the x-hzc-worker secret itself.
 [functions.buy]
 verify_jwt = false
 

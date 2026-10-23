@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import qrcode from 'qrcode-generator';
 import { useAuth } from '../../auth/AuthProvider';
+import { MomoSettings } from '../../components/MomoSettings';
 import { Step } from '../../components/Step';
 import { PageHeader } from '../../components/PageHeader';
 import { Alert, Badge, Button, Card, Checkbox, Field, Spinner, TextArea, TextInput, textButtonClass } from '../../components/ui';
@@ -27,6 +28,9 @@ interface PaymentRow {
   reject_reason: string | null;
   created_at: string;
   decided_at: string | null;
+  /** 'api': MTN MoMo API payment, confirmed by MoMo itself; 'manual': the cashier checks it. */
+  method: string;
+  momo_txn_id: string | null;
 }
 
 interface ConfirmResult {
@@ -210,6 +214,7 @@ function WaitingPayment({ p, siteName, planName, onConfirmed }: { p: PaymentRow;
   const { t } = useT();
   const queryClient = useQueryClient();
   const [step, setStep] = useState<'look' | 'confirm' | 'reject'>('look');
+  const api = p.method === 'api';
   // A double tap must not confirm twice: the second tap comes before isPending re-renders.
   const inFlight = useRef(false);
   const confirm = useMutation({
@@ -245,7 +250,10 @@ function WaitingPayment({ p, siteName, planName, onConfirmed }: { p: PaymentRow;
             {planName} · {siteName} · {timeAgoShort(p.created_at)}
           </div>
         </div>
-        <Badge color="blue">{PROVIDER[p.provider] ?? p.provider}</Badge>
+        <span className="flex gap-1">
+          <Badge color="blue">{PROVIDER[p.provider] ?? p.provider}</Badge>
+          {api && <Badge color="green">{t('sales.mm.apiBadge')}</Badge>}
+        </span>
       </div>
       <dl className="mt-3 grid gap-2 sm:grid-cols-2">
         <div className="rounded-xl bg-slate-50 p-3">
@@ -257,12 +265,20 @@ function WaitingPayment({ p, siteName, planName, onConfirmed }: { p: PaymentRow;
         <div className="rounded-xl bg-slate-50 p-3">
           <dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">{t('sales.mm.txn')}</dt>
           <dd dir="ltr" className="break-all font-mono text-lg font-bold text-slate-900">
-            {p.txn_ref}
+            {p.momo_txn_id ?? p.txn_ref}
           </dd>
         </div>
       </dl>
 
-      {step === 'look' && (
+      {/* MoMo API payments confirm themselves; the cashier steps in only when MoMo says paid but no card was given. */}
+      {api && !p.momo_txn_id && <p className="mt-3 text-sm text-slate-700">{t('sales.mm.apiWaiting')}</p>}
+      {api && p.momo_txn_id && (
+        <div className="mt-3">
+          <Alert tone="warning">{t('sales.mm.apiPaid', { id: p.momo_txn_id })}</Alert>
+        </div>
+      )}
+
+      {step === 'look' && (!api || p.momo_txn_id) && (
         <>
           <p className="mt-3 text-sm text-slate-700">{t('sales.mm.check')}</p>
           <div className="mt-3 grid gap-2 sm:grid-cols-2">
@@ -335,7 +351,7 @@ export function PaymentsPage() {
     queryFn: async (): Promise<PaymentRow[]> => {
       const { data, error } = await supabase
         .from('payment_requests')
-        .select('id, site_id, plan_id, amount_ssp, phone, provider, txn_ref, status, reject_reason, created_at, decided_at')
+        .select('id, site_id, plan_id, amount_ssp, phone, provider, txn_ref, status, reject_reason, created_at, decided_at, method, momo_txn_id')
         .order('created_at', { ascending: false })
         .limit(100);
       if (error) throw new Error(friendlyError(error));
@@ -407,7 +423,7 @@ export function PaymentsPage() {
                 <span>
                   <b className="tabular-nums">{formatSSP(p.amount_ssp)}</b> · {planName(p.plan_id)} · <span dir="ltr">{p.phone}</span> ·{' '}
                   <span dir="ltr" className="font-mono">
-                    {p.txn_ref}
+                    {p.momo_txn_id ?? p.txn_ref}
                   </span>
                   <span className="block text-xs text-slate-500">
                     {formatJubaTime(p.decided_at ?? p.created_at)}
@@ -420,6 +436,8 @@ export function PaymentsPage() {
           </ul>
         </details>
       )}
+
+      {isOwner && <MomoSettings />}
 
       {isOwner && (
         <Card className="space-y-3">

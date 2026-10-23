@@ -1,5 +1,16 @@
 # Changelog
 
+## 24 October 2026 — pay with the MTN MoMo API
+
+- **Buy page**: when the business has saved its MTN MoMo API keys, the customer types their MoMo
+  number and taps **Pay with MoMo**; MTN sends a prompt to their phone and the card appears as soon
+  as MoMo confirms, with no transaction ID to type or check. **Paid another way?** keeps the manual flow.
+- **Payments → MTN MoMo API** (owner): environment (sandbox or production), target environment,
+  currency, API user, API key, subscription key, **Test the login**. Keys are stored encrypted.
+- Only MoMo's status answer confirms a payment, for the exact amount and currency. Payments a
+  customer left are checked every 2 minutes; a paid one without a card stays for the cashier.
+- Migration `20261024090000_momo_api.sql`; new Edge Function `momo`; `buy` updated.
+
 ## 23 October 2026 — routers only through the tunnel
 
 - Hotzonex **no longer logs in to routers across the open internet** (the old "direct" connection

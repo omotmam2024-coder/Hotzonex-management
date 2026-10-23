@@ -6,9 +6,9 @@ import { formatDuration, formatSSP } from '../../lib/format';
 import { formatDataLimit } from '../../lib/dataLimit';
 import { Alert } from '../../components/ui';
 import { callPublicFunction } from '../../lib/functions';
-import { buyRequestSchema, validate } from '../../lib/validation';
+import { buyMomoSchema, buyRequestSchema, validate } from '../../lib/validation';
 import { LanguageSwitch } from '../../components/LanguageSwitch';
-import { translate, useT } from '../../i18n';
+import { translate, translateMessage, useT } from '../../i18n';
 
 interface BuyPlan {
   id: string;
@@ -27,6 +27,8 @@ interface BuySite {
   instructions: string;
   plans: BuyPlan[];
   providers: { id: string; label: string }[];
+  /** The business takes MTN MoMo payments through the MoMo API (a prompt on the customer's phone). */
+  momo_api?: boolean;
 }
 
 interface Claim {
@@ -39,6 +41,7 @@ interface BuyStatus {
   plan: string;
   amount: number;
   reason?: string | null;
+  method?: 'manual' | 'api';
   code?: string | null;
   ready?: boolean;
   login_host?: string | null;
@@ -78,7 +81,11 @@ function planLine(p: BuyPlan): string {
   return parts.join(' · ');
 }
 
-/** Public page: a customer buys a WiFi card with mobile money; a cashier confirms it. */
+/**
+ * Public page: a customer buys a WiFi card with mobile money. With the business's MTN MoMo API on,
+ * MoMo asks the customer's phone to approve and the card comes as soon as MoMo confirms; otherwise
+ * (or "Paid another way?") the customer types the transaction ID and a cashier confirms it.
+ */
 export function BuyPage() {
   const { slug = '' } = useParams();
   const { t } = useT();
@@ -87,6 +94,7 @@ export function BuyPage() {
   const [provider, setProvider] = useState('mtn_momo');
   const [phone, setPhone] = useState('');
   const [txn, setTxn] = useState('');
+  const [manual, setManual] = useState(false);
 
   const site = useQuery({
     queryKey: ['buy-site', slug],
@@ -128,9 +136,22 @@ export function BuyPage() {
     },
   });
 
+  const payMomo = useMutation({
+    mutationFn: () => {
+      const v = validate(buyMomoSchema, { plan_id: planId, phone });
+      return callPublicFunction<Claim>('buy', { action: 'momo_pay', slug, ...v }, 45_000);
+    },
+    networkMode: 'always',
+    onSuccess: (c) => {
+      saveClaim(slug, c);
+      setClaim(c);
+    },
+  });
+
   function submit(e: FormEvent) {
     e.preventDefault();
-    send.mutate();
+    if (momo) payMomo.mutate();
+    else send.mutate();
   }
 
   function startOver() {
@@ -138,11 +159,15 @@ export function BuyPage() {
     setClaim(null);
     setTxn('');
     send.reset();
+    payMomo.reset();
   }
 
   const s = site.data;
   const plan = s?.plans.find((p) => p.id === planId);
   const st = status.data;
+  const momo = Boolean(s?.momo_api) && !manual;
+  const busy = send.isPending || payMomo.isPending;
+  const error = send.error ?? payMomo.error;
 
   return (
     <div className="min-h-full bg-gradient-to-br from-brand-700 via-brand-900 to-brand-950 p-4">
@@ -179,8 +204,18 @@ export function BuyPage() {
               {(!st || st.status === 'pending') && (
                 <>
                   <div className="mx-auto h-10 w-10 animate-spin rounded-full border-4 border-brand-100 border-t-brand-600" />
-                  <h2 className="text-lg font-bold">{t('public.buy.waitingTitle')}</h2>
-                  <p className="text-slate-600">{t('public.buy.waitingText')}</p>
+                  {st?.method === 'api' ? (
+                    <>
+                      <h2 className="text-lg font-bold">{t('public.buy.approveTitle')}</h2>
+                      <p className="text-slate-600">{t('public.buy.approveText')}</p>
+                      <p className="text-sm text-slate-500">{t('public.buy.approveHint')}</p>
+                    </>
+                  ) : (
+                    <>
+                      <h2 className="text-lg font-bold">{t('public.buy.waitingTitle')}</h2>
+                      <p className="text-slate-600">{t('public.buy.waitingText')}</p>
+                    </>
+                  )}
                 </>
               )}
               {st?.status === 'confirmed' && (
@@ -206,7 +241,7 @@ export function BuyPage() {
                 <>
                   <h2 className="text-lg font-bold text-red-700">{st.status === 'rejected' ? t('public.buy.rejected') : t('public.buy.expired')}</h2>
                   <p className="text-slate-700">
-                    {st.reason ?? t('public.buy.askCashier')} {t('public.buy.ifPaid')}
+                    {st.reason ? translateMessage(st.reason) : t('public.buy.askCashier')} {st.method === 'api' ? '' : t('public.buy.ifPaid')}
                   </p>
                   <button type="button" onClick={startOver} className="min-h-12 w-full rounded-xl bg-brand-600 px-4 font-semibold text-white">
                     {t('public.buy.tryAgain')}
@@ -239,65 +274,99 @@ export function BuyPage() {
                 </div>
               </div>
 
-              <div>
-                <h2 className="mb-2 font-bold text-slate-900">{t('public.buy.step2')}</h2>
-                <Alert tone="warning">
-                  <p className="whitespace-pre-line">
-                    {s.instructions}
-                    {plan && (
-                      <>
-                        {'\n'}
-                        <b>{t('public.buy.amount', { amount: formatSSP(plan.price_ssp) })}</b>
-                      </>
-                    )}
-                  </p>
-                </Alert>
-              </div>
+              {momo ? (
+                <div className="space-y-3">
+                  <h2 className="font-bold text-slate-900">{t('public.buy.momoTitle')}</h2>
+                  {plan && <p className="font-semibold text-slate-900">{t('public.buy.amount', { amount: formatSSP(plan.price_ssp) })}</p>}
+                  <label className="block">
+                    <span className="mb-1 block text-sm font-medium text-slate-700">{t('public.buy.momoPhone')}</span>
+                    <input type="tel" dir="ltr" inputMode="tel" autoComplete="tel" value={phone} onChange={(e) => setPhone(e.target.value)} className={input} placeholder="092…" />
+                  </label>
+                  <p className="text-sm text-slate-600">{t('public.buy.momoNote')}</p>
+                </div>
+              ) : (
+                <>
+                <div>
+                  <h2 className="mb-2 font-bold text-slate-900">{t('public.buy.step2')}</h2>
+                  <Alert tone="warning">
+                    <p className="whitespace-pre-line">
+                      {s.instructions}
+                      {plan && (
+                        <>
+                          {'\n'}
+                          <b>{t('public.buy.amount', { amount: formatSSP(plan.price_ssp) })}</b>
+                        </>
+                      )}
+                    </p>
+                  </Alert>
+                </div>
+  
+                <div className="space-y-3">
+                  <h2 className="font-bold text-slate-900">{t('public.buy.step3')}</h2>
+                  <label className="block">
+                    <span className="mb-1 block text-sm font-medium text-slate-700">{t('public.buy.paidWith')}</span>
+                    <select value={provider} onChange={(e) => setProvider(e.target.value)} className={input}>
+                      {s.providers.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.id === 'other' ? t('public.buy.providerOther') : p.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="block">
+                    <span className="mb-1 block text-sm font-medium text-slate-700">{t('public.buy.phone')}</span>
+                    <input type="tel" dir="ltr" inputMode="tel" autoComplete="tel" value={phone} onChange={(e) => setPhone(e.target.value)} className={input} placeholder="092…" />
+                  </label>
+                  <label className="block">
+                    <span className="mb-1 block text-sm font-medium text-slate-700">{t('public.buy.txn')}</span>
+                    <input
+                      value={txn}
+                      onChange={(e) => setTxn(e.target.value)}
+                      dir="ltr"
+                      autoCapitalize="characters"
+                      autoComplete="off"
+                      spellCheck={false}
+                      className={input}
+                      placeholder={t('public.buy.txnPlaceholder')}
+                    />
+                  </label>
+                </div>
+  
+                </>
+              )}
 
-              <div className="space-y-3">
-                <h2 className="font-bold text-slate-900">{t('public.buy.step3')}</h2>
-                <label className="block">
-                  <span className="mb-1 block text-sm font-medium text-slate-700">{t('public.buy.paidWith')}</span>
-                  <select value={provider} onChange={(e) => setProvider(e.target.value)} className={input}>
-                    {s.providers.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.id === 'other' ? t('public.buy.providerOther') : p.label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label className="block">
-                  <span className="mb-1 block text-sm font-medium text-slate-700">{t('public.buy.phone')}</span>
-                  <input type="tel" dir="ltr" inputMode="tel" autoComplete="tel" value={phone} onChange={(e) => setPhone(e.target.value)} className={input} placeholder="092…" />
-                </label>
-                <label className="block">
-                  <span className="mb-1 block text-sm font-medium text-slate-700">{t('public.buy.txn')}</span>
-                  <input
-                    value={txn}
-                    onChange={(e) => setTxn(e.target.value)}
-                    dir="ltr"
-                    autoCapitalize="characters"
-                    autoComplete="off"
-                    spellCheck={false}
-                    className={input}
-                    placeholder={t('public.buy.txnPlaceholder')}
-                  />
-                </label>
-              </div>
-
-              {send.error && (
+              {error && (
                 <Alert tone="error">
-                  {friendlyError(send.error)}
+                  {friendlyError(error)}
                 </Alert>
               )}
               <button
                 type="submit"
-                disabled={send.isPending || !planId || !phone.trim() || !txn.trim()}
+                disabled={busy || !planId || !phone.trim() || (!momo && !txn.trim())}
                 className="min-h-12 w-full rounded-xl bg-brand-600 px-4 text-lg font-semibold text-white disabled:opacity-50"
               >
-                {send.isPending ? t('public.buy.sending') : t('public.buy.submit')}
+                {momo
+                  ? payMomo.isPending
+                    ? t('public.buy.sendingMomo')
+                    : t('public.buy.momoPay')
+                  : send.isPending
+                    ? t('public.buy.sending')
+                    : t('public.buy.submit')}
               </button>
-              <p className="text-center text-xs text-slate-500">{t('public.buy.note')}</p>
+              {!momo && <p className="text-center text-xs text-slate-500">{t('public.buy.note')}</p>}
+              {s.momo_api && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setManual(!manual);
+                    send.reset();
+                    payMomo.reset();
+                  }}
+                  className="block w-full text-center text-sm font-semibold text-brand-700 underline"
+                >
+                  {manual ? t('public.buy.useMomo') : t('public.buy.otherWay')}
+                </button>
+              )}
             </form>
           )}
         </div>

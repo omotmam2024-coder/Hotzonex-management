@@ -88,6 +88,7 @@ setting. What it does write is limited to:
    # Check their caller themselves (router token, worker secret, public page, Telegram webhook):
    supabase functions deploy router-gateway --no-verify-jwt   # called by routers
    supabase functions deploy router-direct --no-verify-jwt    # called by the database every minute
+   supabase functions deploy momo                             # owner's MTN MoMo API login (Payments page)
    supabase functions deploy tunnel --no-verify-jwt           # the VPS tunnel server
    supabase functions deploy portal --no-verify-jwt           # login-page files for routers
    supabase functions deploy alerts --no-verify-jwt           # Telegram alerts
@@ -420,6 +421,23 @@ money, types the transaction ID; the cashier gets an alert, checks the money arr
 **Confirm**: a card from stock (or one made on the spot, in the router's own code length) appears on
 the customer's phone. A transaction ID works once; requests are limited per phone and device; unconfirmed
 requests expire after a day.
+
+### Paying with the MTN MoMo API (automatic)
+With the business's own **MTN MoMo Open API (Collections)** keys, the customer does not type a
+transaction ID: on the Buy page they pick a card, type their MoMo number and tap **Pay with MoMo**;
+MTN sends a prompt to their phone, they type their PIN, and the card appears as soon as MoMo confirms
+(no cashier needed). **Payments → MTN MoMo API**: environment, target environment, currency, API
+user, API key and subscription key, then **Test the login**. Keys are stored encrypted (AES-256-GCM,
+the same Vault key as router passwords) and never shown again.
+- **Sandbox** (testing): keys from <https://momodeveloper.mtn.com>, target environment `sandbox`,
+  currency `EUR`, no real money. **Production**: keys, target environment and currency (SSP) from
+  MTN South Sudan.
+- Only MoMo's own status answer confirms a payment, and only for the exact amount and currency;
+  there is no callback to fake. Waiting payments are checked while the customer's page is open and
+  every 2 minutes by `pg_cron` (`hzc-momo-sweep` → `buy`, action `momo_sweep`); still waiting after
+  30 minutes = expired. Paid but no card could be made (or a different amount) → the request stays
+  on the Payments page for the cashier, with an alert.
+- **Paid another way?** on the Buy page keeps the manual flow (m-Gurush, Digicash, or MoMo sent by hand).
 
 ### Agents and cash-up
 **Cash-up**: per seller and day: cash cards sold, commission, cash to hand in, cash handed in, the
