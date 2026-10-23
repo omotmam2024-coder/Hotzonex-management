@@ -119,9 +119,9 @@ async function loadRelay(db: SupabaseClient): Promise<Relay | null> {
 
 async function clientFor(db: SupabaseClient, router: DirectRouter, relay: Relay | null): Promise<RestClient> {
   if (!router.host || !router.username || !router.password_enc) throw new RouterError('auth', 'The router address, username or password is missing. Edit the router.');
-  // Over the internet the admin password goes only over HTTPS (a router saved before this rule: edit and save it once).
-  if (router.connection === 'direct' && !router.use_https) {
-    throw new RouterError('tls', 'This router is reached over the internet without HTTPS, which would send its password in the clear. Open the router, turn on www-ssl on it, and press Save.');
+  // A router's admin login only ever travels inside the tunnel, never across the open internet.
+  if (router.connection !== 'tunnel') {
+    throw new RouterError('forbidden', 'Hotzonex no longer logs in to routers across the internet. Open the router and move it to the tunnel.');
   }
   const { data: key, error } = await db.rpc('router_secret_key');
   if (error || typeof key !== 'string') throw new Error('The router password key could not be read.');

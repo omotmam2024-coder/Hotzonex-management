@@ -1,6 +1,6 @@
 import { strict as assert } from 'node:assert';
 import { test } from 'node:test';
-import { assertPublicHost, directPort, isDnsName, isPrivateIpv4, isPrivateIpv6, sameSecret } from './netcheck.ts';
+import { assertPublicHost, isDnsName, isPrivateIpv4, isPrivateIpv6, sameSecret } from './netcheck.ts';
 
 test('private and special IPv4 addresses are recognised', () => {
   for (const ip of ['10.0.0.1', '127.0.0.1', '0.0.0.0', '172.16.5.4', '192.168.88.1', '169.254.169.254', '100.64.0.1', '224.0.0.1']) assert.ok(isPrivateIpv4(ip), ip);
@@ -28,10 +28,4 @@ test('secrets compare equal only when identical', () => {
   assert.ok(sameSecret('abc', 'abc'));
   assert.ok(!sameSecret('abc', 'abd'));
   assert.ok(!sameSecret('abc', 'abcd'));
-});
-
-test('routers at a public address are logged in to over HTTPS only', () => {
-  assert.equal(directPort(80), 443);
-  assert.equal(directPort(443), 443);
-  assert.equal(directPort(8443), 8443);
 });

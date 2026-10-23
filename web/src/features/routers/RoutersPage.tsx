@@ -121,7 +121,8 @@ function RouterCard({
           </Alert>
         </div>
       )}
-      {cloud && tunnelServer.data?.ready && (
+      {/* Script routers, and routers saved the old direct way, move to the tunnel. */}
+      {(cloud || direct) && tunnelServer.data?.ready && (
         <div className="mt-3">
           <Alert tone="info">
             {rich(t('routers.cloudSwitch'), {

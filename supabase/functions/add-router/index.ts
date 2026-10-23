@@ -1,14 +1,14 @@
 // add-router: saves a router from the simple form (address, port, username, password, comment)
 // and queues its first check. Admins only.
 //
-// How Hotzonex reaches the router depends on the address:
-//   private (192.168.x.x, 10.x.x.x, …)  → the address only works inside the router's own network:
-//       "tunnel" when the admin's tunnel server (VPS) is set up: a one-time script adds a WireGuard
-//           tunnel to it; nothing is scheduled on the router. The password is stored encrypted.
-//       "cloud" otherwise: a one-time script adds the hzc-cloud scheduler that calls Hotzonex.
-//           No password is stored; only the SHA-256 of a random token.
-//   public IP or DNS name               → "direct": Hotzonex logs in to the router's REST API with the
-//       username and password (encrypted with AES-256-GCM, key in Supabase Vault).
+// Every router, whatever its address (private, public IP or DNS name), connects outwards:
+//   "tunnel" when the tunnel server (VPS) is set up: a one-time script adds a WireGuard tunnel to
+//       it; nothing is scheduled on the router. The password is stored encrypted (AES-256-GCM, key
+//       in Supabase Vault) and only ever travels inside the tunnel.
+//   "cloud" otherwise: a one-time script adds the hzc-cloud scheduler that calls Hotzonex.
+//       No password is stored; only the SHA-256 of a random token.
+// Hotzonex never logs in to a router across the open internet (the old "direct" connection): a
+// router saved that way moves to the tunnel with "tunnel_switch".
 // The hotspot server and its DNS name are read from the router at the first check.
 //
 // POST { action: "create", host, port?, username, password, comment?, site_id? }
@@ -21,12 +21,12 @@
 //   the install command, which holds the secret, only for platform admins: the tunnel server is shared)
 // Every router, site and job stays inside the caller's business.
 // POST { action: "tunnel_switch", router_id, port, username, password }  → { router_id, job_id, connection, script }
-//   moves a script-connected router to the tunnel (its script removes the hzc-cloud scheduler).
+//   moves a script-connected (or old direct) router to the tunnel (its script removes the hzc-cloud scheduler).
 import type { SupabaseClient } from 'npm:@supabase/supabase-js@2.117.3';
 import { audit, type Caller, requireAdmin, serviceClient } from '../_shared/auth.ts';
 import { HttpError, readBody, serveJson } from '../_shared/cors.ts';
 import { decryptSecret, encryptSecret } from '../_shared/crypto.ts';
-import { directPort, isDnsName, isPrivateIpv4, isPrivateIpv6 } from '../_shared/netcheck.ts';
+import { isDnsName } from '../_shared/netcheck.ts';
 import { setupScript } from '../_shared/routeros.ts';
 import { generateWgKeyPair, nextTunnelIp, tunnelSetupScript } from '../_shared/tunnel.ts';
 
@@ -58,26 +58,8 @@ function parseHost(raw: string): string {
   return host;
 }
 
-/**
- * A router name must lead to the internet, never to Hotzonex Cloud's own network (the worker
- * would otherwise send logins to internal servers). Names are looked up where possible.
- */
-async function checkPublicName(host: string): Promise<void> {
-  if (/^\d{1,3}(\.\d{1,3}){3}$/.test(host)) return;
-  const blocked = 'is not a public address. For a router on a local network, use the Tunnel option.';
-  if (host === 'localhost' || /\.(localhost|local|internal|lan|home|corp)$/.test(host)) throw new HttpError(400, `"${host}" ${blocked}`);
-  let addresses: string[] = [];
-  try {
-    addresses = [...(await Deno.resolveDns(host, 'A').catch(() => [] as string[])), ...(await Deno.resolveDns(host, 'AAAA').catch(() => [] as string[]))];
-  } catch {
-    return; // Not found here: the connection test reports it.
-  }
-  if (addresses.some((ip) => isPrivateIpv4(ip) || isPrivateIpv6(ip))) throw new HttpError(400, `"${host}" ${blocked}`);
-}
-
 async function parseFields(admin: SupabaseClient, caller: Caller, body: Record<string, unknown>): Promise<RouterFields> {
   const host = parseHost(text(body, 'host', 'Address', 253));
-  await checkPublicName(host);
   const port = body.port === undefined || body.port === null || body.port === '' ? 80 : Number(body.port);
   if (!Number.isInteger(port) || port < 1 || port > 65535) throw new HttpError(400, 'Port must be a number from 1 to 65535.');
   const comment = typeof body.comment === 'string' ? body.comment.trim() : '';
@@ -92,16 +74,14 @@ async function parseFields(admin: SupabaseClient, caller: Caller, body: Record<s
   }
   if (!UUID_RE.test(siteId)) throw new HttpError(400, 'Choose a site.');
 
-  // A router at a public address is logged in to over the internet: only over HTTPS, so its admin
-  // password is never sent in the clear. Private addresses use the tunnel or the script instead.
-  const direct = !isPrivateIpv4(host);
+  // Connected by the router itself (tunnel or script), never logged in to across the internet.
   return {
     name: comment || host,
     site_id: siteId,
-    connection: direct ? 'direct' : 'cloud',
+    connection: 'cloud',
     host,
-    port: direct ? directPort(port) : port,
-    use_https: direct,
+    port,
+    use_https: false,
     username: text(body, 'username', 'Username', 64),
   };
 }
@@ -277,7 +257,6 @@ serveJson(async (req) => {
       .eq('tenant_id', caller.tenantId)
       .maybeSingle();
     if (!router) throw new HttpError(404, 'Router not found.');
-    if (router.connection === 'direct') throw new HttpError(400, 'This router is reached at its public address and does not need the tunnel.');
     const t = await tunnelServer(admin);
     if (!tunnelReady(t)) throw new HttpError(400, 'The tunnel server is not set up yet. Ask Hotzonex Cloud to set it up.');
     const port = body.port === undefined || body.port === null || body.port === '' ? 80 : Number(body.port);
@@ -308,8 +287,6 @@ serveJson(async (req) => {
   const t = fields.connection === 'cloud' ? await tunnelServer(admin) : null;
   if (t && tunnelReady(t)) fields.connection = 'tunnel';
   const tunnel = fields.connection === 'tunnel';
-  // Both direct and tunnel routers are logged in to with the stored (encrypted) password.
-  const direct = fields.connection === 'direct' || tunnel;
 
   if (action === 'create') {
     // A router with this name that never connected (still "pending") is replaced, so the admin can simply try again.
@@ -321,8 +298,8 @@ serveJson(async (req) => {
       .maybeSingle();
     if (waiting?.status === 'pending') await admin.from('routers').delete().eq('id', waiting.id);
 
-    if (direct && !password) throw new HttpError(400, 'Password is required.');
-    const token = direct ? null : newToken();
+    if (tunnel && !password) throw new HttpError(400, 'Password is required.');
+    const token = tunnel ? null : newToken();
     const { data: router, error } = await admin
       .from('routers')
       .insert({
@@ -330,7 +307,7 @@ serveJson(async (req) => {
         ...(tunnel ? { use_https: false } : {}),
         status: 'pending',
         token_hash: token ? await sha256Hex(token) : null,
-        password_enc: direct ? await encryptPassword(admin, password) : null,
+        password_enc: tunnel ? await encryptPassword(admin, password) : null,
       })
       .select('id')
       .single();
@@ -375,8 +352,9 @@ serveJson(async (req) => {
     .eq('tenant_id', caller.tenantId)
     .maybeSingle();
   if (!existing) throw new HttpError(404, 'Router not found.');
-  // A private address keeps its current way of connecting; moving to the tunnel is "tunnel_switch".
-  if (fields.connection !== 'direct') fields.connection = existing.connection === 'tunnel' ? 'tunnel' : 'cloud';
+  // A router keeps its current way of connecting; moving to the tunnel is "tunnel_switch" (an old
+  // direct router becomes a script router here, and is never logged in to across the internet again).
+  fields.connection = existing.connection === 'tunnel' ? 'tunnel' : 'cloud';
   const keepTunnel = fields.connection === 'tunnel';
 
   const changes: Record<string, unknown> = { ...fields, last_error: null };
@@ -392,13 +370,6 @@ serveJson(async (req) => {
     changes.use_https = false;
     if (password) changes.password_enc = await encryptPassword(admin, password);
     else if (!existing.password_enc) throw new HttpError(400, 'Password is required.');
-  } else if (fields.connection === 'direct') {
-    if (password) changes.password_enc = await encryptPassword(admin, password);
-    else if (!existing.password_enc) throw new HttpError(400, 'Password is required.');
-    changes.token_hash = null; // an installed connector script stops working
-    changes.tunnel_ip = null;
-    changes.wg_public_key = null;
-    changes.wg_private_enc = null;
   } else {
     changes.password_enc = null;
     if (existing.connection !== 'cloud' || !existing.token_hash) {

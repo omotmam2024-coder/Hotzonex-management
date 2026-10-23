@@ -115,7 +115,7 @@ export class RestClient {
         throw new RouterError('timeout', `No reply from ${where}. The router must be reachable from the internet at this address (public IP or DNS name), with the ${this.target.useHttps ? 'www-ssl' : 'www'} service on this port.`);
       }
       if (/certificate|tls|ssl|handshake/i.test(msg)) {
-        throw new RouterError('tls', `The router's HTTPS certificate is not trusted. Give the router a real certificate (for example: /certificate enable-ssl-certificate dns-name=<your IP Cloud name>), or connect it through the tunnel instead.`);
+        throw new RouterError('tls', `The router's HTTPS certificate is not trusted. Give the router a real certificate (for example: /certificate enable-ssl-certificate dns-name=<your IP Cloud name>), or switch HTTPS off.`);
       }
       if (/refused/i.test(msg)) throw new RouterError('unreachable', `${where} refused the connection. Turn on the ${this.target.useHttps ? 'www-ssl' : 'www'} service on the router and allow this port from the internet.`);
       if (/dns|lookup|resolve|not known/i.test(msg)) throw new RouterError('unreachable', `The name ${this.target.host} could not be found. Check the address.`);

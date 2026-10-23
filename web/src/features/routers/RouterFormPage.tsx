@@ -87,8 +87,8 @@ export function RouterFormPage() {
 
   const set = <K extends keyof FormState>(key: K, value: FormState[K]) => setForm((f) => ({ ...f, [key]: value }));
   const hasPassword = isEdit && (existing.data?.connection === 'direct' || existing.data?.connection === 'tunnel');
-  // Moving a script-connected router to the tunnel (no scheduler on the router).
-  const switchToTunnel = isEdit && existing.data?.connection === 'cloud' && tunnelReady && searchParams.get('tunnel') === '1';
+  // Moving a script-connected (or old direct) router to the tunnel (no scheduler on the router).
+  const switchToTunnel = isEdit && (existing.data?.connection === 'cloud' || existing.data?.connection === 'direct') && tunnelReady && searchParams.get('tunnel') === '1';
 
   function validate(): string | null {
     const result = routerSchema(switchToTunnel).safeParse({ ...form, port: form.port || '80' });

@@ -32,19 +32,19 @@ are on Supabase (project `tyiwnaxdejtsdofgnuow`).
 ```
 Browser (staff) ──► Supabase (tables, login, router_jobs queue, Edge Functions)
                         │                                   ▲
-   direct: router-direct calls the router's REST API        │ cloud: the router calls
-   at its public IP / DNS name with its admin login         │ router-gateway every 30 s
+   tunnel: router-direct calls the router's REST API        │ cloud: the router calls
+   through the WireGuard tunnel (VPS relay)                 │ router-gateway every 30 s
                         ▼                                   │
                  MikroTik routers (RouterOS 7)  ────────────┘
 ```
 
 Each router is added in one of two ways (Routers → Add router):
 
-| | **IP address, username and password** (direct) | **Router connects to Hotzonex Cloud** (cloud) |
+| | **Tunnel** (when the tunnel server is set up) | **Router connects to Hotzonex Cloud** (cloud) |
 | --- | --- | --- |
-| What you enter | Public IP or DNS name, port, HTTPS on/off, admin username and password | Nothing extra: paste a setup script into Winbox once |
-| Router needs | A public IP (not behind CGNAT), the `www-ssl` (or `www`) service reachable from the internet, RouterOS 7.1+ | Internet access, RouterOS 7.19+ |
-| How work reaches it | `router-direct` Edge Function, woken when a job is queued and every minute (pg_cron + pg_net) | The router's `hzc-cloud` scheduler calls `router-gateway` and runs the commands it gets back |
+| What you enter | Address, port, admin username and password; paste the tunnel script into Winbox once | Nothing extra: paste a setup script into Winbox once |
+| Router needs | Internet access (public IP not needed), RouterOS 7.1+ | Internet access, RouterOS 7.19+ |
+| How work reaches it | `router-direct` Edge Function through the tunnel, woken when a job is queued and every minute (pg_cron + pg_net) | The router's `hzc-cloud` scheduler calls `router-gateway` and runs the commands it gets back |
 | Stored | Password encrypted (AES-256-GCM, key in Supabase Vault) | Only the SHA-256 of a random token |
 
 **Hotzonex uses the router as you set it up.** The connection test only *reads* the router's
@@ -167,11 +167,9 @@ On the website: **Routers → Add router** and fill in, like a MikroTik app:
   and the number of user profiles it found, and installs a script and a 30-second scheduler named
   `hzc-cloud` (permissions `read,write,test,ftp`) so the router talks to Hotzonex Cloud. Needs
   RouterOS 7.19+. The password is not stored for these routers.
-- **Public IP or DNS name**: Hotzonex logs in to the router's REST API directly with the username
-  and password (stored encrypted), **over HTTPS only**, so the password never crosses the internet
-  in the clear. The router's `www-ssl` service (port 443, or the port you type; port 80 is read as
-  443) must be reachable from the internet with a trusted certificate (for example
-  `/certificate enable-ssl-certificate dns-name=<your IP Cloud name>`). Without one, use the tunnel.
+- **Public IP or DNS name**: connected the same way (tunnel, or the setup script). Hotzonex never
+  logs in to a router across the open internet, so its admin password only travels inside the
+  WireGuard tunnel.
 
 Either way the first check only **reads** the router's hotspot servers, server profiles and user
 profiles. Hotzonex picks the running hotspot server and its DNS name automatically (you can change
@@ -459,9 +457,10 @@ On **Businesses → Subscription plans** you change the limits and prices; on a 
 - Row Level Security is on for every table; policies read the caller's role and site from `profiles`.
 - Sales and voucher status change only through `SECURITY DEFINER` database functions; the browser
   cannot insert sales or edit vouchers directly.
-- Direct routers: the admin password is encrypted with AES-256-GCM; the key is in Supabase Vault and
+- Tunnel routers: the admin password is encrypted with AES-256-GCM; the key is in Supabase Vault and
   readable only by the service role. The browser can never read `password_enc` (column grant).
-  Use HTTPS so the password does not cross the internet in clear text.
+  Hotzonex never logs in to a router across the open internet: the password only travels inside
+  the WireGuard tunnel.
 - Cloud routers: no password is stored. Each router has a random 256-bit token (only its SHA-256 is in
   the database) and checks Hotzonex Cloud's HTTPS certificate, so the commands it runs can only come
   from Hotzonex Cloud. Protect the Supabase account with a strong password and two-factor sign-in.
@@ -527,13 +526,12 @@ On **Businesses → Subscription plans** you change the limits and prices; on a 
 
 | What you see | What to check |
 | --- | --- |
-| "… is a private address …" | Direct needs the router's public IP or DNS name. Without a public IP, use "Router connects to Hotzonex Cloud" |
-| "No reply from …" / "refused the connection" | Direct: public IP correct, `www-ssl`/`www` on, port allowed from the internet in the router firewall, not behind CGNAT |
+| "No reply from the router through the tunnel" | The tunnel script was pasted, the router has internet, and the `www` service is on for the port saved in Hotzonex |
+| "Hotzonex no longer logs in to routers across the internet" | A router saved the old direct way: open it and use **Switch to the tunnel** |
 | "Wrong router username or password" / "may not use the REST API" | The admin login; its group needs read, write, api and rest-api |
-| "HTTPS certificate is not trusted" | Give the router a real certificate (`/certificate enable-ssl-certificate …`) or switch HTTPS off |
 | Router stays "Waiting for router" | Cloud: the setup script was not pasted, or the router has no internet. Run `/system script run hzc-cloud` and `/log print where topics~"script"` |
 | "Hotspot server … was not found on this router" | Edit the router and use one of the server names listed in the message (IP → Hotspot → Servers) |
-| Router shows Offline | Cloud: it has not called in for 2 minutes. Direct: the minute check could not reach it (the reason is shown) |
+| Router shows Offline | Cloud: it has not called in for 2 minutes. Tunnel: the minute check could not reach it (the reason is shown) |
 | Voucher codes do not log in on the portal | `/log print where topics~"hotspot"` on the router. "invalid password" for a MikroTicket voucher in Code mode: use **I have a username and password**. The user must exist under IP → Hotspot → Users |
 | Portal install fails | The router must reach `*.supabase.co` over HTTPS (`/tool fetch` with `check-certificate=yes-without-crl`) and have free storage |
 | Batch stuck on "Push failed" | Router offline; it resumes by itself when back, or press **Retry push** |
