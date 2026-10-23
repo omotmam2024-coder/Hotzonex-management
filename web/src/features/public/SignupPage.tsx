@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react';
-import { Link, Navigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthProvider';
 import { friendlyError } from '../../lib/errors';
 import { invokeFunction } from '../../lib/functions';
@@ -14,14 +14,13 @@ const input =
 
 /** Public: a new WiFi business starts its free trial; the owner confirms their email, then logs in. */
 export function SignupPage() {
-  const { status } = useAuth();
+  const { status, session, signOut } = useAuth();
   const { t } = useT();
   const [sent, setSent] = useState<{ email: string; ok: boolean } | null>(null);
   const [form, setForm] = useState({ business_name: '', site_name: '', full_name: '', phone: '', email: '', password: '' });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  if (status === 'ready') return <Navigate to="/" replace />;
 
   const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) => setForm((f) => ({ ...f, [k]: e.target.value }));
 
@@ -58,7 +57,18 @@ export function SignupPage() {
           <h1 className="mt-3 text-2xl font-bold text-slate-900">{t('public.signup.title')}</h1>
           <p className="text-slate-600">{t('public.signup.subtitle')}</p>
         </div>
-        {sent ? (
+        {status === 'ready' && !sent ? (
+          // Already logged in on this device: say so, rather than jumping to the dashboard.
+          <div className="space-y-4 text-center">
+            <p className="text-slate-700">{t('public.signup.loggedInAs', { email: session?.user.email ?? '' })}</p>
+            <Link to="/" className="flex min-h-12 w-full items-center justify-center rounded-xl bg-brand-600 px-4 text-lg font-semibold text-white hover:bg-brand-700">
+              {t('public.signup.openApp')}
+            </Link>
+            <button type="button" onClick={() => void signOut()} className="min-h-12 w-full rounded-xl px-4 font-semibold text-brand-700 ring-1 ring-brand-200 hover:bg-brand-50">
+              {t('public.signup.logOutToSignUp')}
+            </button>
+          </div>
+        ) : sent ? (
           <div className="space-y-4 text-center">
             <div className="text-6xl" aria-hidden>✉️</div>
             <h2 className="text-xl font-bold text-slate-900">{t('public.confirm.checkTitle')}</h2>

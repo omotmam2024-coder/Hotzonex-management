@@ -1,6 +1,9 @@
 // Texts of the public pages. Keys start with "public.". Every English key must also have Arabic and Kiswahili.
 
 const en = {
+  'public.signup.loggedInAs': 'You are logged in as {email} on this device. To sign up a new business, log out first.',
+  'public.signup.openApp': 'Open my app',
+  'public.signup.logOutToSignUp': 'Log out and sign up a new business',
   'public.confirm.checkTitle': 'Check your email',
   'public.confirm.checkText': 'Your business is ready. We sent a link to {email}. Open it to confirm your email and start using Hotzonex Cloud.',
   'public.confirm.notSent': 'The email could not be sent just now. Tap "Send the email again" in a minute.',
@@ -235,6 +238,9 @@ const en = {
 type Keys = Record<keyof typeof en, string>;
 
 const ar = {
+  'public.signup.loggedInAs': 'أنت مسجّل الدخول باسم {email} على هذا الجهاز. لتسجيل نشاط تجاري جديد، سجّل الخروج أولاً.',
+  'public.signup.openApp': 'افتح تطبيقي',
+  'public.signup.logOutToSignUp': 'سجّل الخروج وسجّل نشاطاً تجارياً جديداً',
   'public.confirm.checkTitle': 'تحقق من بريدك الإلكتروني',
   'public.confirm.checkText': 'نشاطك التجاري جاهز. أرسلنا رابطاً إلى {email}. افتحه لتأكيد بريدك والبدء في استخدام Hotzonex Cloud.',
   'public.confirm.notSent': 'تعذر إرسال الرسالة الآن. اضغط "أرسل الرسالة مرة أخرى" بعد دقيقة.',
@@ -459,6 +465,9 @@ const ar = {
 } satisfies Keys;
 
 const sw = {
+  'public.signup.loggedInAs': 'Umeingia kama {email} kwenye kifaa hiki. Ili kusajili biashara mpya, toka kwanza.',
+  'public.signup.openApp': 'Fungua programu yangu',
+  'public.signup.logOutToSignUp': 'Toka na usajili biashara mpya',
   'public.confirm.checkTitle': 'Angalia barua pepe yako',
   'public.confirm.checkText': 'Biashara yako iko tayari. Tumetuma kiungo kwa {email}. Kifungue ili kuthibitisha barua pepe yako na kuanza kutumia Hotzonex Cloud.',
   'public.confirm.notSent': 'Barua haikuweza kutumwa sasa hivi. Gusa "Tuma barua tena" baada ya dakika moja.',
