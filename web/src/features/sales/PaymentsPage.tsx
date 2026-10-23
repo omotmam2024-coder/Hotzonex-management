@@ -349,13 +349,14 @@ export function PaymentsPage() {
     queryKey: ['payments'],
     refetchInterval: 10_000,
     queryFn: async (): Promise<PaymentRow[]> => {
-      const { data, error } = await supabase
-        .from('payment_requests')
-        .select('id, site_id, plan_id, amount_ssp, phone, provider, txn_ref, status, reject_reason, created_at, decided_at, method, momo_txn_id')
-        .order('created_at', { ascending: false })
-        .limit(100);
+      const columns = 'id, site_id, plan_id, amount_ssp, phone, provider, txn_ref, status, reject_reason, created_at, decided_at';
+      const read = (extra: string) =>
+        supabase.from('payment_requests').select(`${columns}${extra}`).order('created_at', { ascending: false }).limit(100);
+      let { data, error } = await read(', method, momo_txn_id');
+      // Before the MoMo API migration is applied (42703: no such column): the manual payments only.
+      if (error?.code === '42703') ({ data, error } = await read(''));
       if (error) throw new Error(friendlyError(error));
-      return (data ?? []) as PaymentRow[];
+      return ((data ?? []) as unknown as Partial<PaymentRow>[]).map((r) => ({ method: 'manual', momo_txn_id: null, ...r }) as PaymentRow);
     },
   });
 

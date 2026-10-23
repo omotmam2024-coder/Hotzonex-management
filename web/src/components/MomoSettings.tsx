@@ -27,6 +27,8 @@ export function MomoSettings() {
     queryKey: ['momo-account'],
     queryFn: async () => {
       const { data, error } = await supabase.rpc('momo_account');
+      // Before the MoMo API migration is applied (PGRST202: no such function): the card stays hidden.
+      if (error?.code === 'PGRST202') return null;
       if (error) throw new Error(friendlyError(error));
       return fromJson<MomoAccountInfo>(data);
     },
@@ -95,6 +97,7 @@ export function MomoSettings() {
   });
 
   if (info.isLoading) return <Spinner />;
+  if (info.data === null) return null;
   const keyHint = configured ? t('sales.momo.keepKey') : undefined;
 
   return (
