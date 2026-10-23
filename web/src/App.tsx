@@ -44,6 +44,7 @@ const InvoicePage = page(() => import('./features/business/InvoicePage'), 'Invoi
 const SecurityPage = page(() => import('./features/business/SecurityPage'), 'SecurityPage');
 const AlertsPage = page(() => import('./features/reports/AlertsPage'), 'AlertsPage');
 const ResetPasswordPage = page(() => import('./features/public/ResetPasswordPage'), 'ResetPasswordPage');
+const ConfirmEmailPage = page(() => import('./features/public/ConfirmEmailPage'), 'ConfirmEmailPage');
 
 function PlatformOnly({ children }: { children: JSX.Element }) {
   const { isPlatformAdmin } = useAuth();
@@ -78,6 +79,7 @@ export function App() {
         <Route path="/" element={<Home />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/reset-password" element={<ResetPasswordPage />} />
+        <Route path="/confirm-email" element={<ConfirmEmailPage />} />
         {/* Public: customers buy a card with mobile money (no login). */}
         <Route path="/buy/:slug" element={<BuyPage />} />
         <Route path="/signup" element={<SignupPage />} />

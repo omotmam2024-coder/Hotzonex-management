@@ -1,12 +1,14 @@
 // signup: a new business starts a free trial by itself (no login yet).
 //
 // POST { business_name, full_name, email, password, phone, site_name?, timezone? }
-//   → { tenant_id } : the business, its first site and its admin login; then the app logs in.
+//   → { tenant_id, email_sent } : the business, its first site and its admin login. The login works
+//     once the owner opens the confirmation link emailed to them (nobody can sign up a business
+//     with someone else's email address).
 //
 // Limited to a few sign-ups per device a day. The trial length comes from app_config
 // (billing_trial_days); billing starts when it ends (see billing_run in the database).
 import { serviceClient } from '../_shared/auth.ts';
-import { HttpError, passwordProblem, readBody, serveJson } from '../_shared/cors.ts';
+import { corsFor, HttpError, passwordProblem, readBody, serveJson } from '../_shared/cors.ts';
 import { cleanPhone } from '../_shared/buy.ts';
 import { checkSignup, InputError, type SignupInput } from '../_shared/signup.ts';
 
@@ -62,7 +64,7 @@ serveJson(async (req) => {
     const { data: created, error: userError } = await db.auth.admin.createUser({
       email: s.email,
       password: s.password,
-      email_confirm: true,
+      email_confirm: false,
       user_metadata: { full_name: s.fullName },
     });
     if (userError || !created.user) {
@@ -108,7 +110,12 @@ serveJson(async (req) => {
       });
       await db.rpc('wake_alerts_sender');
     }
-    return { tenant_id: tenant.id, site_id: site.id, trial_days: trialDays };
+    // The confirmation link brings the owner back to the address they signed up on, logged in.
+    // A failed email does not undo the sign-up: the page offers "Send the email again".
+    const origin = corsFor(req)['Access-Control-Allow-Origin'];
+    const { error: mailError } = await db.auth.resend({ type: 'signup', email: s.email, options: { emailRedirectTo: `${origin}/confirm-email` } });
+    if (mailError) console.error(`Confirmation email to ${s.email} not sent: ${mailError.message}`);
+    return { tenant_id: tenant.id, site_id: site.id, trial_days: trialDays, email_sent: !mailError };
   } catch (err) {
     if (userId) await db.auth.admin.deleteUser(userId);
     await db.from('sites').delete().eq('tenant_id', tenant.id);

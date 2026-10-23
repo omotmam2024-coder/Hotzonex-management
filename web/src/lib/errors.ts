@@ -23,7 +23,7 @@ function englishError(err: unknown): string {
 
   const msg = raw.toLowerCase();
   if (msg.includes('invalid login credentials')) return 'Wrong email or password.';
-  if (msg.includes('email not confirmed')) return 'This account has not been confirmed yet. Ask an admin.';
+  if (msg.includes('email not confirmed')) return 'Your email is not confirmed yet. Open the link in the email we sent you, or send it again below.';
   if (isNetworkError(msg) && !msg.includes('timeout') && !msg.includes('aborted'))
     return 'No internet connection to the server. Check the network and try again.';
   if (msg.includes('jwt expired')) return 'Your login has expired. Please log in again.';

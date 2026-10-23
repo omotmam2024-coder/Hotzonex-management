@@ -209,7 +209,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signIn = useCallback(async (email: string, password: string) => {
     const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
-    if (signInError) throw new Error(friendlyError(signInError));
+    if (signInError) {
+      const e = new Error(friendlyError(signInError)) as Error & { code?: string };
+      e.code = signInError.code ?? (/email not confirmed/i.test(signInError.message) ? 'email_not_confirmed' : undefined);
+      throw e;
+    }
   }, []);
 
   const signOut = useCallback(async (everywhere = false) => {

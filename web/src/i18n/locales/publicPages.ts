@@ -1,6 +1,17 @@
 // Texts of the public pages. Keys start with "public.". Every English key must also have Arabic and Kiswahili.
 
 const en = {
+  'public.confirm.checkTitle': 'Check your email',
+  'public.confirm.checkText': 'Your business is ready. We sent a link to {email}. Open it to confirm your email and start using Hotzonex Cloud.',
+  'public.confirm.notSent': 'The email could not be sent just now. Tap "Send the email again" in a minute.',
+  'public.confirm.spam': 'Not there after a few minutes? Look in Spam or Promotions.',
+  'public.confirm.resend': 'Send the email again',
+  'public.confirm.resendWait': 'Send again in {n} s',
+  'public.confirm.resent': 'Sent again to {email}.',
+  'public.confirm.toLogin': 'Already confirmed? Log in',
+  'public.confirm.onlyFromLink': 'Open this page from the link in your confirmation email.',
+  'public.confirm.badTitle': 'This link did not work',
+  'public.confirm.badHelp': 'The link may be old or already used. Log in with your email and password; if your email is still not confirmed, you can send a new link from there.',
   'public.termsLink': 'Terms and privacy',
   'public.startTrial': 'Start free trial',
 
@@ -224,6 +235,17 @@ const en = {
 type Keys = Record<keyof typeof en, string>;
 
 const ar = {
+  'public.confirm.checkTitle': 'تحقق من بريدك الإلكتروني',
+  'public.confirm.checkText': 'نشاطك التجاري جاهز. أرسلنا رابطاً إلى {email}. افتحه لتأكيد بريدك والبدء في استخدام Hotzonex Cloud.',
+  'public.confirm.notSent': 'تعذر إرسال الرسالة الآن. اضغط "أرسل الرسالة مرة أخرى" بعد دقيقة.',
+  'public.confirm.spam': 'لم تصل بعد بضع دقائق؟ ابحث في البريد العشوائي أو العروض.',
+  'public.confirm.resend': 'أرسل الرسالة مرة أخرى',
+  'public.confirm.resendWait': 'أرسل مرة أخرى بعد {n} ث',
+  'public.confirm.resent': 'أُرسلت مرة أخرى إلى {email}.',
+  'public.confirm.toLogin': 'أكدت بالفعل؟ سجّل الدخول',
+  'public.confirm.onlyFromLink': 'افتح هذه الصفحة من الرابط في رسالة التأكيد.',
+  'public.confirm.badTitle': 'هذا الرابط لم يعمل',
+  'public.confirm.badHelp': 'قد يكون الرابط قديماً أو مستخدماً. سجّل الدخول ببريدك وكلمة المرور؛ وإذا لم يتأكد بريدك بعد، يمكنك إرسال رابط جديد من هناك.',
   'public.termsLink': 'الشروط والخصوصية',
   'public.startTrial': 'ابدأ التجربة المجانية',
 
@@ -437,6 +459,17 @@ const ar = {
 } satisfies Keys;
 
 const sw = {
+  'public.confirm.checkTitle': 'Angalia barua pepe yako',
+  'public.confirm.checkText': 'Biashara yako iko tayari. Tumetuma kiungo kwa {email}. Kifungue ili kuthibitisha barua pepe yako na kuanza kutumia Hotzonex Cloud.',
+  'public.confirm.notSent': 'Barua haikuweza kutumwa sasa hivi. Gusa "Tuma barua tena" baada ya dakika moja.',
+  'public.confirm.spam': 'Haijafika baada ya dakika chache? Angalia Spam au Promotions.',
+  'public.confirm.resend': 'Tuma barua tena',
+  'public.confirm.resendWait': 'Tuma tena baada ya sekunde {n}',
+  'public.confirm.resent': 'Imetumwa tena kwa {email}.',
+  'public.confirm.toLogin': 'Umeshathibitisha? Ingia',
+  'public.confirm.onlyFromLink': 'Fungua ukurasa huu kupitia kiungo kwenye barua ya uthibitisho.',
+  'public.confirm.badTitle': 'Kiungo hiki hakikufanya kazi',
+  'public.confirm.badHelp': 'Huenda kiungo ni cha zamani au kimeshatumika. Ingia kwa barua pepe na nenosiri lako; kama barua pepe bado haijathibitishwa, unaweza kutuma kiungo kipya kutoka hapo.',
   'public.termsLink': 'Masharti na faragha',
   'public.startTrial': 'Anza majaribio bure',
 

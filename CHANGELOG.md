@@ -1,5 +1,13 @@
 # Changelog
 
+## 23 October 2026 — email confirmation at sign-up
+
+- A new business's owner must open the link emailed to them before they can log in, so nobody
+  can sign up a business with someone else's email address. The link logs them straight into the
+  welcome page. After signing up they see "Check your email" with **Send the email again**; the
+  login page offers the same button when the email is not confirmed yet. Staff logins made by an
+  owner are not affected.
+
 ## 23 October 2026 — security audit before production
 
 - **Businesses kept apart on routers**: a router's reply can no longer remove or switch off another

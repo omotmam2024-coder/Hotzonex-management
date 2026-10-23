@@ -7,6 +7,7 @@ import { homePathFor } from '../../lib/nav';
 import { FullScreenSpinner } from '../../components/FullScreen';
 import { Alert } from '../../components/ui';
 import { LanguageSwitch } from '../../components/LanguageSwitch';
+import { ResendConfirmation } from '../../components/ResendConfirmation';
 import { useT } from '../../i18n';
 
 export function LoginPage() {
@@ -19,6 +20,7 @@ export function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [forgot, setForgot] = useState(false);
   const [sentTo, setSentTo] = useState<string | null>(null);
+  const [unconfirmed, setUnconfirmed] = useState<string | null>(null);
 
   if (status === 'loading') return <FullScreenSpinner />;
   if (status === 'mfa') return <TwoStepCode />;
@@ -33,11 +35,13 @@ export function LoginPage() {
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setError(null);
+    setUnconfirmed(null);
     setBusy(true);
     try {
       await signIn(email.trim(), password);
     } catch (err) {
       setError(err instanceof Error ? err.message : t('public.login.failed'));
+      setUnconfirmed((err as { code?: string }).code === 'email_not_confirmed' ? email.trim() : null);
     } finally {
       setBusy(false);
     }
@@ -124,6 +128,7 @@ export function LoginPage() {
               {error}
             </Alert>
           )}
+          {unconfirmed && !forgot && <ResendConfirmation email={unconfirmed} />}
 
           <button
             type="submit"

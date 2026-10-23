@@ -1,21 +1,22 @@
 import { useState, type FormEvent } from 'react';
-import { Link, Navigate, useNavigate } from 'react-router-dom';
+import { Link, Navigate } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthProvider';
 import { friendlyError } from '../../lib/errors';
 import { invokeFunction } from '../../lib/functions';
 import { signupSchema, validate } from '../../lib/validation';
 import { Alert } from '../../components/ui';
 import { LanguageSwitch } from '../../components/LanguageSwitch';
+import { ResendConfirmation } from '../../components/ResendConfirmation';
 import { useT } from '../../i18n';
 
 const input =
   'min-h-12 w-full rounded-xl border border-slate-300 px-3 text-base focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100';
 
-/** Public: a new WiFi business starts its free trial and is logged in straight away. */
+/** Public: a new WiFi business starts its free trial; the owner confirms their email, then logs in. */
 export function SignupPage() {
-  const { status, signIn } = useAuth();
+  const { status } = useAuth();
   const { t } = useT();
-  const navigate = useNavigate();
+  const [sent, setSent] = useState<{ email: string; ok: boolean } | null>(null);
   const [form, setForm] = useState({ business_name: '', site_name: '', full_name: '', phone: '', email: '', password: '' });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -30,9 +31,8 @@ export function SignupPage() {
     setBusy(true);
     try {
       const v = validate(signupSchema, form);
-      await invokeFunction('signup', { ...v, timezone: 'Africa/Juba' });
-      await signIn(v.email, v.password);
-      navigate('/welcome', { replace: true });
+      const res = await invokeFunction<{ email_sent?: boolean }>('signup', { ...v, timezone: 'Africa/Juba' });
+      setSent({ email: v.email, ok: res.email_sent !== false });
     } catch (err) {
       setError(friendlyError(err));
     } finally {
@@ -58,6 +58,19 @@ export function SignupPage() {
           <h1 className="mt-3 text-2xl font-bold text-slate-900">{t('public.signup.title')}</h1>
           <p className="text-slate-600">{t('public.signup.subtitle')}</p>
         </div>
+        {sent ? (
+          <div className="space-y-4 text-center">
+            <div className="text-6xl" aria-hidden>✉️</div>
+            <h2 className="text-xl font-bold text-slate-900">{t('public.confirm.checkTitle')}</h2>
+            <p className="text-slate-700">{t('public.confirm.checkText', { email: sent.email })}</p>
+            {!sent.ok && <Alert tone="warning">{t('public.confirm.notSent')}</Alert>}
+            <p className="text-sm text-slate-500">{t('public.confirm.spam')}</p>
+            <ResendConfirmation email={sent.email} />
+            <Link to="/login" className="block text-sm font-semibold text-brand-700 hover:underline">
+              {t('public.confirm.toLogin')}
+            </Link>
+          </div>
+        ) : (
         <form onSubmit={submit} className="space-y-3" noValidate>
           {field('business_name', t('public.signup.businessName'), { autoComplete: 'organization', required: true })}
           {field('site_name', t('public.signup.siteName'), { placeholder: t('public.signup.sitePlaceholder') })}
@@ -91,6 +104,7 @@ export function SignupPage() {
             </Link>
           </p>
         </form>
+        )}
       </div>
     </div>
   );
