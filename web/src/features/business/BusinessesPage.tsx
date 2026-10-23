@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { PlatformBilling } from '../../components/PlatformBilling';
+import { RemoveBusiness, type RemovedBusiness } from '../../components/RemoveBusiness';
 import { WhatsAppSender } from '../../components/WhatsAppSender';
 import { BillingMessages } from '../../components/BillingMessages';
 import { useAuth } from '../../auth/AuthProvider';
@@ -145,19 +146,9 @@ export function BusinessesPage() {
   });
 
   const [removing, setRemoving] = useState<string | null>(null);
-  const [confirmName, setConfirmName] = useState('');
-  const remove = useMutation({
-    mutationFn: (b: BusinessRow) =>
-      invokeFunction<{ removed: string; users_removed: number }>('delete-items', { action: 'delete_business', id: b.id, name: confirmName }),
-    onSuccess: () => {
-      setRemoving(null);
-      setConfirmName('');
-    },
-    onSettled: () => void queryClient.invalidateQueries({ queryKey: ['businesses'] }),
-  });
+  const [removed, setRemoved] = useState<RemovedBusiness | null>(null);
   const startRemove = (b: BusinessRow) => {
-    remove.reset();
-    setConfirmName('');
+    setRemoved(null);
     setRemoving(removing === b.id ? null : b.id);
   };
 
@@ -194,9 +185,7 @@ export function BusinessesPage() {
       {list.isLoading && <Spinner className="h-8 w-8 text-brand-600" />}
       {list.error && <Alert tone="error">{friendlyError(list.error)}</Alert>}
       {toggle.error && <Alert tone="error">{friendlyError(toggle.error)}</Alert>}
-      {remove.data && (
-        <Alert tone="success">{t('business.businesses.removed', { name: remove.data.removed, n: formatNumber(remove.data.users_removed) })}</Alert>
-      )}
+      {removed && <Alert tone="success">{t('business.businesses.removed', { name: removed.removed, n: formatNumber(removed.users_removed) })}</Alert>}
 
       <div className="grid gap-3 md:grid-cols-2">
         {(list.data ?? []).map((b) => (
@@ -234,28 +223,18 @@ export function BusinessesPage() {
               </div>
             </div>
             {removing === b.id && (
-              <form
-                className="mt-3 space-y-3 rounded-lg bg-red-50 p-3 ring-1 ring-red-200"
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  remove.mutate(b);
-                }}
-              >
-                <div className="font-bold text-red-800">{t('business.businesses.removeTitle', { name: b.name })}</div>
-                <p className="text-sm text-red-800">{t('business.businesses.removeText')}</p>
-                <Field label={t('business.businesses.removeType', { name: b.name })}>
-                  <TextInput value={confirmName} onChange={(e) => setConfirmName(e.target.value)} autoComplete="off" spellCheck={false} />
-                </Field>
-                {remove.error && <Alert tone="error">{friendlyError(remove.error)}</Alert>}
-                <div className="flex flex-wrap gap-2">
-                  <Button type="submit" variant="danger" disabled={remove.isPending || confirmName.trim().toLowerCase() !== b.name.trim().toLowerCase()}>
-                    {remove.isPending && <Spinner />} {t('business.businesses.removeConfirm')}
-                  </Button>
-                  <Button type="button" variant="secondary" onClick={() => setRemoving(null)}>
-                    {t('common.cancel')}
-                  </Button>
-                </div>
-              </form>
+              <div className="mt-3">
+                <RemoveBusiness
+                  id={b.id}
+                  name={b.name}
+                  active={b.is_active}
+                  onClose={() => setRemoving(null)}
+                  onRemoved={(r) => {
+                    setRemoving(null);
+                    setRemoved(r);
+                  }}
+                />
+              </div>
             )}
           </Card>
         ))}

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { z } from 'zod';
 import { friendlyError } from '../lib/errors';
+import { invokeFunction } from '../lib/functions';
 import { useT } from '../i18n';
 import { translate } from '../i18n/translate';
 import { formatNumber, formatSSPWithUsd } from '../lib/format';
@@ -164,7 +165,15 @@ function PlanEditor({ plan, stdPrice, usdRate, onDone }: { plan: SubscriptionPla
 export function PlansCard({ stdPrice, usdRate = null }: { stdPrice: number; usdRate?: number | null }) {
   const { t } = useT();
   const plans = usePlatformPlans();
+  const queryClient = useQueryClient();
   const [editing, setEditing] = useState<string | 'new' | null>(null);
+  const remove = useMutation({
+    mutationFn: (id: string) => invokeFunction<{ deleted: string; moved: number }>('delete-items', { action: 'delete_subscription_plan', id }),
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: PLANS_KEY });
+      void queryClient.invalidateQueries({ queryKey: ['platform-billing'] });
+    },
+  });
   if (plans.error) return <Alert tone="error">{friendlyError(plans.error)}</Alert>;
   if (!plans.data) return <Spinner />;
   return (
@@ -181,6 +190,8 @@ export function PlansCard({ stdPrice, usdRate = null }: { stdPrice: number; usdR
         )}
       </div>
       {editing === 'new' && <PlanEditor plan={null} stdPrice={stdPrice} usdRate={usdRate} onDone={() => setEditing(null)} />}
+      {remove.error && <Alert tone="error">{friendlyError(remove.error)}</Alert>}
+      {remove.data && <Alert tone="success">{t(remove.data.moved === 1 ? 'business.limits.deletedOne' : 'business.limits.deleted', { name: remove.data.deleted, n: remove.data.moved })}</Alert>}
       {plans.data.plans.length === 0 && editing !== 'new' && <p className="text-sm text-slate-600">{t('business.limits.noPlans')}</p>}
       <ul className="divide-y divide-slate-100">
         {plans.data.plans.map((p) => (
@@ -199,9 +210,21 @@ export function PlansCard({ stdPrice, usdRate = null }: { stdPrice: number; usdR
                     {p.price_per_router_ssp === null ? t('business.limits.standardPrice') : ''}
                   </p>
                 </div>
-                <Button variant="secondary" onClick={() => setEditing(p.id)}>
-                  {t('common.edit')}
-                </Button>
+                <span className="flex gap-2">
+                  <Button variant="secondary" onClick={() => setEditing(p.id)}>
+                    {t('common.edit')}
+                  </Button>
+                  {/* Starter stays: every new business starts on it. */}
+                  {p.id !== 'starter' && (
+                    <Button
+                      variant="danger"
+                      disabled={remove.isPending}
+                      onClick={() => window.confirm(t('business.limits.confirmDelete', { name: p.name })) && remove.mutate(p.id)}
+                    >
+                      {t('common.delete')}
+                    </Button>
+                  )}
+                </span>
               </div>
             )}
           </li>

@@ -1,10 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useAuth } from '../auth/AuthProvider';
 import { friendlyError } from '../lib/errors';
+import { invokeFunction } from '../lib/functions';
 import { useT } from '../i18n';
 import { formatJubaDate, formatJubaTime, formatSSPWithUsd, jubaToday } from '../lib/format';
 import { fromJson, supabase } from '../lib/supabase';
 import { BusinessPlanControl, PlansCard } from './PlanLimits';
+import { RemoveBusiness } from './RemoveBusiness';
 import { Alert, Badge, Button, Card, Checkbox, Field, Spinner, TextArea, TextInput } from './ui';
 
 interface PlatformInvoice {
@@ -182,6 +185,17 @@ function BusinessBilling({ b, stdPrice, usdRate }: { b: PlatformBusiness; stdPri
   });
   // Blocks a second tap before the button disables.
   const markInFlight = useRef(false);
+
+  const { business } = useAuth();
+  const [removing, setRemoving] = useState(false);
+  const deleteInvoice = useMutation({
+    mutationFn: (id: string) => invokeFunction<{ deleted: string }>('delete-items', { action: 'delete_invoice', id }),
+    onSettled: () => void queryClient.invalidateQueries({ queryKey: KEY }),
+  });
+  function askDeleteInvoice(id: string, number: string) {
+    if (deleteInvoice.isPending || !window.confirm(t('business.pbilling.confirmDeleteInvoice', { number }))) return;
+    deleteInvoice.mutate(id);
+  }
   function markInvoice(id: string, status: 'paid' | 'void', question: string) {
     if (markInFlight.current || !window.confirm(question)) return;
     markInFlight.current = true;
@@ -250,8 +264,9 @@ function BusinessBilling({ b, stdPrice, usdRate }: { b: PlatformBusiness; stdPri
                   <span className="ms-1 font-semibold text-brand-800">{t('business.pbilling.saysPaid', { ref: i.customer_ref })}</span>
                 )}
               </span>
+              <span className="flex flex-wrap gap-2">
               {i.status === 'open' && (
-                <span className="flex gap-2">
+                <>
                   <Button
                     onClick={() => markInvoice(i.id, 'paid', t('business.pbilling.confirmPaid', { amount: formatSSPWithUsd(i.amount_ssp, usdRate), number: i.number }))}
                     disabled={mark.isPending}
@@ -261,13 +276,29 @@ function BusinessBilling({ b, stdPrice, usdRate }: { b: PlatformBusiness; stdPri
                   <Button variant="ghost" onClick={() => markInvoice(i.id, 'void', t('business.pbilling.confirmVoid', { number: i.number }))} disabled={mark.isPending}>
                     {t('business.pbilling.voidButton')}
                   </Button>
-                </span>
+                </>
               )}
+                <Button variant="danger" onClick={() => askDeleteInvoice(i.id, i.number)} disabled={deleteInvoice.isPending}>
+                  {t('common.delete')}
+                </Button>
+              </span>
             </li>
           ))}
         </ul>
       )}
       {mark.error && <Alert tone="error">{friendlyError(mark.error)}</Alert>}
+      {deleteInvoice.error && <Alert tone="error">{friendlyError(deleteInvoice.error)}</Alert>}
+      {deleteInvoice.data && <Alert tone="success">{t('business.pbilling.invoiceDeleted', { number: deleteInvoice.data.deleted })}</Alert>}
+      {b.tenant_id !== business?.id &&
+        (removing ? (
+          <RemoveBusiness id={b.tenant_id} name={b.name} active={b.is_active} onClose={() => setRemoving(false)} onRemoved={() => setRemoving(false)} />
+        ) : (
+          <div className="flex justify-end">
+            <Button variant="danger" onClick={() => setRemoving(true)}>
+              {t('business.pbilling.removeBusiness')}
+            </Button>
+          </div>
+        ))}
     </li>
   );
 }

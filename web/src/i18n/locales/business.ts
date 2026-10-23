@@ -1,6 +1,12 @@
 // Texts of the business pages. Keys start with "business.". Every English key must also have Arabic and Kiswahili.
 
 const en = {
+  'business.pbilling.confirmDeleteInvoice': 'Delete invoice {number} completely? If it is the latest invoice, the daily billing makes a new one for this month. To not charge the business, use Void instead.',
+  'business.pbilling.invoiceDeleted': 'Invoice {number} was deleted.',
+  'business.pbilling.removeBusiness': 'Remove business',
+  'business.limits.confirmDelete': 'Delete the plan {name}? Businesses on it move to the Starter plan.',
+  'business.limits.deleted': '{name} was deleted. {n} businesses moved to Starter.',
+  'business.limits.deletedOne': '{name} was deleted. 1 business moved to Starter.',
   'business.bill.refSent': 'You sent transaction ID',
   'business.bill.refChecking': 'Hotzonex Cloud is checking it and will mark the invoice paid.',
   'business.bill.refLabel': 'Paid? Type the transaction ID from your payment SMS:',
@@ -347,6 +353,12 @@ const en = {
 type Keys = Record<keyof typeof en, string>;
 
 const ar = {
+  'business.pbilling.confirmDeleteInvoice': 'حذف الفاتورة {number} نهائياً؟ إذا كانت آخر فاتورة، ينشئ الفوترة اليومية فاتورة جديدة لهذا الشهر. لعدم تحصيل المبلغ، استخدم الإلغاء بدلاً من ذلك.',
+  'business.pbilling.invoiceDeleted': 'تم حذف الفاتورة {number}.',
+  'business.pbilling.removeBusiness': 'حذف النشاط التجاري',
+  'business.limits.confirmDelete': 'حذف الباقة {name}؟ تنتقل الأنشطة التجارية عليها إلى باقة Starter.',
+  'business.limits.deleted': 'تم حذف {name}. انتقل {n} من الأنشطة التجارية إلى Starter.',
+  'business.limits.deletedOne': 'تم حذف {name}. انتقل نشاط تجاري واحد إلى Starter.',
   'business.bill.refSent': 'أرسلت رقم العملية',
   'business.bill.refChecking': 'يتحقق Hotzonex Cloud منه وسيضع الفاتورة كمدفوعة.',
   'business.bill.refLabel': 'دفعت؟ اكتب رقم العملية من رسالة الدفع:',
@@ -680,6 +692,12 @@ const ar = {
 } satisfies Keys;
 
 const sw = {
+  'business.pbilling.confirmDeleteInvoice': 'Futa ankara {number} kabisa? Kama ni ankara ya mwisho, malipo ya kila siku yataunda mpya ya mwezi huu. Ili usiidai biashara, tumia Batilisha badala yake.',
+  'business.pbilling.invoiceDeleted': 'Ankara {number} imefutwa.',
+  'business.pbilling.removeBusiness': 'Ondoa biashara',
+  'business.limits.confirmDelete': 'Futa mpango {name}? Biashara zilizo juu yake zitahamia mpango wa Starter.',
+  'business.limits.deleted': '{name} imefutwa. Biashara {n} zimehamia Starter.',
+  'business.limits.deletedOne': '{name} imefutwa. Biashara 1 imehamia Starter.',
   'business.bill.refSent': 'Ulituma namba ya muamala',
   'business.bill.refChecking': 'Hotzonex Cloud inaikagua na itaweka ankara kama imelipwa.',
   'business.bill.refLabel': 'Umelipa? Andika namba ya muamala kutoka SMS ya malipo:',

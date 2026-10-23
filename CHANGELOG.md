@@ -1,5 +1,16 @@
 # Changelog
 
+## 23 October 2026 — delete in the Businesses billing section
+
+- **Invoices**: every invoice of a business has a **Delete** button (removed completely, kept in the
+  audit log). A business paused only for unpaid invoices opens again once none is overdue. Deleting
+  the latest invoice lets the daily billing make a new one for the month, so **Void** stays the way
+  to not charge a business.
+- **Hotzonex plans**: Business, Pro and any new plan can be deleted; their businesses move to
+  Starter, which new businesses start on and so stays.
+- **Remove business** in each business's billing box: type the name to confirm; a business still
+  switched on is switched off first. Your own business cannot be removed.
+
 ## 23 October 2026 — email confirmation at sign-up
 
 - A new business's owner must open the link emailed to them before they can log in, so nobody

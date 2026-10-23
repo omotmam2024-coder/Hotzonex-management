@@ -11,6 +11,12 @@
 // POST { action: "delete_business", id, name } → { removed, users_removed, counts }
 //   Platform admins only: removes a switched-off business for good (the owner left Hotzonex Cloud):
 //   all its data, its staff logins and its logo. The business name must be typed to confirm.
+// POST { action: "delete_invoice", id } → { deleted: number }
+//   Platform admins only: removes one of a business's Hotzonex Cloud invoices completely. A business
+//   paused only for unpaid invoices opens again once none is overdue.
+// POST { action: "delete_subscription_plan", id } → { deleted: name, moved }
+//   Platform admins only: removes a Hotzonex Cloud plan; its businesses move to the Starter plan,
+//   which new businesses start on and so stays.
 import type { SupabaseClient } from 'npm:@supabase/supabase-js@2.117.3';
 import { audit, type Caller, requireAdmin, serviceClient } from '../_shared/auth.ts';
 import { HttpError, readBody, serveJson } from '../_shared/cors.ts';
@@ -192,6 +198,50 @@ async function deleteBusiness(db: SupabaseClient, caller: Caller, body: Record<s
   return { removed: removed.name, users_removed: usersRemoved, counts: removed.counts };
 }
 
+async function deleteInvoice(db: SupabaseClient, caller: Caller, body: Record<string, unknown>) {
+  if (!caller.isPlatformAdmin) throw new HttpError(403, 'Only Hotzonex Cloud platform admins can delete an invoice.');
+  const id = typeof body.id === 'string' && UUID_RE.test(body.id) ? body.id : '';
+  const { data: inv } = id ? await db.from('invoices').select('id, tenant_id, number, status, amount_ssp').eq('id', id).maybeSingle() : { data: null };
+  if (!inv) throw new HttpError(404, 'Invoice not found.');
+  const { error } = await db.from('invoices').delete().eq('id', id);
+  if (error) throw new Error(`Could not delete the invoice: ${error.message}`);
+  await db.from('alerts').update({ resolved_at: new Date().toISOString() }).eq('key', `invoice_paid:${id}`).is('resolved_at', null);
+
+  // Paused for unpaid invoices only: open again when no overdue invoice is left (as when one is paid).
+  const now = new Date().toISOString();
+  const { count } = await db.from('invoices').select('id', { count: 'exact', head: true }).eq('tenant_id', inv.tenant_id).eq('status', 'open').lt('due_at', now);
+  if (!count) {
+    const { data: billing } = await db.from('tenant_billing').select('status').eq('tenant_id', inv.tenant_id).maybeSingle();
+    if (billing?.status === 'suspended') {
+      await db.from('tenants').update({ is_active: true }).eq('id', inv.tenant_id);
+      await db.from('tenant_billing').update({ status: 'active', suspended_at: null, updated_at: now }).eq('tenant_id', inv.tenant_id);
+    }
+  }
+  await audit(db, caller, 'invoice.deleted', { tenant_id: inv.tenant_id, number: inv.number, status: inv.status, amount_ssp: inv.amount_ssp });
+  return { deleted: inv.number as string };
+}
+
+/** The plan every new business starts on (the database default); it cannot be deleted. */
+const DEFAULT_SUBSCRIPTION_PLAN = 'starter';
+
+async function deleteSubscriptionPlan(db: SupabaseClient, caller: Caller, body: Record<string, unknown>) {
+  if (!caller.isPlatformAdmin) throw new HttpError(403, 'Only Hotzonex Cloud platform admins can delete a plan.');
+  const id = typeof body.id === 'string' ? body.id.trim().slice(0, 40) : '';
+  if (id === DEFAULT_SUBSCRIPTION_PLAN) throw new HttpError(409, 'Starter is the plan every new business starts on, so it stays. You can change its price and limits.');
+  const { data: plan } = id ? await db.from('subscription_plans').select('id, name').eq('id', id).maybeSingle() : { data: null };
+  if (!plan) throw new HttpError(404, 'Plan not found.');
+  const { data: moved, error: moveError } = await db
+    .from('tenant_billing')
+    .update({ plan_id: DEFAULT_SUBSCRIPTION_PLAN, updated_at: new Date().toISOString() })
+    .eq('plan_id', id)
+    .select('tenant_id');
+  if (moveError) throw new Error(`Could not move its businesses: ${moveError.message}`);
+  const { error } = await db.from('subscription_plans').delete().eq('id', id);
+  if (error) throw new Error(`Could not delete the plan: ${error.message}`);
+  await audit(db, caller, 'subscription_plan.deleted', { id, name: plan.name, moved_to_starter: moved?.length ?? 0 });
+  return { deleted: plan.name as string, moved: moved?.length ?? 0 };
+}
+
 serveJson(async (req) => {
   const db = serviceClient();
   const caller = await requireAdmin(req, db);
@@ -203,6 +253,10 @@ serveJson(async (req) => {
       return await deletePlan(db, caller, body);
     case 'delete_business':
       return await deleteBusiness(db, caller, body);
+    case 'delete_invoice':
+      return await deleteInvoice(db, caller, body);
+    case 'delete_subscription_plan':
+      return await deleteSubscriptionPlan(db, caller, body);
     default:
       throw new HttpError(400, 'Unknown action.');
   }
