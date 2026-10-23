@@ -9,7 +9,10 @@
   currency, API user, API key, subscription key, **Test the login**. Keys are stored encrypted.
 - Only MoMo's status answer confirms a payment, for the exact amount and currency. Payments a
   customer left are checked every 2 minutes; a paid one without a card stays for the cashier.
-- Migration `20261024090000_momo_api.sql`; new Edge Function `momo`; `buy` updated.
+- Migration `20261023194330_momo_api.sql` (applied); new Edge Function `momo` and updated `buy`
+  (deployed 23 October 2026).
+- **To deploy by hand** (Supabase CLI, exact files from the repository): `add-router` and
+  `router-direct` from "routers only through the tunnel" below.
 
 ## 23 October 2026 — routers only through the tunnel
 

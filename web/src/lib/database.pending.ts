@@ -1,8 +1,9 @@
 /**
  * Type overrides layered on top of the generated `database.types.ts`.
  *
- * Pending migrations: 20261024090000_momo_api.sql (MTN MoMo API payments). Every other migration
- * in supabase/migrations is applied and the types were regenerated from the live project.
+ * Pending types: 20261023194330_momo_api.sql is applied to production (23 October 2026); its
+ * columns and function are declared below until the types are regenerated (supabase gen types),
+ * after which those entries go. Every other migration is in the generated types.
  *
  * When a new migration adds tables, columns or functions the app needs before it is applied (and
  * before the types are regenerated), declare them in `PendingTables` / `PendingFunctions` below and
@@ -25,7 +26,7 @@ type Public = Database['public'];
 
 type PaymentRequests = Public['Tables']['payment_requests'];
 
-/** Tables / columns from migrations not yet applied (20261024090000_momo_api.sql). */
+/** Columns not yet in the generated types (20261023194330_momo_api.sql, applied). */
 type PendingTables = {
   payment_requests: Merge<
     PaymentRequests,
@@ -33,7 +34,7 @@ type PendingTables = {
   >;
 };
 
-/** Functions from migrations not yet applied (20261024090000_momo_api.sql). */
+/** Functions not yet in the generated types (20261023194330_momo_api.sql, applied). */
 type PendingFunctions = {
   momo_account: { Args: never; Returns: Json };
 };
