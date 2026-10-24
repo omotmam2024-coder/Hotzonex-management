@@ -476,7 +476,10 @@ async function checkRouter(db: SupabaseClient, router: DirectRouter, client: Res
     }
     // MikroTicket cards whose time is over are deleted from the router (their sales stay in Hotzonex).
     try {
-      const gone = await removeExpiredRouterUsers(client, deadline);
+      const gone = await removeExpiredRouterUsers(client, deadline, 50, {
+        users: usage.allUsers,
+        online: new Set(usage.sessions.map((a) => a.code)),
+      });
       if (gone.length) {
         console.log(`${router.name}: removed ${gone.length} expired cards`);
         await db.from('audit_log').insert({

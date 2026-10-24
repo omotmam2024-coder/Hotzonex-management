@@ -1,5 +1,17 @@
 # Changelog
 
+## 24 October 2026 — big routers no longer flip to "Not answering"
+
+- A router with thousands of hotspot users (Hotzonex main office: about 2,600) showed **Not
+  answering — "Signal timed out."**: its full user list took more than 10 seconds to arrive
+  through the tunnel, and that slow reply was not recognised as a timeout, so one slow minute
+  marked the router offline with a raw message.
+- Full user lists now have 30 seconds; a reply still arriving when the time runs out is a normal
+  missed reply ("The router's reply took too long"), so the router stays online unless several
+  checks in a row fail.
+- The minute check reads the user list once and reuses it to remove expired cards (it was read
+  twice a minute).
+
 ## 24 October 2026 — delete a staff member
 
 - Staff page → Edit → **Delete staff member**, for someone who no longer works for the business

@@ -56,8 +56,9 @@ export class RestClient {
    * Reads a menu. Filters and field lists go in a JSON "print" request: RouterOS does not decode
    * URL query strings reliably (commas in .proplist and spaces in names come through mangled).
    */
-  get<T = Json[]>(path: string, query?: Record<string, string>): Promise<T> {
-    if (!query) return this.request<T>('GET', path);
+  /** timeoutMs: a longer wait for big lists (thousands of hotspot users through the tunnel). */
+  get<T = Json[]>(path: string, query?: Record<string, string>, timeoutMs?: number): Promise<T> {
+    if (!query) return this.request<T>('GET', path, undefined, timeoutMs);
     const body: Json = {};
     const words: string[] = [];
     for (const [k, v] of Object.entries(query)) {
@@ -65,7 +66,7 @@ export class RestClient {
       else words.push(`${k}=${v}`);
     }
     if (words.length) body['.query'] = words;
-    return this.request<T>('POST', `${path}/print`, body);
+    return this.request<T>('POST', `${path}/print`, body, timeoutMs);
   }
   put<T = Json>(path: string, body: Json): Promise<T> {
     return this.request<T>('PUT', path, body);
@@ -80,7 +81,7 @@ export class RestClient {
     return this.request<void>('DELETE', path);
   }
 
-  private async request<T>(method: string, path: string, body?: Json): Promise<T> {
+  private async request<T>(method: string, path: string, body?: Json, timeoutMs = this.timeoutMs): Promise<T> {
     const url = new URL(this.baseUrl + path);
     const where = `${this.target.host}:${this.target.port}`;
     const relay = this.target.relay;
@@ -105,7 +106,7 @@ export class RestClient {
           ...(relay ? { 'X-Hzc-Relay': relay.secret } : {}),
         },
         body: body ? JSON.stringify(body) : undefined,
-        signal: AbortSignal.timeout(this.timeoutMs),
+        signal: AbortSignal.timeout(timeoutMs),
       });
     } catch (err) {
       const msg = err instanceof Error ? `${err.name} ${err.message}` : String(err);
@@ -122,7 +123,18 @@ export class RestClient {
       throw new RouterError('unreachable', `Cannot reach ${where}. ${msg.slice(0, 160)}`);
     }
 
-    const text = await res.text();
+    // The time limit covers the whole reply: a big list still arriving when it runs out is a missed
+    // reply like any other (the router is shown offline only after several), not a crash.
+    let text: string;
+    try {
+      text = await res.text();
+    } catch (err) {
+      const msg = err instanceof Error ? `${err.name} ${err.message}` : String(err);
+      if (/timeout|timed out|abort/i.test(msg)) {
+        throw new RouterError('timeout', `The router's reply took too long${relay ? ' through the tunnel' : ''} (${where}). It may be busy or on a slow connection.`);
+      }
+      throw new RouterError('unreachable', `The router's reply was cut off (${where}). ${msg.slice(0, 120)}`);
+    }
     if (relay && (res.status === 502 || res.status === 504)) {
       throw new RouterError('timeout', `The router is not connected to the tunnel (${where}). Check that it has internet and that the tunnel script was pasted.`);
     }
@@ -288,7 +300,7 @@ export interface RouterUsers {
 
 /** All hotspot users, read once per push, and how the router's own vouchers are made. */
 export async function readRouterUsers(client: RestClient): Promise<RouterUsers> {
-  const users = await client.get<Json[]>('/ip/hotspot/user', { '.proplist': 'name,comment,password' });
+  const users = await client.get<Json[]>('/ip/hotspot/user', { '.proplist': 'name,comment,password' }, LIST_TIMEOUT_MS);
   const own = users.filter((u) => s(u.name) && s(u.name) !== 'default-trial' && !s(u.comment).startsWith('hzc:'));
   // A password the router does not show (no "sensitive" permission) tells nothing: only shown ones count.
   const readable = own.filter((u) => typeof u.password === 'string');
@@ -401,6 +413,9 @@ export async function closeSessions(client: RestClient, code: string, mac: strin
   return sessions.length;
 }
 
+/** How long a full hotspot user list may take: thousands of users through the tunnel take a while. */
+export const LIST_TIMEOUT_MS = 30_000;
+
 /** A hotspot user as Hotzonex counts it: every user on the router, not only Hotzonex vouchers. */
 export interface RouterUser {
   name: string;
@@ -475,23 +490,31 @@ export function expiredRouterUsers(
  * Removes MikroTicket cards whose time is over from the router (at most `max`, stopping at the
  * deadline). Their sales stay in Hotzonex (used router logins are kept). Returns the removed names.
  */
-export async function removeExpiredRouterUsers(client: RestClient, deadline: number, max = 50): Promise<string[]> {
+export async function removeExpiredRouterUsers(
+  client: RestClient,
+  deadline: number,
+  max = 50,
+  /** The user list and online users the minute check has just read (saves reading them again). */
+  known?: { users: RouterUserLimits[]; online: Set<string> },
+): Promise<string[]> {
   const [users, active, clock] = await Promise.all([
-    client.get<Json[]>('/ip/hotspot/user', { '.proplist': '.id,name,profile,comment,uptime,limit-uptime' }),
-    client.get<Json[]>('/ip/hotspot/active', { '.proplist': 'user' }),
+    known ? null : client.get<Json[]>('/ip/hotspot/user', { '.proplist': '.id,name,profile,comment,uptime,limit-uptime' }, LIST_TIMEOUT_MS),
+    known ? null : client.get<Json[]>('/ip/hotspot/active', { '.proplist': 'user' }),
     client.get<Json>('/system/clock').catch(() => ({}) as Json),
   ]);
-  const list: RouterUserLimits[] = users
-    .filter((u) => s(u.name))
-    .map((u) => ({
-      id: s(u['.id']),
-      name: s(u.name),
-      profile: s(u.profile),
-      uptime: fromRouterOsTime(s(u.uptime)),
-      limitUptime: fromRouterOsTime(s(u['limit-uptime'])),
-      comment: s(u.comment),
-    }));
-  const online = new Set(active.map((a) => s(a.user)).filter(Boolean));
+  const list: RouterUserLimits[] =
+    known?.users ??
+    (users ?? [])
+      .filter((u) => s(u.name))
+      .map((u) => ({
+        id: s(u['.id']),
+        name: s(u.name),
+        profile: s(u.profile),
+        uptime: fromRouterOsTime(s(u.uptime)),
+        limitUptime: fromRouterOsTime(s(u['limit-uptime'])),
+        comment: s(u.comment),
+      }));
+  const online = known?.online ?? new Set((active ?? []).map((a) => s(a.user)).filter(Boolean));
   const removed: string[] = [];
   for (const u of expiredRouterUsers(list, online, routerClockText(clock)).slice(0, max)) {
     if (Date.now() > deadline) break;
@@ -507,11 +530,12 @@ export async function removeExpiredRouterUsers(client: RestClient, deadline: num
  */
 export async function readUsage(
   client: RestClient,
-): Promise<{ sessions: ActiveRow[]; users: UserUsage[]; allUsers: RouterUser[]; userProfiles: HotspotInfo['user_profiles']; info: Json }> {
+): Promise<{ sessions: ActiveRow[]; users: UserUsage[]; allUsers: RouterUserLimits[]; userProfiles: HotspotInfo['user_profiles']; info: Json }> {
   const [info, active, users, profiles] = await Promise.all([
     client.get<Json>('/system/resource'),
     client.get<Json[]>('/ip/hotspot/active', { '.proplist': 'user,mac-address,address,uptime,bytes-in,bytes-out' }),
-    client.get<Json[]>('/ip/hotspot/user', { '.proplist': 'name,profile,comment,uptime,bytes-in,bytes-out' }),
+    // One read of the whole user list per check: also used to remove expired cards (removeExpiredRouterUsers).
+    client.get<Json[]>('/ip/hotspot/user', { '.proplist': '.id,name,profile,comment,uptime,limit-uptime,bytes-in,bytes-out' }, LIST_TIMEOUT_MS),
     client.get<Json[]>('/ip/hotspot/user/profile', { '.proplist': 'name,rate-limit,shared-users' }),
   ]);
   const userProfiles = profiles.map((h) => ({ name: s(h.name), rate_limit: s(h['rate-limit']), shared_users: s(h['shared-users']) }));
@@ -535,7 +559,14 @@ export async function readUsage(
   }
   const allUsers = users
     .filter((u) => s(u.name))
-    .map((u) => ({ name: s(u.name), profile: s(u.profile), uptime: fromRouterOsTime(s(u.uptime)), comment: s(u.comment) }));
+    .map((u) => ({
+      id: s(u['.id']),
+      name: s(u.name),
+      profile: s(u.profile),
+      uptime: fromRouterOsTime(s(u.uptime)),
+      limitUptime: fromRouterOsTime(s(u['limit-uptime'])),
+      comment: s(u.comment),
+    }));
   return { sessions: [...unique.values()], users: usage, allUsers, userProfiles, info };
 }
 

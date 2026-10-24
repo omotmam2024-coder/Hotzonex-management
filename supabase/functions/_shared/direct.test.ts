@@ -32,6 +32,13 @@ function handler(req: IncomingMessage, res: ServerResponse) {
   req.on('data', (c) => (raw += c));
   req.on('end', () => {
     if (path === '/system/resource') return send(200, { 'board-name': 'hAP ax2', version: '7.19.6 (stable)', uptime: '1d2h' });
+    // A big list that arrives slowly: the headers come at once, the rest only after a while.
+    if (path === '/slow-list') {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.write('[');
+      setTimeout(() => res.end('{"name":"1"}]'), 600);
+      return;
+    }
     // Filtered reads come as JSON "print" commands, like RouterOS expects; URL query strings are not used.
     if (url.search) return send(400, { error: 400, message: 'Bad Request', detail: 'query strings are not decoded reliably' });
     if (req.method === 'POST' && path === '/tool/fetch') {
@@ -314,4 +321,14 @@ test('Buy page walled garden: Hotzonex entries replaced, the owner\'s own entrie
 test('a direct router on a private address is refused before any request is sent', async () => {
   const c = new RestClient({ host: '127.0.0.1', port, useHttps: false, username: 'admin', password: 'secret' }, 3000);
   await assert.rejects(c.get('/system/resource'), (e: unknown) => e instanceof RouterError && e.kind === 'unreachable' && /not a public address/.test(e.message));
+});
+
+test('a reply that is still arriving when the time runs out is a timeout, not a crash', async () => {
+  const slow = new RestClient({ host: '127.0.0.1', port, useHttps: false, username: 'admin', password: 'secret' }, 200, async () => {});
+  await assert.rejects(
+    () => slow.get('/slow-list'),
+    (err: unknown) => err instanceof RouterError && err.kind === 'timeout' && /took too long/.test(err.message),
+  );
+  // A longer wait for big lists lets the same reply arrive.
+  assert.deepEqual(await slow.get('/slow-list', undefined, 3000), [{ name: '1' }]);
 });
