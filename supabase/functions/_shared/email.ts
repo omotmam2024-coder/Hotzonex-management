@@ -138,12 +138,12 @@ function fill(template: string, vars: Record<string, string>): string {
 }
 
 // Hotzonex Cloud's colours (the app's brand blue, web/tailwind.config.js), the same look as the
-// sign-up and password emails (supabase/templates): a blue header with the logo, a white card,
-// a blue button and the contact footer. Table layout and inline styles only, so it shows the same
+// sign-up and password emails (supabase/templates): the Hotzonex logo on a white header with a
+// blue top edge, a white card, a blue button and the contact footer. Table layout and inline styles only, so it shows the same
 // in Gmail, Outlook and phone mail apps.
 const BRAND = '#15479c';
 const PAGE = '#eef6ff';
-const LOGO = 'https://hotzonex.net/icon-192.png';
+const LOGO = 'https://hotzonex.net/logo.png';
 const FONT = 'font-family:Arial,Helvetica,sans-serif;';
 
 /** The welcome email a new staff member gets: who added them, their role, where to log in. */
@@ -170,11 +170,8 @@ export function staffWelcomeEmail(w: WelcomeInput): Email {
 <table width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${PAGE}" dir="${dir}" style="background-color:${PAGE};">
 <tr><td align="center" style="padding-top:24px;padding-bottom:24px;padding-left:12px;padding-right:12px;">
 <table width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;">
-<tr><td bgcolor="${BRAND}" align="${align}" style="background-color:${BRAND};border-radius:12px 12px 0 0;padding-top:18px;padding-bottom:18px;padding-left:28px;padding-right:28px;">
-<table cellpadding="0" cellspacing="0" border="0"><tr>
-<td style="padding:0;"><img src="${LOGO}" width="36" height="36" alt="" style="display:block;border:0;border-radius:8px;background-color:#ffffff;"></td>
-<td style="padding-left:12px;padding-right:12px;"><span style="${FONT}font-size:20px;line-height:24px;color:#ffffff;font-weight:bold;">Hotzonex Cloud</span></td>
-</tr></table>
+<tr><td bgcolor="#ffffff" align="center" style="background-color:#ffffff;border-top:6px solid ${BRAND};border-radius:12px 12px 0 0;padding-top:22px;padding-bottom:6px;padding-left:28px;padding-right:28px;">
+<img src="${LOGO}" width="132" height="88" alt="Hotzonex Cloud" style="display:block;border:0;width:132px;height:88px;">
 </td></tr>
 ${card(
   `<h1 style="margin-top:0;margin-bottom:16px;${FONT}font-size:22px;line-height:28px;color:#111827;">${esc(subject)}</h1>
