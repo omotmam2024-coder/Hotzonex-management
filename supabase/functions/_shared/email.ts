@@ -4,7 +4,7 @@
 
 export type EmailLang = 'en' | 'ar' | 'sw';
 
-export const DEFAULT_FROM = 'Hotzonex Cloud <no-reply@mail.hotzonex.net>';
+export const DEFAULT_FROM = 'Hotzonex Cloud <noreply@mail.hotzonex.net>';
 
 export interface Email {
   to: string;
@@ -80,6 +80,7 @@ const TEXT: Record<
     loginButton: string;
     phone: string;
     notYou: string;
+    footer: string;
   }
 > = {
   en: {
@@ -96,6 +97,7 @@ const TEXT: Record<
     loginButton: 'Open Hotzonex Cloud',
     phone: 'It works on any phone: add it to your home screen from the browser menu.',
     notYou: 'Not expecting this? You can ignore this email.',
+    footer: 'Hotzonex Cloud, Juba, South Sudan. Questions? WhatsApp +211 924 904 216.',
   },
   ar: {
     subject: 'مرحباً بك في {business} على Hotzonex Cloud',
@@ -111,6 +113,7 @@ const TEXT: Record<
     loginButton: 'افتح Hotzonex Cloud',
     phone: 'يعمل على أي هاتف: أضفه إلى الشاشة الرئيسية من قائمة المتصفح.',
     notYou: 'لم تكن تتوقع هذه الرسالة؟ يمكنك تجاهلها.',
+    footer: 'Hotzonex Cloud، جوبا، جنوب السودان. أسئلة؟ واتساب +211 924 904 216.',
   },
   sw: {
     subject: 'Karibu {business} kwenye Hotzonex Cloud',
@@ -126,6 +129,7 @@ const TEXT: Record<
     loginButton: 'Fungua Hotzonex Cloud',
     phone: 'Inafanya kazi kwenye simu yoyote: iongeze kwenye skrini ya mwanzo kutoka menyu ya kivinjari.',
     notYou: 'Hukutarajia hii? Unaweza kupuuza barua pepe hii.',
+    footer: 'Hotzonex Cloud, Juba, Sudan Kusini. Maswali? WhatsApp +211 924 904 216.',
   },
 };
 
@@ -133,40 +137,73 @@ function fill(template: string, vars: Record<string, string>): string {
   return template.replace(/\{(\w+)\}/g, (m, k: string) => vars[k] ?? m);
 }
 
+// The same look as Hotzonex Cloud's sign-up and password emails (Supabase Auth templates):
+// a green header bar, a white card, a green button and the contact footer. Table layout and inline
+// styles only, so it shows the same in Gmail, Outlook and phone mail apps.
+const GREEN = '#0f5e57';
+const FONT = 'font-family:Arial,Helvetica,sans-serif;';
+
 /** The welcome email a new staff member gets: who added them, their role, where to log in. */
 export function staffWelcomeEmail(w: WelcomeInput): Email {
   const t = TEXT[w.lang];
   const role = ROLE[w.lang][w.role];
   const dir = w.lang === 'ar' ? 'rtl' : 'ltr';
+  const align = dir === 'rtl' ? 'right' : 'left';
   const vars = { business: w.business, name: w.name };
   const subject = fill(t.subject, vars);
-  const button = (href: string, label: string, primary: boolean) =>
-    `<a href="${esc(href)}" style="display:inline-block;padding:12px 20px;border-radius:10px;font-weight:600;text-decoration:none;${
-      primary ? 'background:#15479c;color:#ffffff' : 'background:#e8eef9;color:#15479c'
-    }">${esc(label)}</a>`;
+  const card = (inner: string, top: number, bottom: number) =>
+    `<tr><td bgcolor="#ffffff" align="${align}" style="background-color:#ffffff;padding-top:${top}px;padding-bottom:${bottom}px;padding-left:28px;padding-right:28px;">${inner}</td></tr>`;
+  const para = (text: string, size = 15, color = '#1f2937', bottom = 16) =>
+    `<p style="margin-top:0;margin-bottom:${bottom}px;${FONT}font-size:${size}px;line-height:${size + 8}px;color:${color};">${text}</p>`;
+  const button = (href: string, label: string) =>
+    `<table cellpadding="0" cellspacing="0" border="0"><tr><td bgcolor="${GREEN}" style="background-color:${GREEN};border-radius:6px;padding-top:12px;padding-bottom:12px;padding-left:22px;padding-right:22px;"><a href="${esc(href)}" style="${FONT}font-size:15px;line-height:18px;color:#ffffff;font-weight:bold;text-decoration:none;">${esc(label)}</a></td></tr></table>`;
+  const row = (label: string, value: string, ltr = true) =>
+    `<tr><td style="padding-top:6px;padding-bottom:6px;${FONT}font-size:14px;line-height:20px;color:#5b6670;">${esc(label)}</td><td${ltr ? ' dir="ltr"' : ''} style="padding-top:6px;padding-bottom:6px;padding-left:12px;padding-right:12px;${FONT}font-size:14px;line-height:20px;color:#111827;font-weight:bold;">${value}</td></tr>`;
 
-  const html = `<!doctype html><html lang="${w.lang}" dir="${dir}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(subject)}</title></head>
-<body style="margin:0;background:#f1f5f9;font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;color:#0f172a">
-<div style="max-width:520px;margin:0 auto;padding:24px 16px">
-<div style="background:#ffffff;border-radius:16px;padding:24px;line-height:1.5">
-<p style="margin:0 0 4px;font-size:13px;font-weight:600;color:#15479c">Hotzonex Cloud</p>
-<h1 style="margin:0 0 16px;font-size:20px">${esc(subject)}</h1>
-<p>${esc(fill(t.hello, vars))}</p>
-<p>${esc(fill(t.added, vars))}</p>
-<table role="presentation" style="width:100%;border-collapse:collapse;margin:16px 0;font-size:15px">
-<tr><td style="padding:6px 0;color:#475569">${esc(t.role)}</td><td style="padding:6px 0;font-weight:600">${esc(role)}</td></tr>
-<tr><td style="padding:6px 0;color:#475569">${esc(t.email)}</td><td style="padding:6px 0;font-weight:600" dir="ltr">${esc(w.to)}</td></tr>
-<tr><td style="padding:6px 0;color:#475569">${esc(t.login)}</td><td style="padding:6px 0;font-weight:600" dir="ltr"><a href="${esc(w.loginUrl)}" style="color:#15479c">${esc(w.loginUrl.replace(/^https?:\/\//, ''))}</a></td></tr>
+  const html = `<!DOCTYPE html>
+<html lang="${w.lang}" dir="${dir}">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>${esc(subject)}</title></head>
+<body style="margin:0;padding:0;background-color:#f3f5f7;">
+<table width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#f3f5f7" dir="${dir}" style="background-color:#f3f5f7;">
+<tr><td align="center" style="padding-top:24px;padding-bottom:24px;padding-left:12px;padding-right:12px;">
+<table width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;">
+<tr><td bgcolor="${GREEN}" align="${align}" style="background-color:${GREEN};padding-top:20px;padding-bottom:20px;padding-left:28px;padding-right:28px;">
+<span style="${FONT}font-size:20px;line-height:24px;color:#ffffff;font-weight:bold;">Hotzonex Cloud</span>
+</td></tr>
+${card(
+  `<h1 style="margin-top:0;margin-bottom:16px;${FONT}font-size:22px;line-height:28px;color:#111827;">${esc(subject)}</h1>
+${para(esc(fill(t.hello, vars)))}
+${para(esc(fill(t.added, vars)))}
+<table cellpadding="0" cellspacing="0" border="0" style="margin-bottom:16px;">
+${row(t.role, esc(role), false)}
+${row(t.email, esc(w.to))}
+${row(t.login, `<a href="${esc(w.loginUrl)}" style="color:${GREEN};">${esc(w.loginUrl.replace(/^https?:\/\//, ''))}</a>`)}
 </table>
-<p>${esc(t.password)}</p>
-${w.passwordUrl ? `<p style="margin:16px 0 4px">${button(w.passwordUrl, t.button, true)}</p><p style="margin:0 0 16px;font-size:13px;color:#64748b">${esc(t.chooseNote)}</p>` : ''}
-<p style="margin:16px 0">${button(w.loginUrl, t.loginButton, !w.passwordUrl)}</p>
-<p style="font-size:13px;color:#64748b">${esc(t.phone)}</p>
-</div>
-<p style="font-size:12px;color:#94a3b8;text-align:center;margin:16px 0 0">${esc(t.notYou)}</p>
-</div></body></html>`;
+${para(esc(t.password), 15, '#1f2937', 24)}`,
+  28,
+  8,
+)}
+${card(`${button(w.passwordUrl ?? w.loginUrl, w.passwordUrl ? t.button : t.loginButton)}`, 0, 24)}
+${card(
+  `${w.passwordUrl ? para(esc(t.chooseNote), 13, '#5b6670', 8) : ''}${para(esc(t.phone), 13, '#5b6670', 8)}${para(esc(t.notYou), 13, '#5b6670', 0)}`,
+  0,
+  28,
+)}
+<tr><td align="${align}" style="padding-top:18px;padding-left:28px;padding-right:28px;">
+${para(esc(t.footer), 12, '#6b7280', 0)}
+</td></tr>
+</table>
+</td></tr>
+</table>
+</body>
+</html>`;
 
   const text = [
+    'Hotzonex Cloud',
+    '',
+    '',
+    subject.toUpperCase(),
+    '',
     fill(t.hello, vars),
     '',
     fill(t.added, vars),
@@ -179,8 +216,9 @@ ${w.passwordUrl ? `<p style="margin:16px 0 4px">${button(w.passwordUrl, t.button
     ...(w.passwordUrl ? ['', `${t.choose}: ${w.passwordUrl}`, t.chooseNote] : []),
     '',
     t.phone,
-    '',
     t.notYou,
+    '',
+    t.footer,
   ].join('\n');
 
   return { to: w.to, subject, html, text };
