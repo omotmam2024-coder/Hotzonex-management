@@ -215,6 +215,8 @@ script-connected router: `/system scheduler remove [find name="hzc-cloud"]` and
 | `web/.env`, DigitalOcean | `VITE_SUPABASE_URL` | Supabase → Project Settings → API → Project URL (optional: the app has Hotzonex Cloud's project built in) |
 | `web/.env`, DigitalOcean | `VITE_SUPABASE_ANON_KEY` | Supabase → Project Settings → API → `anon` public key (used only together with a matching URL) |
 | Supabase Edge Functions → Secrets | `TELEGRAM_BOT_TOKEN` | Optional. From @BotFather; turns on Telegram alerts |
+| Supabase Edge Functions → Secrets | `RESEND_API_KEY` | Resend → API Keys (Sending access, domain `mail.hotzonex.net`); staff welcome emails |
+| Supabase Edge Functions → Secrets | `EMAIL_FROM` | Optional sender, default `Hotzonex Cloud <no-reply@mail.hotzonex.net>` (a verified Resend domain) |
 
 No other secret is needed: the router password key (Vault secret `router_secret_key`) and the
 worker secret are created inside the database by the migrations. There is no `ROUTER_SECRET_KEY`

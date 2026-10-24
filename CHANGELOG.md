@@ -1,5 +1,15 @@
 # Changelog
 
+## 24 October 2026 — staff welcome email
+
+- When an owner adds a staff member, the new person gets a **welcome email** (through Resend, from
+  `no-reply@mail.hotzonex.net`): the business that added them, their role, their login email, the
+  login address and a one-time link to **choose their own password** (24 hours). In English, Arabic
+  or Kiswahili: the language the owner is using. The password the owner typed is never emailed.
+- Staff page: says whether the email went out, and **Send welcome email** on each active staff member.
+- Needs the Edge Function secret `RESEND_API_KEY` (Supabase → Edge Functions → Secrets); without it
+  the account is still created and the page says the email was not sent.
+
 ## 24 October 2026 — hotzonex.net as the main address, findable on Google
 
 - The canonical address, sharing tags, sitemap and robots file use **https://hotzonex.net** (the

@@ -163,6 +163,11 @@ const en = {
   'business.staff.active': 'Account active (can log in)',
   'business.staff.create': 'Create account',
   'business.staff.saveChanges': 'Save changes',
+  'business.staff.createdEmailed': 'Account created. A welcome email was sent to {email} with where to log in and a link to choose their own password.',
+  'business.staff.createdNotEmailed': 'Account created, but the welcome email to {email} was not sent. {reason} Give them their login yourself.',
+  'business.staff.emailed': 'Welcome email sent to {email}.',
+  'business.staff.notEmailed': 'The welcome email to {email} was not sent. {reason}',
+  'business.staff.sendWelcome': 'Send welcome email',
 
   // Welcome wizard
   'business.welcome.title': 'Welcome to Hotzonex Cloud',
@@ -510,6 +515,11 @@ const ar = {
   'business.staff.active': 'الحساب نشط (يمكنه الدخول)',
   'business.staff.create': 'إنشاء الحساب',
   'business.staff.saveChanges': 'حفظ التغييرات',
+  'business.staff.createdEmailed': 'تم إنشاء الحساب. أُرسل بريد ترحيب إلى {email} فيه مكان الدخول ورابط لاختيار كلمة المرور بنفسه.',
+  'business.staff.createdNotEmailed': 'تم إنشاء الحساب، لكن لم يُرسل بريد الترحيب إلى {email}. {reason} أعطه بيانات الدخول بنفسك.',
+  'business.staff.emailed': 'أُرسل بريد الترحيب إلى {email}.',
+  'business.staff.notEmailed': 'لم يُرسل بريد الترحيب إلى {email}. {reason}',
+  'business.staff.sendWelcome': 'إرسال بريد الترحيب',
 
   'business.welcome.title': 'مرحباً بك في Hotzonex Cloud',
   'business.welcome.subtitle': 'خمس خطوات قصيرة وتبدأ في بيع بطاقات الواي فاي.',
@@ -850,6 +860,11 @@ const sw = {
   'business.staff.active': 'Akaunti iko hai (anaweza kuingia)',
   'business.staff.create': 'Unda akaunti',
   'business.staff.saveChanges': 'Hifadhi mabadiliko',
+  'business.staff.createdEmailed': 'Akaunti imeundwa. Barua pepe ya kukaribisha imetumwa kwa {email} ikiwa na mahali pa kuingia na kiungo cha kuchagua nenosiri lake mwenyewe.',
+  'business.staff.createdNotEmailed': 'Akaunti imeundwa, lakini barua pepe ya kukaribisha kwa {email} haikutumwa. {reason} Mpe taarifa za kuingia wewe mwenyewe.',
+  'business.staff.emailed': 'Barua pepe ya kukaribisha imetumwa kwa {email}.',
+  'business.staff.notEmailed': 'Barua pepe ya kukaribisha kwa {email} haikutumwa. {reason}',
+  'business.staff.sendWelcome': 'Tuma barua pepe ya kukaribisha',
 
   'business.welcome.title': 'Karibu Hotzonex Cloud',
   'business.welcome.subtitle': 'Hatua tano fupi na utaanza kuuza vocha za WiFi.',

@@ -2,14 +2,18 @@
 // inside the caller's business.
 //
 // POST { action: "list" }                                   → { staff: [...] } (adds login emails)
-// POST { action: "create", email, password, full_name, role, site_id? } → { id }
+// POST { action: "create", email, password, full_name, role, site_id?, lang? } → { id, email_sent, email_error? }
+//      (the new staff member gets a welcome email: who added them, their role, where to log in,
+//       and a one-time link to choose their own password; lang en/ar/sw, else the business's)
 // POST { action: "update", id, full_name, role, site_id?, is_active, password? } → { id }
+// POST { action: "welcome", id, lang? } → { email_sent, email_error? }   (sends the welcome email again)
 // Platform admins only:
 // POST { action: "create_business", business_name, timezone?, site_name, email, password, full_name }
 //      → { tenant_id, site_id, admin_id }   (a new business with its first site and admin)
 import type { SupabaseClient } from 'npm:@supabase/supabase-js@2.117.3';
 import { audit, type Caller, requireAdmin, serviceClient } from '../_shared/auth.ts';
-import { HttpError, passwordProblem, readBody, serveJson } from '../_shared/cors.ts';
+import { corsFor, HttpError, passwordProblem, readBody, serveJson } from '../_shared/cors.ts';
+import { type EmailLang, sendEmail, staffWelcomeEmail } from '../_shared/email.ts';
 
 type Role = 'admin' | 'manager' | 'seller';
 const ROLES: Role[] = ['admin', 'manager', 'seller'];
@@ -63,6 +67,56 @@ async function createLogin(admin: SupabaseClient, email: string, password: strin
   return created.user.id;
 }
 
+/**
+ * Emails a staff member of the caller's business their welcome: business, role, login address and a
+ * one-time link to choose their own password. Returns null when sent, or why it was not.
+ */
+async function sendWelcome(admin: SupabaseClient, caller: Caller, req: Request, staffId: string, rawLang: unknown, once: boolean): Promise<string | null> {
+  const { data: profile } = await admin
+    .from('profiles')
+    .select('id, full_name, role, is_active')
+    .eq('id', staffId)
+    .eq('tenant_id', caller.tenantId)
+    .maybeSingle();
+  if (!profile) throw new HttpError(404, 'Staff member not found.');
+  if (!profile.is_active) throw new HttpError(400, 'This staff member is switched off. Switch them on first.');
+  const [{ data: user }, { data: tenant }, { data: settings }] = await Promise.all([
+    admin.auth.admin.getUserById(staffId),
+    admin.from('tenants').select('name').eq('id', caller.tenantId).maybeSingle(),
+    admin.from('alert_settings').select('lang').eq('tenant_id', caller.tenantId).maybeSingle(),
+  ]);
+  const email = user?.user?.email;
+  if (!email) return 'This login has no email address.';
+  const isLang = (v: unknown): v is EmailLang => v === 'en' || v === 'ar' || v === 'sw';
+  const lang: EmailLang = isLang(rawLang) ? rawLang : isLang(settings?.lang) ? settings.lang : 'en';
+
+  // The link opens the app's "choose a new password" page on the address the owner is using.
+  const origin = corsFor(req)['Access-Control-Allow-Origin'];
+  const { data: link, error: linkError } = await admin.auth.admin.generateLink({ type: 'recovery', email, options: { redirectTo: `${origin}/reset-password` } });
+  if (linkError) console.error(`Welcome email: no password link for ${staffId}: ${linkError.message}`);
+
+  const problem = await sendEmail(
+    staffWelcomeEmail({
+      lang,
+      to: email,
+      name: profile.full_name as string,
+      business: (tenant?.name as string | undefined) ?? 'Hotzonex Cloud',
+      role: profile.role as Role,
+      loginUrl: `${origin}/login`,
+      passwordUrl: link?.properties?.action_link ?? null,
+    }),
+    {
+      apiKey: Deno.env.get('RESEND_API_KEY'),
+      from: Deno.env.get('EMAIL_FROM'),
+      // A retried "create" never sends twice; "send again" may send once a minute.
+      idempotencyKey: once ? `welcome:${staffId}` : `welcome:${staffId}:${Math.floor(Date.now() / 60_000)}`,
+    },
+  );
+  if (problem) console.error(`Welcome email to ${staffId} not sent: ${problem}`);
+  else await audit(admin, caller, 'staff.welcome_sent', { staff_id: staffId, email, lang });
+  return problem;
+}
+
 serveJson(async (req) => {
   const admin = serviceClient();
   const caller = await requireAdmin(req, admin);
@@ -102,7 +156,15 @@ serveJson(async (req) => {
     }
 
     await audit(admin, caller, 'staff.created', { staff_id: userId, email, ...profile });
-    return { id: userId };
+    const emailError = await sendWelcome(admin, caller, req, userId, body.lang, true);
+    return { id: userId, email_sent: !emailError, ...(emailError ? { email_error: emailError } : {}) };
+  }
+
+  if (body.action === 'welcome') {
+    const id = typeof body.id === 'string' ? body.id : '';
+    if (!UUID_RE.test(id)) throw new HttpError(400, 'Staff member not found.');
+    const emailError = await sendWelcome(admin, caller, req, id, body.lang, false);
+    return { email_sent: !emailError, ...(emailError ? { email_error: emailError } : {}) };
   }
 
   if (body.action === 'update') {

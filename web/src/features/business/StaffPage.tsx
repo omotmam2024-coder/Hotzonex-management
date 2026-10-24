@@ -5,7 +5,7 @@ import { PageHeader } from '../../components/PageHeader';
 import { Alert, Badge, Button, Card, Checkbox, Field, Select, Spinner, TextInput } from '../../components/ui';
 import { friendlyError } from '../../lib/errors';
 import { invokeFunction } from '../../lib/functions';
-import { useT } from '../../i18n';
+import { translateMessage, useT } from '../../i18n';
 import { ROLE_LABELS } from '../../lib/nav';
 import { useSites } from '../../hooks/queries';
 import type { Role, StaffMember } from '../../lib/types';
@@ -21,10 +21,21 @@ interface StaffForm {
   is_active: boolean;
 }
 
+interface EmailResult {
+  email_sent: boolean;
+  email_error?: string;
+}
+
+/** What the page says after a welcome email was (or was not) sent. */
+interface Notice {
+  tone: 'success' | 'warning';
+  text: string;
+}
+
 const NEW_FORM: StaffForm = { id: null, email: '', password: '', full_name: '', role: 'seller', site_id: '', is_active: true };
 
-function StaffEditor({ initial, onClose }: { initial: StaffForm; onClose: () => void }) {
-  const { t } = useT();
+function StaffEditor({ initial, onClose }: { initial: StaffForm; onClose: (notice?: Notice) => void }) {
+  const { t, lang } = useT();
   const sites = useSites();
   const queryClient = useQueryClient();
   const [form, setForm] = useState<StaffForm>(initial);
@@ -39,15 +50,20 @@ function StaffEditor({ initial, onClose }: { initial: StaffForm; onClose: () => 
         site_id: v.site_id || null,
         password: v.password,
       };
-      if (isNew) await invokeFunction('create-staff', { action: 'create', email: v.email, ...common });
-      else await invokeFunction('create-staff', { action: 'update', id: form.id, is_active: form.is_active, ...common });
+      if (isNew) {
+        // The new staff member is emailed a welcome in the language the owner is using now.
+        const r = await invokeFunction<EmailResult>('create-staff', { action: 'create', email: v.email, lang, ...common });
+        return welcomeNotice(t, r, v.email ?? form.email, true);
+      }
+      await invokeFunction('create-staff', { action: 'update', id: form.id, is_active: form.is_active, ...common });
+      return undefined;
     },
-    onSuccess: () => {
+    onSuccess: (notice) => {
       void queryClient.invalidateQueries({ queryKey: ['staff'] });
       void queryClient.invalidateQueries({ queryKey: ['staff-options'] });
       void queryClient.invalidateQueries({ queryKey: ['staff-options-full'] });
       void queryClient.invalidateQueries({ queryKey: ['billing-usage'] });
-      onClose();
+      onClose(notice);
     },
   });
 
@@ -99,7 +115,7 @@ function StaffEditor({ initial, onClose }: { initial: StaffForm; onClose: () => 
           <Button type="submit" disabled={save.isPending}>
             {save.isPending ? <Spinner /> : null} {isNew ? t('business.staff.create') : t('business.staff.saveChanges')}
           </Button>
-          <Button variant="ghost" onClick={onClose}>
+          <Button variant="ghost" onClick={() => onClose()}>
             {t('common.cancel')}
           </Button>
         </div>
@@ -108,11 +124,33 @@ function StaffEditor({ initial, onClose }: { initial: StaffForm; onClose: () => 
   );
 }
 
+function welcomeNotice(t: ReturnType<typeof useT>['t'], r: EmailResult, email: string, created: boolean): Notice {
+  if (r.email_sent) return { tone: 'success', text: t(created ? 'business.staff.createdEmailed' : 'business.staff.emailed', { email }) };
+  const reason = r.email_error ? translateMessage(r.email_error) : '';
+  return { tone: 'warning', text: t(created ? 'business.staff.createdNotEmailed' : 'business.staff.notEmailed', { email, reason }) };
+}
+
+/** "Send welcome email" on a staff card: the same email as when the account was made. */
+function SendWelcome({ member, onDone }: { member: StaffMember; onDone: (notice: Notice) => void }) {
+  const { t, lang } = useT();
+  const send = useMutation({
+    mutationFn: () => invokeFunction<EmailResult>('create-staff', { action: 'welcome', id: member.id, lang }),
+    onSuccess: (r) => onDone(welcomeNotice(t, r, member.email, false)),
+    onError: (err) => onDone({ tone: 'warning', text: friendlyError(err) }),
+  });
+  return (
+    <Button variant="ghost" onClick={() => send.mutate()} disabled={send.isPending} className="text-sm">
+      {send.isPending && <Spinner />} {t('business.staff.sendWelcome')}
+    </Button>
+  );
+}
+
 export function StaffPage() {
   const { t } = useT();
   const { profile } = useAuth();
   const sites = useSites();
   const [editing, setEditing] = useState<StaffForm | null>(null);
+  const [notice, setNotice] = useState<Notice | null>(null);
   const staff = useQuery({
     queryKey: ['staff'],
     queryFn: async () => (await invokeFunction<{ staff: StaffMember[] }>('create-staff', { action: 'list' })).staff ?? [],
@@ -134,7 +172,27 @@ export function StaffPage() {
         }
       />
 
-      {editing && <StaffEditor key={editing.id ?? 'new'} initial={editing} onClose={() => setEditing(null)} />}
+      {notice && (
+        <Alert tone={notice.tone}>
+          <span className="flex flex-wrap items-center justify-between gap-2">
+            {notice.text}
+            <button type="button" className="text-sm font-semibold underline" onClick={() => setNotice(null)}>
+              {t('sales.pay.dismiss')}
+            </button>
+          </span>
+        </Alert>
+      )}
+
+      {editing && (
+        <StaffEditor
+          key={editing.id ?? 'new'}
+          initial={editing}
+          onClose={(n) => {
+            setEditing(null);
+            if (n) setNotice(n);
+          }}
+        />
+      )}
 
       {staff.isLoading && <Spinner className="h-8 w-8 text-brand-600" />}
       {staff.error && <Alert tone="error">{friendlyError(staff.error)}</Alert>}
@@ -153,6 +211,11 @@ export function StaffPage() {
                   <Badge color="gray">{siteName(m.site_id)}</Badge>
                   {!m.is_active && <Badge color="red">{t('business.staff.disabled')}</Badge>}
                 </div>
+                {m.is_active && m.id !== profile?.id && (
+                  <div className="mt-2">
+                    <SendWelcome member={m} onDone={setNotice} />
+                  </div>
+                )}
               </div>
               <Button
                 variant="secondary"
