@@ -66,3 +66,13 @@ verify_jwt = false
 # Public self sign-up (no login yet); it limits sign-ups per device itself.
 [functions.signup]
 verify_jwt = false
+
+# Hotzonex Cloud's own email designs (brand blue, logo). Local development reads these files; on the
+# live project paste each file into Authentication → Email Templates (same subject).
+[auth.email.template.confirmation]
+subject = "Welcome to Hotzonex Cloud"
+content_path = "./supabase/templates/confirmation.html"
+
+[auth.email.template.recovery]
+subject = "Reset your password"
+content_path = "./supabase/templates/recovery.html"

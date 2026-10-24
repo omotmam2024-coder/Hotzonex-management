@@ -137,10 +137,13 @@ function fill(template: string, vars: Record<string, string>): string {
   return template.replace(/\{(\w+)\}/g, (m, k: string) => vars[k] ?? m);
 }
 
-// The same look as Hotzonex Cloud's sign-up and password emails (Supabase Auth templates):
-// a green header bar, a white card, a green button and the contact footer. Table layout and inline
-// styles only, so it shows the same in Gmail, Outlook and phone mail apps.
-const GREEN = '#0f5e57';
+// Hotzonex Cloud's colours (the app's brand blue, web/tailwind.config.js), the same look as the
+// sign-up and password emails (supabase/templates): a blue header with the logo, a white card,
+// a blue button and the contact footer. Table layout and inline styles only, so it shows the same
+// in Gmail, Outlook and phone mail apps.
+const BRAND = '#15479c';
+const PAGE = '#eef6ff';
+const LOGO = 'https://hotzonex.net/icon-192.png';
 const FONT = 'font-family:Arial,Helvetica,sans-serif;';
 
 /** The welcome email a new staff member gets: who added them, their role, where to log in. */
@@ -151,24 +154,27 @@ export function staffWelcomeEmail(w: WelcomeInput): Email {
   const align = dir === 'rtl' ? 'right' : 'left';
   const vars = { business: w.business, name: w.name };
   const subject = fill(t.subject, vars);
-  const card = (inner: string, top: number, bottom: number) =>
-    `<tr><td bgcolor="#ffffff" align="${align}" style="background-color:#ffffff;padding-top:${top}px;padding-bottom:${bottom}px;padding-left:28px;padding-right:28px;">${inner}</td></tr>`;
+  const card = (inner: string, top: number, bottom: number, last = false) =>
+    `<tr><td bgcolor="#ffffff" align="${align}" style="background-color:#ffffff;${last ? 'border-radius:0 0 12px 12px;' : ''}padding-top:${top}px;padding-bottom:${bottom}px;padding-left:28px;padding-right:28px;">${inner}</td></tr>`;
   const para = (text: string, size = 15, color = '#1f2937', bottom = 16) =>
     `<p style="margin-top:0;margin-bottom:${bottom}px;${FONT}font-size:${size}px;line-height:${size + 8}px;color:${color};">${text}</p>`;
   const button = (href: string, label: string) =>
-    `<table cellpadding="0" cellspacing="0" border="0"><tr><td bgcolor="${GREEN}" style="background-color:${GREEN};border-radius:6px;padding-top:12px;padding-bottom:12px;padding-left:22px;padding-right:22px;"><a href="${esc(href)}" style="${FONT}font-size:15px;line-height:18px;color:#ffffff;font-weight:bold;text-decoration:none;">${esc(label)}</a></td></tr></table>`;
+    `<table cellpadding="0" cellspacing="0" border="0"><tr><td bgcolor="${BRAND}" style="background-color:${BRAND};border-radius:10px;padding-top:12px;padding-bottom:12px;padding-left:22px;padding-right:22px;"><a href="${esc(href)}" style="${FONT}font-size:15px;line-height:18px;color:#ffffff;font-weight:bold;text-decoration:none;">${esc(label)}</a></td></tr></table>`;
   const row = (label: string, value: string, ltr = true) =>
     `<tr><td style="padding-top:6px;padding-bottom:6px;${FONT}font-size:14px;line-height:20px;color:#5b6670;">${esc(label)}</td><td${ltr ? ' dir="ltr"' : ''} style="padding-top:6px;padding-bottom:6px;padding-left:12px;padding-right:12px;${FONT}font-size:14px;line-height:20px;color:#111827;font-weight:bold;">${value}</td></tr>`;
 
   const html = `<!DOCTYPE html>
 <html lang="${w.lang}" dir="${dir}">
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>${esc(subject)}</title></head>
-<body style="margin:0;padding:0;background-color:#f3f5f7;">
-<table width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#f3f5f7" dir="${dir}" style="background-color:#f3f5f7;">
+<body style="margin:0;padding:0;background-color:${PAGE};">
+<table width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${PAGE}" dir="${dir}" style="background-color:${PAGE};">
 <tr><td align="center" style="padding-top:24px;padding-bottom:24px;padding-left:12px;padding-right:12px;">
 <table width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;">
-<tr><td bgcolor="${GREEN}" align="${align}" style="background-color:${GREEN};padding-top:20px;padding-bottom:20px;padding-left:28px;padding-right:28px;">
-<span style="${FONT}font-size:20px;line-height:24px;color:#ffffff;font-weight:bold;">Hotzonex Cloud</span>
+<tr><td bgcolor="${BRAND}" align="${align}" style="background-color:${BRAND};border-radius:12px 12px 0 0;padding-top:18px;padding-bottom:18px;padding-left:28px;padding-right:28px;">
+<table cellpadding="0" cellspacing="0" border="0"><tr>
+<td style="padding:0;"><img src="${LOGO}" width="36" height="36" alt="" style="display:block;border:0;border-radius:8px;background-color:#ffffff;"></td>
+<td style="padding-left:12px;padding-right:12px;"><span style="${FONT}font-size:20px;line-height:24px;color:#ffffff;font-weight:bold;">Hotzonex Cloud</span></td>
+</tr></table>
 </td></tr>
 ${card(
   `<h1 style="margin-top:0;margin-bottom:16px;${FONT}font-size:22px;line-height:28px;color:#111827;">${esc(subject)}</h1>
@@ -177,7 +183,7 @@ ${para(esc(fill(t.added, vars)))}
 <table cellpadding="0" cellspacing="0" border="0" style="margin-bottom:16px;">
 ${row(t.role, esc(role), false)}
 ${row(t.email, esc(w.to))}
-${row(t.login, `<a href="${esc(w.loginUrl)}" style="color:${GREEN};">${esc(w.loginUrl.replace(/^https?:\/\//, ''))}</a>`)}
+${row(t.login, `<a href="${esc(w.loginUrl)}" style="color:${BRAND};">${esc(w.loginUrl.replace(/^https?:\/\//, ''))}</a>`)}
 </table>
 ${para(esc(t.password), 15, '#1f2937', 24)}`,
   28,
@@ -188,6 +194,7 @@ ${card(
   `${w.passwordUrl ? para(esc(t.chooseNote), 13, '#5b6670', 8) : ''}${para(esc(t.phone), 13, '#5b6670', 8)}${para(esc(t.notYou), 13, '#5b6670', 0)}`,
   0,
   28,
+  true,
 )}
 <tr><td align="${align}" style="padding-top:18px;padding-left:28px;padding-right:28px;">
 ${para(esc(t.footer), 12, '#6b7280', 0)}

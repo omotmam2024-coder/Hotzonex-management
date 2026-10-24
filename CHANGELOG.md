@@ -1,5 +1,12 @@
 # Changelog
 
+## 24 October 2026 — emails in Hotzonex Cloud's colours
+
+- The staff welcome email uses the app's brand blue (#15479c), the logo, a light-blue page and a
+  rounded white card. `supabase/templates/confirmation.html` (sign-up) and `recovery.html`
+  (reset password) have the same design: paste each into Supabase → Authentication → Email
+  Templates (they also fix a stray "<" and leftover default text in the current templates).
+
 ## 24 October 2026 — staff welcome email
 
 - When an owner adds a staff member, the new person gets a **welcome email** (through Resend, from
