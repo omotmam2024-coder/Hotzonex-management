@@ -1,5 +1,15 @@
 # Changelog
 
+## 24 October 2026 — delete a staff member
+
+- Staff page → Edit → **Delete staff member**, for someone who no longer works for the business
+  (owners only; not your own login, not the Hotzonex Cloud owner's).
+- Their login stops working for good and their email address is freed. With no sales, cash or
+  payment history the login and profile are removed completely; with history the profile stays
+  switched off and hidden (`profiles.removed_at`, migration `20261024134303_staff_removed.sql`) so
+  past sales and cash-ups keep their name.
+- A cashier still holding cash cannot be deleted until the cash handover is recorded.
+
 ## 24 October 2026 — emails in Hotzonex Cloud's colours
 
 - The staff welcome email uses the app's brand blue (#15479c), the logo, a light-blue page and a

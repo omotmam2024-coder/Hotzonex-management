@@ -34,7 +34,7 @@ interface Notice {
 
 const NEW_FORM: StaffForm = { id: null, email: '', password: '', full_name: '', role: 'seller', site_id: '', is_active: true };
 
-function StaffEditor({ initial, onClose }: { initial: StaffForm; onClose: (notice?: Notice) => void }) {
+function StaffEditor({ initial, onClose, canDelete }: { initial: StaffForm; onClose: (notice?: Notice) => void; canDelete: boolean }) {
   const { t, lang } = useT();
   const sites = useSites();
   const queryClient = useQueryClient();
@@ -64,6 +64,18 @@ function StaffEditor({ initial, onClose }: { initial: StaffForm; onClose: (notic
       void queryClient.invalidateQueries({ queryKey: ['staff-options-full'] });
       void queryClient.invalidateQueries({ queryKey: ['billing-usage'] });
       onClose(notice);
+    },
+  });
+
+  // Someone who left the business: their login goes for good (past sales keep their name).
+  const remove = useMutation({
+    mutationFn: () => invokeFunction<{ name: string; kept_records: boolean }>('create-staff', { action: 'delete', id: form.id }),
+    onSuccess: (r) => {
+      void queryClient.invalidateQueries({ queryKey: ['staff'] });
+      void queryClient.invalidateQueries({ queryKey: ['staff-options'] });
+      void queryClient.invalidateQueries({ queryKey: ['staff-options-full'] });
+      void queryClient.invalidateQueries({ queryKey: ['billing-usage'] });
+      onClose({ tone: 'success', text: t(r.kept_records ? 'business.staff.deletedKept' : 'business.staff.deleted', { name: r.name }) });
     },
   });
 
@@ -110,14 +122,24 @@ function StaffEditor({ initial, onClose }: { initial: StaffForm; onClose: (notic
           </Field>
         </div>
         {!isNew && <Checkbox label={t('business.staff.active')} checked={form.is_active} onChange={(v) => set('is_active', v)} />}
-        {save.error && <Alert tone="error">{friendlyError(save.error)}</Alert>}
+        {(save.error ?? remove.error) && <Alert tone="error">{friendlyError(save.error ?? remove.error)}</Alert>}
         <div className="flex flex-wrap gap-2">
-          <Button type="submit" disabled={save.isPending}>
+          <Button type="submit" disabled={save.isPending || remove.isPending}>
             {save.isPending ? <Spinner /> : null} {isNew ? t('business.staff.create') : t('business.staff.saveChanges')}
           </Button>
           <Button variant="ghost" onClick={() => onClose()}>
             {t('common.cancel')}
           </Button>
+          {!isNew && canDelete && (
+            <Button
+              variant="danger"
+              className="ms-auto"
+              disabled={save.isPending || remove.isPending}
+              onClick={() => window.confirm(t('business.staff.deleteConfirm', { name: initial.full_name })) && remove.mutate()}
+            >
+              {remove.isPending && <Spinner />} {t('business.staff.delete')}
+            </Button>
+          )}
         </div>
       </form>
     </Card>
@@ -187,6 +209,7 @@ export function StaffPage() {
         <StaffEditor
           key={editing.id ?? 'new'}
           initial={editing}
+          canDelete={editing.id !== profile?.id}
           onClose={(n) => {
             setEditing(null);
             if (n) setNotice(n);

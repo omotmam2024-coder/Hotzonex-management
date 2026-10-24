@@ -7,6 +7,9 @@
 //       and a one-time link to choose their own password; lang en/ar/sw, else the business's)
 // POST { action: "update", id, full_name, role, site_id?, is_active, password? } → { id }
 // POST { action: "welcome", id, lang? } → { email_sent, email_error? }   (sends the welcome email again)
+// POST { action: "delete", id } → { name, kept_records }   (someone who left: their login is destroyed;
+//      with no sales, cash or payment history the profile goes too, otherwise it stays switched off
+//      and hidden so past sales and cash-ups keep their name)
 // Platform admins only:
 // POST { action: "create_business", business_name, timezone?, site_name, email, password, full_name }
 //      → { tenant_id, site_id, admin_id }   (a new business with its first site and admin)
@@ -77,6 +80,7 @@ async function sendWelcome(admin: SupabaseClient, caller: Caller, req: Request, 
     .select('id, full_name, role, is_active')
     .eq('id', staffId)
     .eq('tenant_id', caller.tenantId)
+    .is('removed_at', null)
     .maybeSingle();
   if (!profile) throw new HttpError(404, 'Staff member not found.');
   if (!profile.is_active) throw new HttpError(400, 'This staff member is switched off. Switch them on first.');
@@ -127,6 +131,7 @@ serveJson(async (req) => {
       .from('profiles')
       .select('id, full_name, role, site_id, is_active, created_at')
       .eq('tenant_id', caller.tenantId)
+      .is('removed_at', null)
       .order('full_name');
     if (error) throw new Error(error.message);
 
@@ -167,6 +172,63 @@ serveJson(async (req) => {
     return { email_sent: !emailError, ...(emailError ? { email_error: emailError } : {}) };
   }
 
+  if (body.action === 'delete') {
+    const id = typeof body.id === 'string' ? body.id : '';
+    if (!UUID_RE.test(id)) throw new HttpError(400, 'Staff member not found.');
+    if (id === caller.id) throw new HttpError(400, 'You cannot delete your own login. Ask another admin.');
+    const { data: member } = await admin
+      .from('profiles')
+      .select('id, full_name, role, removed_at')
+      .eq('id', id)
+      .eq('tenant_id', caller.tenantId)
+      .maybeSingle();
+    if (!member || member.removed_at) throw new HttpError(404, 'Staff member not found.');
+    const { data: owner } = await admin.from('platform_admins').select('user_id').eq('user_id', id).maybeSingle();
+    if (owner) throw new HttpError(403, 'This is the Hotzonex Cloud owner’s login: only they can change it.');
+
+    // Cash a cashier has not handed in would vanish from the cash-up with them.
+    const { data: held, error: heldError } = await admin.rpc('seller_cash_held', { p_seller_id: id });
+    if (heldError) throw new Error(`Cash check failed: ${heldError.message}`);
+    if (typeof held === 'number' && held > 0) {
+      throw new HttpError(409, `${member.full_name} still holds ${held.toLocaleString('en-US')} SSP of cash. Record the cash handover on the Cash-up page first.`);
+    }
+
+    // Sales, voids, cash handovers and payment confirmations keep their staff member: with any of
+    // them the profile stays (switched off, hidden); without, the login and profile go completely.
+    const counts = await Promise.all([
+      admin.from('sales').select('id', { count: 'exact', head: true }).or(`seller_id.eq.${id},voided_by.eq.${id}`),
+      admin.from('cash_handovers').select('id', { count: 'exact', head: true }).or(`seller_id.eq.${id},received_by.eq.${id}`),
+      admin.from('payment_requests').select('id', { count: 'exact', head: true }).eq('decided_by', id),
+    ]);
+    if (counts.some((c) => c.error)) throw new Error('Could not check the staff member’s history.');
+    const history = counts.some((c) => (c.count ?? 0) > 0);
+
+    let keptRecords = history;
+    if (!history) {
+      const { error } = await admin.auth.admin.deleteUser(id);
+      if (error) keptRecords = true; // something still points at them: keep the profile instead
+    }
+    if (keptRecords) {
+      // First the login: it can never be used again, and its email address is freed for a new login
+      // (if the placeholder address is refused, the login is still blocked for good).
+      let { error: authError } = await admin.auth.admin.updateUserById(id, {
+        email: `removed-${id}@removed.invalid`,
+        email_confirm: true,
+        ban_duration: '876000h',
+      });
+      if (authError) ({ error: authError } = await admin.auth.admin.updateUserById(id, { ban_duration: '876000h' }));
+      if (authError) throw new Error(`Login not closed: ${authError.message}`);
+      const { error } = await admin
+        .from('profiles')
+        .update({ is_active: false, removed_at: new Date().toISOString() })
+        .eq('id', id)
+        .eq('tenant_id', caller.tenantId);
+      if (error) throw new Error(error.message);
+    }
+    await audit(admin, caller, 'staff.deleted', { staff_id: id, name: member.full_name, role: member.role, kept_records: keptRecords });
+    return { name: member.full_name as string, kept_records: keptRecords };
+  }
+
   if (body.action === 'update') {
     const id = typeof body.id === 'string' ? body.id : '';
     if (!UUID_RE.test(id)) throw new HttpError(400, 'Staff member not found.');
@@ -179,7 +241,7 @@ serveJson(async (req) => {
       throw new HttpError(400, 'You cannot remove your own admin access. Ask another admin.');
     }
 
-    const { data: existing } = await admin.from('profiles').select('id').eq('id', id).eq('tenant_id', caller.tenantId).maybeSingle();
+    const { data: existing } = await admin.from('profiles').select('id').eq('id', id).eq('tenant_id', caller.tenantId).is('removed_at', null).maybeSingle();
     if (!existing) throw new HttpError(404, 'Staff member not found.');
     // The Hotzonex Cloud owner's login is changed only by that person (on their own Security page).
     if (id !== caller.id) {

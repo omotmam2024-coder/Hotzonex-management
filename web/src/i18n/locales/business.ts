@@ -168,6 +168,10 @@ const en = {
   'business.staff.emailed': 'Welcome email sent to {email}.',
   'business.staff.notEmailed': 'The welcome email to {email} was not sent. {reason}',
   'business.staff.sendWelcome': 'Send welcome email',
+  'business.staff.delete': 'Delete staff member',
+  'business.staff.deleteConfirm': 'Delete {name}? Do this when they no longer work for the business. Their login stops working for good; their past sales stay in your reports. This cannot be undone.',
+  'business.staff.deleted': '{name} was deleted.',
+  'business.staff.deletedKept': '{name} was deleted. Their login no longer works; their past sales and cash-ups keep their name in your reports.',
 
   // Welcome wizard
   'business.welcome.title': 'Welcome to Hotzonex Cloud',
@@ -520,6 +524,10 @@ const ar = {
   'business.staff.emailed': 'أُرسل بريد الترحيب إلى {email}.',
   'business.staff.notEmailed': 'لم يُرسل بريد الترحيب إلى {email}. {reason}',
   'business.staff.sendWelcome': 'إرسال بريد الترحيب',
+  'business.staff.delete': 'حذف الموظف',
+  'business.staff.deleteConfirm': 'حذف {name}؟ افعل ذلك عندما لا يعمل لدى النشاط بعد الآن. سيتوقف حساب دخوله نهائياً؛ وتبقى مبيعاته السابقة في تقاريرك. لا يمكن التراجع عن ذلك.',
+  'business.staff.deleted': 'تم حذف {name}.',
+  'business.staff.deletedKept': 'تم حذف {name}. لم يعد حساب دخوله يعمل؛ وتبقى مبيعاته وتسليمات النقد السابقة باسمه في تقاريرك.',
 
   'business.welcome.title': 'مرحباً بك في Hotzonex Cloud',
   'business.welcome.subtitle': 'خمس خطوات قصيرة وتبدأ في بيع بطاقات الواي فاي.',
@@ -865,6 +873,10 @@ const sw = {
   'business.staff.emailed': 'Barua pepe ya kukaribisha imetumwa kwa {email}.',
   'business.staff.notEmailed': 'Barua pepe ya kukaribisha kwa {email} haikutumwa. {reason}',
   'business.staff.sendWelcome': 'Tuma barua pepe ya kukaribisha',
+  'business.staff.delete': 'Futa mfanyakazi',
+  'business.staff.deleteConfirm': 'Futa {name}? Fanya hivi akiwa haifanyii kazi biashara tena. Akaunti yake ya kuingia itaacha kufanya kazi kabisa; mauzo yake ya zamani yanabaki kwenye ripoti zako. Hili haliwezi kutenduliwa.',
+  'business.staff.deleted': '{name} amefutwa.',
+  'business.staff.deletedKept': '{name} amefutwa. Akaunti yake ya kuingia haifanyi kazi tena; mauzo yake ya zamani na makabidhiano ya pesa yanabaki na jina lake kwenye ripoti zako.',
 
   'business.welcome.title': 'Karibu Hotzonex Cloud',
   'business.welcome.subtitle': 'Hatua tano fupi na utaanza kuuza vocha za WiFi.',
