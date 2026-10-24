@@ -22,7 +22,7 @@ What it does:
 
 Money is whole South Sudanese Pounds (SSP); the web app shows times in Africa/Juba (UTC+2).
 
-Live address: <https://www.hotzonex.net> (`hotzonex.net` redirects there), hosted on **Vercel**
+Live address: <https://hotzonex.net> (`www.hotzonex.net` redirects there; set in Vercel → Domains), hosted on **Vercel**
 (project `hotzonex-cloud`), which deploys automatically from the branch `claude/clever-mccarthy-1780c7`.
 The earlier address `app.hotzonex.net` (DigitalOcean) is no longer the live one. Database, logins and Edge Functions
 are on Supabase (project `tyiwnaxdejtsdofgnuow`).

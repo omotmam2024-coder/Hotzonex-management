@@ -1,9 +1,15 @@
 # Public pages may be indexed; the staff app and customers' Buy pages are private.
+# The app's files (scripts, styles, images) stay open: Google needs them to draw the public pages.
 User-agent: *
 Allow: /$
 Allow: /signup
 Allow: /terms
 Allow: /login
+Allow: /assets/
+Allow: /theme.js
+Allow: /manifest.webmanifest
+Allow: /*.png$
+Allow: /*.jpg$
 Disallow: /
 
-Sitemap: https://www.hotzonex.net/sitemap.xml
+Sitemap: https://hotzonex.net/sitemap.xml

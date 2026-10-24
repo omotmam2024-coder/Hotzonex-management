@@ -1,5 +1,17 @@
 # Changelog
 
+## 24 October 2026 — hotzonex.net as the main address, findable on Google
+
+- The canonical address, sharing tags, sitemap and robots file use **https://hotzonex.net** (the
+  address verified in Google Search Console) instead of www.hotzonex.net.
+- `robots.txt` no longer blocks the app's own files (`/assets/`, images): Google needs them to draw
+  the landing page, which it saw as an empty page before.
+- The page's HTML carries the landing page's headline and features as plain text (replaced by the
+  app as it starts) and a schema.org description naming the brand "Hotzonex".
+- **By hand in Vercel → Domains**: `hotzonex.net` without a redirect, `www.hotzonex.net` → redirect
+  308 to `hotzonex.net`. Then in Search Console: submit `https://hotzonex.net/sitemap.xml` and ask
+  to index `https://hotzonex.net/`.
+
 ## 24 October 2026 — pay with the MTN MoMo API
 
 - **Buy page**: when the business has saved its MTN MoMo API keys, the customer types their MoMo

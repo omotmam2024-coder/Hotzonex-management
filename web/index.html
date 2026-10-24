@@ -11,7 +11,7 @@
     <meta name="theme-color" content="#15479c" />
     <title>Hotzonex Cloud — WiFi hotspot voucher sales for MikroTik</title>
     <meta name="description" content="Run your WiFi hotspot business from your phone: make and sell MikroTik voucher cards, follow cashiers and agents, see sales and online users. Free trial." />
-    <link rel="canonical" href="https://www.hotzonex.net/" />
+    <link rel="canonical" href="https://hotzonex.net/" />
     <meta name="google-site-verification" content="1rgodbcgT9VRqyXtmY56Cd4aMO2FYyVxNMzdHNh9DRw" />
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png" />
@@ -22,18 +22,50 @@
     <meta property="og:site_name" content="Hotzonex Cloud" />
     <meta property="og:title" content="Hotzonex Cloud — run your WiFi hotspot business from your phone" />
     <meta property="og:description" content="MikroTik voucher cards, cashiers and agents, sales reports and live routers, made for South Sudan and East Africa. Free trial." />
-    <meta property="og:url" content="https://www.hotzonex.net/" />
-    <meta property="og:image" content="https://www.hotzonex.net/og-image.jpg" />
+    <meta property="og:url" content="https://hotzonex.net/" />
+    <meta property="og:image" content="https://hotzonex.net/og-image.jpg" />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
     <meta property="og:image:alt" content="Hotzonex Cloud: run your WiFi hotspot business from your phone" />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="Hotzonex Cloud — run your WiFi hotspot business from your phone" />
     <meta name="twitter:description" content="MikroTik voucher cards, cashiers and agents, sales reports and live routers. Free trial." />
-    <meta name="twitter:image" content="https://www.hotzonex.net/og-image.jpg" />
+    <meta name="twitter:image" content="https://hotzonex.net/og-image.jpg" />
+    <!-- Tells search engines the brand and what it is (read by Google; never run by the browser). -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "SoftwareApplication",
+        "name": "Hotzonex Cloud",
+        "alternateName": ["Hotzonex", "Hotzonex WiFi"],
+        "url": "https://hotzonex.net/",
+        "image": "https://hotzonex.net/og-image.jpg",
+        "applicationCategory": "BusinessApplication",
+        "operatingSystem": "Web, Android, iOS",
+        "description": "Run your WiFi hotspot business from your phone: make and sell MikroTik voucher cards, follow cashiers and agents, see sales and online users.",
+        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD", "description": "Free trial" }
+      }
+    </script>
   </head>
   <body>
-    <div id="root"></div>
+    <!-- The landing page's words as plain HTML, for search engines and for the moment before the app
+         loads; the app replaces all of it as soon as it starts. -->
+    <div id="root">
+      <main style="font-family: system-ui, sans-serif; max-width: 40rem; margin: 0 auto; padding: 2rem 1rem; color: #0f172a">
+        <h1>Hotzonex Cloud: run your WiFi hotspot business from your phone</h1>
+        <p>Make and sell MikroTik voucher cards, follow every SSP your cashiers and agents take, and see who is online — on any phone, even on slow internet.</p>
+        <h2>Everything a hotspot business needs</h2>
+        <ul>
+          <li><b>Sell a card in one tap:</b> the code shows in big numbers, ready to print or send by WhatsApp.</li>
+          <li><b>Print cards and receipts:</b> A4 sheets of cards with your logo, and 58 mm or 80 mm receipts.</li>
+          <li><b>Works with your MikroTik:</b> connects to MikroTik routers (RouterOS 7) through a secure tunnel. Works with MikroTicket cards too.</li>
+          <li><b>Cashiers and agents:</b> each seller has a login, a commission and a credit limit.</li>
+          <li><b>Reports you can trust:</b> sales by day, week and month, by site, plan and seller.</li>
+          <li><b>Mobile money:</b> customers buy a card from their own phone and pay by mobile money.</li>
+        </ul>
+        <p><a href="/signup">Start a free trial</a> · <a href="/login">Log in</a> · <a href="/terms">Terms and privacy</a></p>
+      </main>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
