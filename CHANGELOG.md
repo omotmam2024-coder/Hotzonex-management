@@ -4,7 +4,7 @@
 
 - The staff welcome email uses the app's brand blue (#15479c), the logo, a light-blue page and a
   rounded white card. `supabase/templates/confirmation.html` (sign-up) and `recovery.html`
-  (reset password) have the same design: paste each into Supabase → Authentication → Email
+  (reset password) and `email_change.html` (change email) have the same design: paste each into Supabase → Authentication → Email
   Templates (they also fix a stray "<" and leftover default text in the current templates).
 
 ## 24 October 2026 — staff welcome email
