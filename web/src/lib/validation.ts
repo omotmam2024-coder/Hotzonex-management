@@ -165,3 +165,22 @@ export const promoCodeSchema = z
       .refine((v) => v === null || (Number.isInteger(v) && v >= 1 && v <= 1_000_000), 'The use limit must be 1 or more, or empty for no limit.'),
   })
   .refine((p) => p.kind !== 'percent' || p.value <= 100, { message: 'A percentage discount can be at most 100.' });
+
+/** Refer a friend: both discounts from 1 to 100 percent, or both empty (switched off). */
+export const referralSchema = z
+  .object({
+    friend: z.string().trim(),
+    reward: z.string().trim(),
+  })
+  .refine((v) => (v.friend === '') === (v.reward === ''), { message: 'Set both discounts, or leave both empty to switch referrals off.' })
+  .transform((v, ctx) => {
+    if (v.friend === '') return { friend: null as number | null, reward: null as number | null };
+    const friend = Number(v.friend);
+    const reward = Number(v.reward);
+    const ok = (n: number) => Number.isInteger(n) && n >= 1 && n <= 100;
+    if (!ok(friend) || !ok(reward)) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Each discount must be a whole number from 1 to 100.' });
+      return z.NEVER;
+    }
+    return { friend, reward };
+  });

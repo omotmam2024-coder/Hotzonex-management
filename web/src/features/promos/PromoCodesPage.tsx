@@ -1,12 +1,13 @@
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useAuth } from '../../auth/AuthProvider';
 import { PageHeader } from '../../components/PageHeader';
 import { Alert, Badge, Button, Card, Field, Select, Spinner, TextInput, textButtonClass } from '../../components/ui';
 import { useT } from '../../i18n';
 import { friendlyError } from '../../lib/errors';
 import { formatJubaStamp, formatNumber, formatSSP } from '../../lib/format';
 import { supabase } from '../../lib/supabase';
-import { promoCodeSchema, validate } from '../../lib/validation';
+import { promoCodeSchema, referralSchema, validate } from '../../lib/validation';
 
 interface Promo {
   id: string;
@@ -28,6 +29,7 @@ function usePromos() {
       const { data, error } = await supabase
         .from('promo_codes')
         .select('id, code, kind, value, expires_at, max_uses, used_count, is_active')
+        .eq('source', 'owner')
         .order('created_at', { ascending: false });
       if (error) throw new Error(friendlyError(error));
       return data ?? [];
@@ -110,6 +112,73 @@ function state(p: Promo): 'active' | 'off' | 'expired' | 'usedUp' {
   return 'active';
 }
 
+const REFERRAL_KEY = ['referral-settings'];
+
+/** The owner's "refer a friend" sizes: what a friend saves and what the customer who referred earns. Empty = off. */
+function ReferralSettings() {
+  const { t } = useT();
+  const { business } = useAuth();
+  const queryClient = useQueryClient();
+  const [friend, setFriend] = useState('');
+  const [reward, setReward] = useState('');
+  const settings = useQuery({
+    queryKey: [...REFERRAL_KEY, business?.id ?? ''],
+    enabled: Boolean(business?.id),
+    queryFn: async () => {
+      const { data, error } = await supabase.from('tenants').select('referral_friend_percent, referral_reward_percent').eq('id', business?.id ?? '').maybeSingle();
+      if (error) throw new Error(friendlyError(error));
+      return { friend: data?.referral_friend_percent ?? null, reward: data?.referral_reward_percent ?? null };
+    },
+  });
+  useEffect(() => {
+    setFriend(settings.data?.friend ? String(settings.data.friend) : '');
+    setReward(settings.data?.reward ? String(settings.data.reward) : '');
+  }, [settings.data?.friend, settings.data?.reward]);
+
+  const save = useMutation({
+    mutationFn: async () => {
+      const v = validate(referralSchema, { friend, reward });
+      const { error } = await supabase.rpc('save_referral_settings', { p_friend_percent: v.friend, p_reward_percent: v.reward });
+      if (error) throw new Error(friendlyError(error));
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: REFERRAL_KEY }),
+  });
+
+  const on = settings.data?.friend != null;
+  return (
+    <Card>
+      <h2 className="text-lg font-bold text-slate-900">{t('promos.referral.title')}</h2>
+      <p className="mt-1 text-sm text-slate-600">{t('promos.referral.text')}</p>
+      <form
+        className="mt-3 space-y-3"
+        noValidate
+        onSubmit={(e) => {
+          e.preventDefault();
+          save.mutate();
+        }}
+      >
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label={t('promos.referral.friend')}>
+            <TextInput value={friend} onChange={(e) => setFriend(e.target.value.replace(/[^0-9]/g, '').slice(0, 3))} inputMode="numeric" placeholder="10" dir="ltr" />
+          </Field>
+          <Field label={t('promos.referral.reward')}>
+            <TextInput value={reward} onChange={(e) => setReward(e.target.value.replace(/[^0-9]/g, '').slice(0, 3))} inputMode="numeric" placeholder="20" dir="ltr" />
+          </Field>
+        </div>
+        <p className="text-sm text-slate-600">{t('promos.referral.hint')}</p>
+        {save.error && <Alert tone="error">{save.error.message}</Alert>}
+        {save.isSuccess && <Alert tone="success">{t('promos.referral.saved')}</Alert>}
+        <div className="flex flex-wrap items-center gap-3">
+          <Button type="submit" disabled={save.isPending}>
+            {save.isPending && <Spinner />} {t('promos.referral.save')}
+          </Button>
+          <Badge color={on ? 'green' : 'gray'}>{on ? t('promos.referral.on') : t('promos.referral.off')}</Badge>
+        </div>
+      </form>
+    </Card>
+  );
+}
+
 /** The owner's promo codes: cashiers type a code when selling a card and the customer pays less. */
 export function PromoCodesPage() {
   const { t } = useT();
@@ -142,6 +211,7 @@ export function PromoCodesPage() {
           />
         </Card>
       )}
+      <ReferralSettings />
       {promos.error && <Alert tone="error">{friendlyError(promos.error)}</Alert>}
       {toggle.error && <Alert tone="error">{toggle.error.message}</Alert>}
       <Card>

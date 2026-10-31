@@ -1,5 +1,23 @@
 # Changelog
 
+## 31 October 2026 — refer a friend
+
+- **Referrals** (owner: Promo codes page → "Refer a friend": the friend's discount % and the referrer's
+  reward %; empty = off, which is how it starts). On the Buy page a customer whose card is in use taps
+  **Refer a friend** in "Check my card" and gets a personal code (shareable on WhatsApp). A friend who
+  buys a card with it at the cashier gets the discount; the customer then sees a **reward code** for
+  their next card under the same button.
+- Rules (in the database, tested on the live project in a rolled-back transaction): a personal code works
+  for 5 friends; a reward code works once, for 60 days, and using a reward earns nothing; only the owner
+  changes the sizes; voiding a sale gives the use back but not an earned reward.
+- Migration `20261031190000_referrals.sql` (applied): `tenants.referral_*_percent`, `promo_codes.source`
+  and `voucher_id`, `save_referral_settings()`, and `sell_voucher()` creating the reward.
+  The owner's Promo codes list shows only the owner's own codes (customer and reward codes are not listed).
+- **Known limit:** customers are anonymous, so a customer can refer themselves (buy their next card with
+  their own code). The cap of 5 uses per code and the sizes you choose are the protection; start small.
+- **To deploy:** the `buy` Edge Function gained the `referral` action:
+  `supabase functions deploy buy --no-verify-jwt`.
+
 ## 31 October 2026 — customers can check their card
 
 - The public Buy page has a **Check my card** box: a customer types the code of the card they are using

@@ -1121,9 +1121,11 @@ export type Database = {
           is_active: boolean
           kind: string
           max_uses: number | null
+          source: string
           tenant_id: string
           used_count: number
           value: number
+          voucher_id: string | null
         }
         Insert: {
           code: string
@@ -1134,9 +1136,11 @@ export type Database = {
           is_active?: boolean
           kind: string
           max_uses?: number | null
+          source?: string
           tenant_id: string
           used_count?: number
           value: number
+          voucher_id?: string | null
         }
         Update: {
           code?: string
@@ -1147,9 +1151,11 @@ export type Database = {
           is_active?: boolean
           kind?: string
           max_uses?: number | null
+          source?: string
           tenant_id?: string
           used_count?: number
           value?: number
+          voucher_id?: string | null
         }
         Relationships: []
       }
@@ -1422,6 +1428,8 @@ export type Database = {
           brand_color: string | null
           tagline: string | null
           name: string
+          referral_friend_percent: number | null
+          referral_reward_percent: number | null
           timezone: string
           usd_rate: number | null
         }
@@ -1434,6 +1442,8 @@ export type Database = {
           brand_color?: string | null
           tagline?: string | null
           name: string
+          referral_friend_percent?: number | null
+          referral_reward_percent?: number | null
           timezone?: string
           usd_rate?: number | null
         }
@@ -1446,6 +1456,8 @@ export type Database = {
           brand_color?: string | null
           tagline?: string | null
           name?: string
+          referral_friend_percent?: number | null
+          referral_reward_percent?: number | null
           timezone?: string
           usd_rate?: number | null
         }
@@ -1958,6 +1970,10 @@ export type Database = {
           p_notify_push: boolean
         }
         Returns: Json
+      }
+      save_referral_settings: {
+        Args: { p_friend_percent: number; p_reward_percent: number }
+        Returns: undefined
       }
       save_promo_code: {
         Args: { p_code: string; p_expires_at: string; p_id: string; p_is_active: boolean; p_kind: string; p_max_uses: number; p_value: number }

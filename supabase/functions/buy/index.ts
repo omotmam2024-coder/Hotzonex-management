@@ -8,6 +8,8 @@
 // POST { action: "balance", slug, code }                          → time/data left on a card that is already in use
 //      (a card never used gets the same "not found" answer as a wrong code, so this cannot be used to
 //      guess working cards; limited per device and per business)
+// POST { action: "referral", slug, code }                         → a card in use gets its personal referral code (and the
+//      reward codes it earned); only when the business switched referrals on
 // POST { action: "momo_sweep" }   x-hzc-worker secret (pg_cron, every 2 minutes): settles MoMo payments
 //      whose customer left the page before MoMo answered
 //
@@ -19,6 +21,7 @@ import { serviceClient } from '../_shared/auth.ts';
 import { HttpError, readBody, serveJson } from '../_shared/cors.ts';
 import { balanceOf, cleanCardCode, isStarted, type CardRow } from '../_shared/balance.ts';
 import { cleanPhone, cleanTxnRef, PROVIDERS, providerLabel } from '../_shared/buy.ts';
+import { newReferralCode, REFERRAL_MAX_USES } from '../_shared/referral.ts';
 import { MomoClient, MomoError, momoMsisdn, momoReason, paidInFull } from '../_shared/momo.ts';
 import { momoAccount } from '../_shared/momo-account.ts';
 import { sameSecret } from '../_shared/netcheck.ts';
@@ -330,12 +333,8 @@ async function momoPay(db: SupabaseClient, req: Request, body: Record<string, un
   return { id: row.id as string, token };
 }
 
-/** How much time or data is left on a card already in use. Anything else answers {found:false}. */
-async function balance(db: SupabaseClient, req: Request, body: Record<string, unknown>) {
-  const site = await siteBySlug(db, body.slug);
-  const code = cleanCardCode(body.code);
-  if (!code) throw new HttpError(400, 'Type the code from your card.');
-
+/** Counts this check against the device's and the business's hourly limits (throws 429 when over). */
+async function limitChecks(db: SupabaseClient, req: Request, site: SiteRow): Promise<void> {
   const ip = clientIp(req);
   const hourAgo = new Date(Date.now() - 3600_000).toISOString();
   const [byIp, byBusiness] = await Promise.all([
@@ -347,19 +346,96 @@ async function balance(db: SupabaseClient, req: Request, body: Record<string, un
   await db.from('balance_checks').insert({ tenant_id: site.tenant_id, client_ip: ip });
   // Old rows of this device are not needed any more.
   await db.from('balance_checks').delete().eq('client_ip', ip).lt('checked_at', new Date(Date.now() - 24 * 3600_000).toISOString());
+}
 
+/** The card with this code at this site, only if it is already in use (never reveals any other card). */
+async function startedCard(db: SupabaseClient, site: SiteRow, code: string): Promise<(CardRow & { id: string }) | null> {
   const { data } = await db
     .from('vouchers')
-    .select('code, status, first_used_at, expires_at, uptime_used_seconds, bytes_used, plans(name, uptime_seconds, data_limit_mb)')
+    .select('id, code, status, first_used_at, expires_at, uptime_used_seconds, bytes_used, plans(name, uptime_seconds, data_limit_mb)')
     .eq('tenant_id', site.tenant_id)
     .eq('site_id', site.id)
     .eq('code', code)
     .limit(5);
-  const cards = ((data ?? []) as unknown as CardRow[]).filter(isStarted);
+  const cards = ((data ?? []) as unknown as (CardRow & { id: string })[]).filter(isStarted);
   cards.sort((a, b) => Date.parse(b.first_used_at ?? '') - Date.parse(a.first_used_at ?? ''));
-  const card = cards[0];
+  return cards[0] ?? null;
+}
+
+async function referralSizes(db: SupabaseClient, tenantId: string): Promise<{ friend: number; reward: number } | null> {
+  const { data } = await db.from('tenants').select('referral_friend_percent, referral_reward_percent').eq('id', tenantId).maybeSingle();
+  const friend = data?.referral_friend_percent as number | null | undefined;
+  const reward = data?.referral_reward_percent as number | null | undefined;
+  return friend && reward ? { friend, reward } : null;
+}
+
+/** How much time or data is left on a card already in use. Anything else answers {found:false}. */
+async function balance(db: SupabaseClient, req: Request, body: Record<string, unknown>) {
+  const site = await siteBySlug(db, body.slug);
+  const code = cleanCardCode(body.code);
+  if (!code) throw new HttpError(400, 'Type the code from your card.');
+  await limitChecks(db, req, site);
+  const card = await startedCard(db, site, code);
   if (!card) return { found: false };
-  return { found: true, ...balanceOf(card, Date.now()) };
+  return { found: true, ...balanceOf(card, Date.now()), referral: (await referralSizes(db, site.tenant_id)) !== null };
+}
+
+/**
+ * A card in use gets one personal referral code (a friend who uses it when buying a card gets a
+ * discount) and sees the reward codes it earned. Only cards that can still be used; only when the
+ * business switched referrals on.
+ */
+async function referral(db: SupabaseClient, req: Request, body: Record<string, unknown>) {
+  const site = await siteBySlug(db, body.slug);
+  const code = cleanCardCode(body.code);
+  if (!code) throw new HttpError(400, 'Type the code from your card.');
+  await limitChecks(db, req, site);
+  const card = await startedCard(db, site, code);
+  if (!card) return { found: false };
+  const sizes = await referralSizes(db, site.tenant_id);
+  if (!sizes) return { found: true, enabled: false };
+  if (balanceOf(card, Date.now()).state !== 'active') return { found: true, enabled: true, active: false };
+
+  const mine = async () =>
+    (await db.from('promo_codes').select('code, value, max_uses, used_count').eq('voucher_id', card.id).eq('source', 'referral').maybeSingle()).data as
+      | { code: string; value: number; max_uses: number; used_count: number }
+      | null;
+  let ref = await mine();
+  if (!ref) {
+    const { error } = await db.from('promo_codes').insert({
+      tenant_id: site.tenant_id,
+      code: newReferralCode(),
+      kind: 'percent',
+      value: sizes.friend,
+      max_uses: REFERRAL_MAX_USES,
+      source: 'referral',
+      voucher_id: card.id,
+    });
+    // Two checks at the same moment: the card's unique referral code already exists, so read it.
+    if (error && error.code !== '23505') throw new Error(`Referral code not saved: ${error.message}`);
+    ref = await mine();
+  }
+  if (!ref) throw new Error('Referral code could not be read.');
+
+  const { data: rewards } = await db
+    .from('promo_codes')
+    .select('code, value, expires_at')
+    .eq('voucher_id', card.id)
+    .eq('source', 'reward')
+    .eq('is_active', true)
+    .lt('used_count', 1)
+    .or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`)
+    .order('created_at');
+  return {
+    found: true,
+    enabled: true,
+    active: true,
+    code: ref.code,
+    friend_percent: ref.value,
+    reward_percent: sizes.reward,
+    uses_left: Math.max(0, ref.max_uses - ref.used_count),
+    rewards: (rewards ?? []).map((r) => ({ code: r.code as string, percent: r.value as number, expires_at: r.expires_at as string | null })),
+  };
 }
 
 /** MoMo payments still waiting (the customer may have closed the page): settled from the database's clock. */
@@ -401,6 +477,8 @@ serveJson(async (req) => {
       return await status(db, body);
     case 'balance':
       return await balance(db, req, body);
+    case 'referral':
+      return await referral(db, req, body);
     case 'momo_pay':
       return await momoPay(db, req, body);
     case 'momo_sweep':

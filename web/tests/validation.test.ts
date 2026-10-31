@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { promoCodeSchema, buyRequestSchema, cashHandoverSchema, expenseSchema, EXPENSE_CATEGORIES, generateVouchersSchema, planSchema, sellerTermsSchema, signupSchema, staffSchema, validate } from '../src/lib/validation.ts';
+import { referralSchema, promoCodeSchema, buyRequestSchema, cashHandoverSchema, expenseSchema, EXPENSE_CATEGORIES, generateVouchersSchema, planSchema, sellerTermsSchema, signupSchema, staffSchema, validate } from '../src/lib/validation.ts';
 
 const ID = '3f2b2a4e-0000-4000-8000-000000000000';
 
@@ -105,4 +105,13 @@ test('promo code: normalised code, percent up to 100, optional expiry and limit'
   assert.throws(() => validate(promoCodeSchema, { ...ok, value: '2.5' }), /whole number/);
   assert.throws(() => validate(promoCodeSchema, { ...ok, max_uses: '0' }), /use limit/);
   assert.throws(() => validate(promoCodeSchema, { ...ok, expires_on: 'tomorrow' }), /last day/);
+});
+
+test('referral settings: both sizes from 1 to 100, or both empty', () => {
+  assert.deepEqual(validate(referralSchema, { friend: '10', reward: ' 20 ' }), { friend: 10, reward: 20 });
+  assert.deepEqual(validate(referralSchema, { friend: '', reward: '' }), { friend: null, reward: null });
+  assert.throws(() => validate(referralSchema, { friend: '10', reward: '' }), /both discounts/);
+  assert.throws(() => validate(referralSchema, { friend: '0', reward: '20' }), /1 to 100/);
+  assert.throws(() => validate(referralSchema, { friend: '10', reward: '101' }), /1 to 100/);
+  assert.throws(() => validate(referralSchema, { friend: '1.5', reward: '20' }), /1 to 100/);
 });
