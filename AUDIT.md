@@ -102,3 +102,21 @@ Newer open points are listed in [CHANGELOG.md](CHANGELOG.md) → Known follow-up
 | Medium | No onboarding wizard (sign-up dropped the owner on "Add router"). | `web/src/features/business/WelcomePage.tsx` | **Fixed** |
 | Medium | Super-admin page had no **usage vs limits** and no "extend trial" shortcut. | `web/src/features/business/BusinessesPage.tsx`, `components/PlatformBilling.tsx` | **Fixed** (plan, usage, +14 / +30 days) |
 | Done | Terms of Service + privacy page, proprietary LICENSE, per-business logo on printed cards. | `web/src/features/public/TermsPage.tsx`, `LICENSE` | Fixed (Terms text still to be read by the owner) |
+
+## 10. Security re-check (31 October 2026)
+
+Checked against the live project and the code: secrets (none in the code or history; the anon key in
+`.do/app.yaml` is public by design), RLS (every public table has it; `anon` holds no table grants),
+all 58 `SECURITY DEFINER` functions (each checks the caller and pins `search_path`; `public_pricing` is
+public on purpose), storage (`logos` bucket: image types only, 1 MB, writes limited to the owner's own folder),
+`verify_jwt = false` functions (each has its own secret or token check or serves public content only),
+VPS ports (UDP 51820, TCP 80/443 only; the WhatsApp sender listens on 127.0.0.1; the relay proxies only
+`10.99.0.x/rest` and needs a secret header), and CI (token now read-only).
+
+| Rating | Finding | Status |
+|---|---|---|
+| **Critical** | The GitHub repository is still **public**. Settings → General → Danger Zone → Change visibility → Private. | **Open** (owner action) |
+| Medium | `zod` 3.x (high: memory use on huge arrays) and `react-router-dom` 6.x (moderate: open redirect with backslash) have advisories fixed only in zod 4 / react-router 7. Both are major upgrades and need testing, so they were not changed blindly. | **Open** |
+| Low | The VPS installer opens its ports only if `ufw` is already active; SSH hardening (key-only login, `fail2ban`) is not part of it. | **Open** (do on the VPS) |
+| Low | The deploy branch is `claude/clever-mccarthy-1780c7`, which is also the repository's default branch. Use `main` with branch protection. | **Open** (owner action) |
+| Done | CI workflow token limited to `contents: read`. | Fixed |
