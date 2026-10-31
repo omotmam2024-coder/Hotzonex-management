@@ -1,5 +1,18 @@
 # Changelog
 
+## 31 October 2026 — customers can check their card
+
+- The public Buy page has a **Check my card** box: a customer types the code of the card they are using
+  and sees the plan, time left, data left and the date it stops working. To renew, they choose a new
+  card on the same page.
+- **Safe by design:** only a card that has already been logged in with is described. A card never used,
+  one that is sold but not yet used, a voided card and a wrong code all get the same "not found"
+  answer, so the box cannot be used to guess working cards. Limits: 20 checks an hour per device and
+  600 an hour per business (new table `balance_checks`, migration `20261031170000_balance_checks.sql`,
+  applied; only the Edge Function can touch it).
+- **To deploy:** the `buy` Edge Function gained the `balance` action (and, from the brand colour work, the
+  colour and tagline): `supabase functions deploy buy --no-verify-jwt`.
+
 ## 31 October 2026 — promo codes
 
 - **Promo codes** (owner: menu → Selling → Promo codes): a percentage or a fixed SSP discount, with an

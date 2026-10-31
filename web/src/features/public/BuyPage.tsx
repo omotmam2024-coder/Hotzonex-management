@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { useParams } from 'react-router-dom';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { brandBackground } from '../../lib/brandColor';
+import { CardBalance } from './CardBalance';
 import { friendlyError } from '../../lib/errors';
 import { formatDuration, formatSSP } from '../../lib/format';
 import { formatDataLimit } from '../../lib/dataLimit';
@@ -375,6 +376,8 @@ export function BuyPage() {
             </form>
           )}
         </div>
+
+        {s && <CardBalance slug={slug} />}
       </div>
     </div>
   );

@@ -5,6 +5,9 @@
 // POST { action: "status", id, token }                             → pending / rejected (reason) / confirmed (code)
 // POST { action: "momo_pay", slug, plan_id, phone }                → { id, token }: MTN MoMo asks the phone to
 //      approve the payment (the business's own MoMo API login); the card comes as soon as MoMo confirms it
+// POST { action: "balance", slug, code }                          → time/data left on a card that is already in use
+//      (a card never used gets the same "not found" answer as a wrong code, so this cannot be used to
+//      guess working cards; limited per device and per business)
 // POST { action: "momo_sweep" }   x-hzc-worker secret (pg_cron, every 2 minutes): settles MoMo payments
 //      whose customer left the page before MoMo answered
 //
@@ -14,6 +17,7 @@
 import type { SupabaseClient } from 'npm:@supabase/supabase-js@2.117.3';
 import { serviceClient } from '../_shared/auth.ts';
 import { HttpError, readBody, serveJson } from '../_shared/cors.ts';
+import { balanceOf, cleanCardCode, isStarted, type CardRow } from '../_shared/balance.ts';
 import { cleanPhone, cleanTxnRef, PROVIDERS, providerLabel } from '../_shared/buy.ts';
 import { MomoClient, MomoError, momoMsisdn, momoReason, paidInFull } from '../_shared/momo.ts';
 import { momoAccount } from '../_shared/momo-account.ts';
@@ -30,6 +34,9 @@ const MOMO_PER_PHONE_HOUR = 5;
 const MOMO_GIVE_UP_MS = 30 * 60_000;
 // The customer's page asks every 5 s; MoMo is asked at most this often for one payment.
 const MOMO_CHECK_EVERY_MS = 4_000;
+// Card balance checks: per device and, however many devices, per business, in an hour.
+const BALANCE_PER_IP_HOUR = 20;
+const BALANCE_PER_BUSINESS_HOUR = 600;
 
 interface SiteRow {
   id: string;
@@ -323,6 +330,38 @@ async function momoPay(db: SupabaseClient, req: Request, body: Record<string, un
   return { id: row.id as string, token };
 }
 
+/** How much time or data is left on a card already in use. Anything else answers {found:false}. */
+async function balance(db: SupabaseClient, req: Request, body: Record<string, unknown>) {
+  const site = await siteBySlug(db, body.slug);
+  const code = cleanCardCode(body.code);
+  if (!code) throw new HttpError(400, 'Type the code from your card.');
+
+  const ip = clientIp(req);
+  const hourAgo = new Date(Date.now() - 3600_000).toISOString();
+  const [byIp, byBusiness] = await Promise.all([
+    db.from('balance_checks').select('id', { count: 'exact', head: true }).eq('client_ip', ip).gte('checked_at', hourAgo),
+    db.from('balance_checks').select('id', { count: 'exact', head: true }).eq('tenant_id', site.tenant_id).gte('checked_at', hourAgo),
+  ]);
+  if ((byIp.count ?? 0) >= BALANCE_PER_IP_HOUR) throw new HttpError(429, 'Too many checks from this device. Try again in an hour, or ask the cashier.');
+  if ((byBusiness.count ?? 0) >= BALANCE_PER_BUSINESS_HOUR) throw new HttpError(429, 'Many checks are being made right now. Please try again in a little while, or ask the cashier.');
+  await db.from('balance_checks').insert({ tenant_id: site.tenant_id, client_ip: ip });
+  // Old rows of this device are not needed any more.
+  await db.from('balance_checks').delete().eq('client_ip', ip).lt('checked_at', new Date(Date.now() - 24 * 3600_000).toISOString());
+
+  const { data } = await db
+    .from('vouchers')
+    .select('code, status, first_used_at, expires_at, uptime_used_seconds, bytes_used, plans(name, uptime_seconds, data_limit_mb)')
+    .eq('tenant_id', site.tenant_id)
+    .eq('site_id', site.id)
+    .eq('code', code)
+    .limit(5);
+  const cards = ((data ?? []) as unknown as CardRow[]).filter(isStarted);
+  cards.sort((a, b) => Date.parse(b.first_used_at ?? '') - Date.parse(a.first_used_at ?? ''));
+  const card = cards[0];
+  if (!card) return { found: false };
+  return { found: true, ...balanceOf(card, Date.now()) };
+}
+
 /** MoMo payments still waiting (the customer may have closed the page): settled from the database's clock. */
 async function momoSweep(db: SupabaseClient, req: Request) {
   const { data: cfg } = await db.from('app_config').select('value').eq('key', 'direct_worker_secret').maybeSingle();
@@ -360,6 +399,8 @@ serveJson(async (req) => {
       return await request(db, req, body);
     case 'status':
       return await status(db, body);
+    case 'balance':
+      return await balance(db, req, body);
     case 'momo_pay':
       return await momoPay(db, req, body);
     case 'momo_sweep':
