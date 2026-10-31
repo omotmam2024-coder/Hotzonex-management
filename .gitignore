@@ -14,3 +14,6 @@ logs/
 
 # Presentation videos (made for sharing, kept out of the repository)
 presentation-videos/
+
+# Screenshots taken while running the app (not part of the project)
+run-screenshots/
