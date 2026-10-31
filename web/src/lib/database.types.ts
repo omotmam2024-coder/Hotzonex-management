@@ -1776,6 +1776,7 @@ export type Database = {
         }
         Returns: {
           amount_ssp: number
+          discount_ssp: number
           code: string
           plan_color: string
           plan_id: string

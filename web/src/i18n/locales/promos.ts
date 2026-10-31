@@ -32,6 +32,7 @@ const en = {
   'sell.promoPlaceholder': 'Type a code',
   'sell.promoHint': 'The customer’s discount is taken off the price when you sell.',
   'sell.promoSaved': 'Discount: {amount}',
+  'sales.discountSaved': 'saved {amount}',
 }
 
 type Keys = Record<keyof typeof en, string>;
@@ -68,6 +69,7 @@ const ar = {
   'sell.promoPlaceholder': 'اكتب الكود',
   'sell.promoHint': 'يُخصم من السعر عند البيع.',
   'sell.promoSaved': 'الخصم: {amount}',
+  'sales.discountSaved': 'وفّر {amount}',
 } satisfies Keys;
 
 const sw = {
@@ -102,6 +104,7 @@ const sw = {
   'sell.promoPlaceholder': 'Andika msimbo',
   'sell.promoHint': 'Punguzo la mteja linaondolewa kwenye bei unapouza.',
   'sell.promoSaved': 'Punguzo: {amount}',
+  'sales.discountSaved': 'ameokoa {amount}',
 } satisfies Keys;
 
 export const promos = { en, ar, sw };

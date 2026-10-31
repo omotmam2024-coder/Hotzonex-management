@@ -9,10 +9,11 @@
   use the discounted price; `discount_ssp` and `promo_code_id` record the discount and the code.
 - Rules enforced in the database: only owners create codes; a code must be active, not past its last
   day and under its use limit; two cashiers cannot both use a last use; a retried sale never uses a
-  code twice. Voiding a sale does not give the use back.
+  code twice. Voiding a sale gives the code its use back (migration `20261031150000_promo_void_and_sales_list.sql`).
 - Database: migration `20261031120000_promo_codes.sql` (applied): `promo_codes`, `save_promo_code()`,
   and `sell_voucher()` with a new optional `p_promo_code` argument (calls without it work as before).
   Tested on the live database inside a rolled-back transaction; nothing was left behind.
+- The Sales page shows what each promo sale saved (`list_sales` now returns `discount_ssp`).
 - Not included yet: promo codes on the customer Buy page (online payments), referrals, reseller prices.
 
 ## 31 October 2026 — Hotzonex logo, orange accent, per-business brand colour and tagline

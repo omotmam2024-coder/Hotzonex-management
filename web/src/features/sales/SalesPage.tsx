@@ -25,6 +25,8 @@ export interface SaleListRow {
   plan_name: string;
   plan_color: string;
   amount_ssp: number;
+  /** What a promo code took off the price (0: none). */
+  discount_ssp?: number;
   seller_id: string | null;
   seller_name: string;
   site_id: string;
@@ -288,7 +290,9 @@ export function SalesPage() {
                         {s.plan_name}
                       </span>
                     </td>
-                    <td className={`whitespace-nowrap px-4 py-2 text-end font-semibold tabular-nums ${s.voided_at ? 'text-slate-500 line-through' : ''}`}>{formatSSP(s.amount_ssp)}</td>
+                    <td className={`whitespace-nowrap px-4 py-2 text-end font-semibold tabular-nums ${s.voided_at ? 'text-slate-500 line-through' : ''}`}>{formatSSP(s.amount_ssp)}
+                      {s.discount_ssp ? <span className="block text-xs font-normal text-green-700">{t('sales.discountSaved', { amount: formatSSP(s.discount_ssp) })}</span> : null}
+                    </td>
                     <td className="px-4 py-2">{s.seller_name}</td>
                     <td className="px-4 py-2">{s.site_name}</td>
                     <td className="px-4 py-2">
