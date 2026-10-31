@@ -2,6 +2,7 @@ import type { Lang } from './core';
 import { business } from './locales/business';
 import { common } from './locales/common';
 import { expenses } from './locales/expenses';
+import { insights } from './locales/insights';
 import { messages } from './locales/messages';
 import { plans } from './locales/plans';
 import { promos } from './locales/promos';
@@ -13,7 +14,7 @@ import { sell } from './locales/sell';
 import { server } from './locales/server';
 import { vouchers } from './locales/vouchers';
 
-const parts = [common, messages, server, publicPages, sell, sales, vouchers, reports, expenses, plans, routers, business, promos] as const;
+const parts = [common, messages, server, publicPages, sell, sales, vouchers, reports, expenses, plans, routers, business, promos, insights] as const;
 
 /** Every text key (from the English dictionaries), so a typo in t('…') fails the type check. */
 export type TKey =
@@ -29,7 +30,8 @@ export type TKey =
   | keyof typeof plans.en
   | keyof typeof routers.en
   | keyof typeof business.en
-  | keyof typeof promos.en;
+  | keyof typeof promos.en
+  | keyof typeof insights.en;
 
 type Dict = Partial<Record<TKey, string>>;
 

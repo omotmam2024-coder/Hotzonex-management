@@ -23,6 +23,7 @@ const PrintSetupPage = page(() => import('./features/vouchers/PrintSetupPage'), 
 const PrintSheetPage = page(() => import('./features/vouchers/PrintSheetPage'), 'PrintSheetPage');
 const ReportsPage = page(() => import('./features/reports/ReportsPage'), 'ReportsPage');
 const PromoCodesPage = page(() => import('./features/promos/PromoCodesPage'), 'PromoCodesPage');
+const InsightsPage = page(() => import('./features/insights/InsightsPage'), 'InsightsPage');
 const ExpensesPage = page(() => import('./features/expenses/ExpensesPage'), 'ExpensesPage');
 const RouterFormPage = page(() => import('./features/routers/RouterFormPage'), 'RouterFormPage');
 const RoutersPage = page(() => import('./features/routers/RoutersPage'), 'RoutersPage');
@@ -104,6 +105,9 @@ export function App() {
             </Route>
             <Route element={<RequireRole roles={rolesFor('/promos')} />}>
               <Route path="/promos" element={<PromoCodesPage />} />
+            </Route>
+            <Route element={<RequireRole roles={rolesFor('/insights')} />}>
+              <Route path="/insights" element={<InsightsPage />} />
             </Route>
             <Route element={<RequireRole roles={rolesFor('/expenses')} />}>
               <Route path="/expenses" element={<ExpensesPage />} />

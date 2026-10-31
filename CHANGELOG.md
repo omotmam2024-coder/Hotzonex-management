@@ -1,5 +1,19 @@
 # Changelog
 
+## 31 October 2026 — insights
+
+- **Insights page** (owners and managers; menu → Overview → Insights): revenue and cards sold by hour of
+  the day, by day of the week and by plan; the best hour and best day; the daily chart; and a
+  **forecast** for the next 7 days (the average of the same weekday over the chosen period, shown only
+  with 14+ days of history, marked as a guide).
+- **Worth a look** flags, with the reason in plain words: revenue down 30%+ in the last 7 days against the
+  7 before; a seller who voided 20%+ of their sales (3+ voids); a seller who gave a promo discount on 50%+
+  of 5+ sales. They are signals, not proof.
+- Uses the same sales as the Reports page (cashier sales, router-activated vouchers, cards used without a
+  sale; voided sales left out). Managers see their own site only; cashiers cannot open it.
+- Database: migration `20261031210000_sales_insights.sql` (applied; read-only function `sales_insights`).
+  Tested on the live data plus temporary sales in a rolled-back transaction.
+
 ## 31 October 2026 — refer a friend
 
 - **Referrals** (owner: Promo codes page → "Refer a friend": the friend's discount % and the referrer's

@@ -1971,6 +1971,10 @@ export type Database = {
         }
         Returns: Json
       }
+      sales_insights: {
+        Args: { p_days: number; p_site_id: string }
+        Returns: Json
+      }
       save_referral_settings: {
         Args: { p_friend_percent: number; p_reward_percent: number }
         Returns: undefined

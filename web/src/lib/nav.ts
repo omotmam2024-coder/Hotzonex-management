@@ -43,6 +43,7 @@ const ADMIN: readonly Role[] = ['admin'];
 export const NAV_ITEMS: readonly NavItem[] = [
   { path: '/dashboard', get label() { return translate('nav.dashboard'); }, icon: 'dashboard', roles: ADMIN_MANAGER, group: 'Overview' },
   { path: '/reports', get label() { return translate('nav.reports'); }, icon: 'reports', roles: ADMIN_MANAGER, group: 'Overview' },
+  { path: '/insights', get label() { return translate('nav.insights'); }, icon: 'reports', roles: ADMIN_MANAGER, group: 'Overview' },
   { path: '/expenses', get label() { return translate('nav.expenses'); }, icon: 'expenses', roles: ADMIN_MANAGER, group: 'Overview' },
   { path: '/alerts', get label() { return translate('nav.alerts'); }, icon: 'alerts', roles: ADMIN_MANAGER, group: 'Overview' },
   { path: '/sell', get label() { return translate('nav.sell'); }, icon: 'sell', roles: ALL, group: 'Selling' },
