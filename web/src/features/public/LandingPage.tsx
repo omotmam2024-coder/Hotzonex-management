@@ -133,7 +133,7 @@ export function LandingPage() {
             <Link to="/login" className="inline-flex min-h-11 items-center rounded-xl px-3 font-semibold text-brand-700 hover:bg-brand-50">
               {t('public.login.logIn')}
             </Link>
-            <Link to="/signup" className="hidden min-h-11 items-center rounded-xl bg-brand-600 px-4 font-semibold text-white hover:bg-brand-700 sm:inline-flex">
+            <Link to="/signup" className="hidden min-h-11 items-center rounded-xl bg-accent-700 px-4 font-semibold text-white hover:bg-accent-800 sm:inline-flex">
               {t('public.startTrial')}
             </Link>
           </nav>
@@ -153,7 +153,7 @@ export function LandingPage() {
               <h1 className="text-3xl font-extrabold leading-tight sm:text-5xl">{t('public.landing.hero')}</h1>
               <p className="mt-4 text-lg text-white/85">{t('public.landing.heroText')}</p>
               <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-                <Link to="/signup" className={`${cta} bg-white text-brand-800 hover:bg-brand-50`}>
+                <Link to="/signup" className={`${cta} bg-accent-500 text-slate-950 hover:bg-accent-400`}>
                   {t('public.landing.trialCta', { days: pricing.trial_days })}
                 </Link>
                 <a href={demo} target="_blank" rel="noopener" className={`${cta} border-2 border-white/60 text-white hover:bg-white/10`}>
@@ -217,7 +217,7 @@ export function LandingPage() {
                     <li>✓ {p.max_vouchers_month === null ? t('public.landing.vouchersUnlimited') : t('public.landing.vouchersMonth', { n: formatNumber(p.max_vouchers_month) })}</li>
                     <li>✓ {t('public.landing.extras')}</li>
                   </ul>
-                  <Link to="/signup" className={`${cta} mt-6 ${i === 1 ? 'bg-brand-600 text-white hover:bg-brand-700' : 'bg-brand-50 text-brand-800 hover:bg-brand-100'}`}>
+                  <Link to="/signup" className={`${cta} mt-6 ${i === 1 ? 'bg-accent-700 text-white hover:bg-accent-800' : 'bg-brand-50 text-brand-800 hover:bg-brand-100'}`}>
                     {t('public.startTrial')}
                   </Link>
                 </li>
@@ -279,7 +279,7 @@ export function LandingPage() {
             </div>
           </div>
           <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
-            <Link to="/signup" className={`${cta} bg-brand-600 text-white hover:bg-brand-700`}>
+            <Link to="/signup" className={`${cta} bg-accent-700 text-white hover:bg-accent-800`}>
               {t('public.startTrial')}
             </Link>
             <a href={demo} target="_blank" rel="noopener" className={`${cta} bg-brand-50 text-brand-800 hover:bg-brand-100`}>
