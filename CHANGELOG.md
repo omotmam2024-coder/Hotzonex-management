@@ -1,5 +1,20 @@
 # Changelog
 
+## 31 October 2026 — Hotzonex logo, orange accent, per-business brand colour and tagline
+
+- The supplied Hotzonex logo is now the logo, favicon, app icons (including the Android maskable
+  one) and share image. An orange **accent** colour (from the logo's "X") is added next to the
+  brand blue; the landing page buttons use it (dark enough for readable white text).
+- **Brand colour and tagline per business** (Business settings): the owner picks a colour for the
+  Buy page header and a tagline of up to 80 characters shown on the Buy page and receipts.
+  Colours too light for white text are refused. English, Arabic and Kiswahili texts included.
+- Database: migration `20261031090000_business_brand.sql` (applied): `tenants.brand_color`,
+  `tenants.tagline` and `save_business_brand()` (owner only, audit-logged).
+- **To deploy:** the `buy` Edge Function now also returns the colour and tagline:
+  `supabase functions deploy buy --no-verify-jwt`. Until then the Buy page uses the default blue
+  and no tagline; nothing breaks.
+- Security re-check recorded in AUDIT.md §10; CI token is read-only.
+
 ## 24 October 2026 — big routers no longer flip to "Not answering"
 
 - A router with thousands of hotspot users (Hotzonex main office: about 2,600) showed **Not

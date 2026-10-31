@@ -37,7 +37,7 @@ interface SiteRow {
   name: string;
   buy_enabled: boolean;
   buy_instructions: string | null;
-  tenants: { name: string; logo_url: string | null; is_active: boolean; currency: string } | null;
+  tenants: { name: string; logo_url: string | null; brand_color: string | null; tagline: string | null; is_active: boolean; currency: string } | null;
 }
 
 async function siteBySlug(db: SupabaseClient, slug: unknown): Promise<SiteRow> {
@@ -45,7 +45,7 @@ async function siteBySlug(db: SupabaseClient, slug: unknown): Promise<SiteRow> {
   if (!/^[a-z0-9-]{3,40}$/.test(s)) throw new HttpError(404, 'This Buy page does not exist.');
   const { data } = await db
     .from('sites')
-    .select('id, tenant_id, name, buy_enabled, buy_instructions, is_active, tenants(name, logo_url, is_active, currency)')
+    .select('id, tenant_id, name, buy_enabled, buy_instructions, is_active, tenants(name, logo_url, brand_color, tagline, is_active, currency)')
     .eq('buy_slug', s)
     .maybeSingle();
   const site = data as (SiteRow & { is_active: boolean }) | null;
@@ -348,6 +348,8 @@ serveJson(async (req) => {
         site: site.name,
         business: site.tenants?.name ?? '',
         logo_url: site.tenants?.logo_url ?? null,
+        brand_color: site.tenants?.brand_color ?? null,
+        tagline: site.tenants?.tagline ?? null,
         instructions: site.buy_instructions ?? '',
         plans: await sitePlans(db, site),
         providers: PROVIDERS.map((p) => ({ id: p, label: providerLabel(p) })),

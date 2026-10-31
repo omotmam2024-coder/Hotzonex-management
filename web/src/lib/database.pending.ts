@@ -89,6 +89,7 @@ type NullableArgFunctions = {
   report_period: NullableArgs<Fn['report_period'], 'p_plan_id' | 'p_seller_id' | 'p_site_id'>;
   set_seller_terms: NullableArgs<Fn['set_seller_terms'], 'p_credit_limit_ssp'>;
   sell_voucher: NullableArgs<Fn['sell_voucher'], 'p_request_id'>;
+  save_business_brand: NullableArgs<Fn['save_business_brand'], 'p_color' | 'p_tagline'>;
   save_business_settings: NullableArgs<Fn['save_business_settings'], 'p_logo_url' | 'p_usd_rate'>;
   expiring_soon: NullableArgs<Fn['expiring_soon'], 'p_site_id'>;
   save_expense: NullableArgs<Fn['save_expense'], 'p_id' | 'p_note' | 'p_site_id'>;

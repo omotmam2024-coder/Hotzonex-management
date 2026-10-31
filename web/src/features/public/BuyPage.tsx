@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { useParams } from 'react-router-dom';
 import { useMutation, useQuery } from '@tanstack/react-query';
+import { brandBackground } from '../../lib/brandColor';
 import { friendlyError } from '../../lib/errors';
 import { formatDuration, formatSSP } from '../../lib/format';
 import { formatDataLimit } from '../../lib/dataLimit';
@@ -24,6 +25,9 @@ interface BuySite {
   site: string;
   business: string;
   logo_url: string | null;
+  /** The business's own brand colour and tagline (absent from older server versions). */
+  brand_color?: string | null;
+  tagline?: string | null;
   instructions: string;
   plans: BuyPlan[];
   providers: { id: string; label: string }[];
@@ -170,7 +174,7 @@ export function BuyPage() {
   const error = send.error ?? payMomo.error;
 
   return (
-    <div className="min-h-full bg-gradient-to-br from-brand-700 via-brand-900 to-brand-950 p-4">
+    <div className="min-h-full p-4" style={{ background: brandBackground(s?.brand_color) }}>
       <div className="mx-auto w-full max-w-md space-y-4">
         <div className="ms-auto max-w-xs">
           <LanguageSwitch tone="light" />
@@ -179,6 +183,7 @@ export function BuyPage() {
           {s?.logo_url ? <img src={s.logo_url} alt="" className="h-12 w-12 rounded-xl bg-white object-contain p-1" /> : null}
           <div>
             <h1 className="text-xl font-bold">{s ? s.business : t('public.buy.title')}</h1>
+            {s?.tagline && <p className="text-white/90">{s.tagline}</p>}
             {s && <p className="text-white/70">{s.site} · {t('public.buy.subtitle')}</p>}
           </div>
         </header>

@@ -7,6 +7,7 @@ import { Alert, Button, Card, Field, Spinner, TextInput } from '../../components
 import { useBusinessSettings } from '../../hooks/useBusinessSettings';
 import { useT } from '../../i18n';
 import { translate } from '../../i18n/translate';
+import { DEFAULT_BRAND_COLOR, isReadableBrand, normalizeHex } from '../../lib/brandColor';
 import { friendlyError } from '../../lib/errors';
 import { formatSSP, formatUsd } from '../../lib/format';
 import { supabase } from '../../lib/supabase';
@@ -23,6 +24,13 @@ const settingsSchema = () =>
       .trim()
       .transform((v) => (v === '' ? null : Number(v.replace(/,/g, ''))))
       .refine((v) => v === null || (Number.isFinite(v) && v > 0 && v <= 1_000_000), translate('business.settings.errUsdRate')),
+    brandColor: z
+      .string()
+      .trim()
+      .transform((v) => v.toLowerCase())
+      .refine((v) => v === '' || normalizeHex(v) !== null, translate('business.settings.errColor'))
+      .refine((v) => v === '' || normalizeHex(v) === null || isReadableBrand(v), translate('business.settings.errColorLight')),
+    tagline: z.string().trim().max(80, translate('business.settings.errTagline')),
   });
 
 /** The owner's settings: the name and logo printed on cards and the Buy page, and the USD rate. */
@@ -47,12 +55,18 @@ export function BusinessSettingsForm({ onSaved, saveLabel }: { onSaved?: () => v
   const [name, setName] = useState(business?.name ?? '');
   const [logoUrl, setLogoUrl] = useState(business?.logo_url ?? '');
   const [usdRate, setUsdRate] = useState('');
+  const [brandColor, setBrandColor] = useState('');
+  const [tagline, setTagline] = useState('');
   const [notice, setNotice] = useState<string | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (settings.data?.usdRate) setUsdRate(String(settings.data.usdRate));
   }, [settings.data?.usdRate]);
+  useEffect(() => {
+    setBrandColor(settings.data?.brandColor ?? '');
+    setTagline(settings.data?.tagline ?? '');
+  }, [settings.data?.brandColor, settings.data?.tagline]);
 
   const upload = useMutation({
     mutationFn: async (file: File) => {
@@ -73,9 +87,11 @@ export function BusinessSettingsForm({ onSaved, saveLabel }: { onSaved?: () => v
 
   const save = useMutation({
     mutationFn: async () => {
-      const v = validate(settingsSchema(), { name, usdRate });
+      const v = validate(settingsSchema(), { name, usdRate, brandColor, tagline });
       const { error } = await supabase.rpc('save_business_settings', { p_name: v.name, p_logo_url: logoUrl || null, p_usd_rate: v.usdRate });
       if (error) throw new Error(friendlyError(error));
+      const brand = await supabase.rpc('save_business_brand', { p_color: v.brandColor || null, p_tagline: v.tagline || null });
+      if (brand.error) throw new Error(friendlyError(brand.error));
     },
     onSuccess: async () => {
       setNotice(t('business.settings.saved'));
@@ -130,6 +146,28 @@ export function BusinessSettingsForm({ onSaved, saveLabel }: { onSaved?: () => v
             <p className="mt-1 text-sm text-slate-600">{t('business.settings.logoHint')}</p>
             {upload.error && <Alert tone="error">{friendlyError(upload.error)}</Alert>}
           </div>
+
+          <Field label={t('business.settings.color')} hint={t('business.settings.colorHint')}>
+            <div className="flex items-center gap-2">
+              <input
+                type="color"
+                aria-label={t('business.settings.color')}
+                value={normalizeHex(brandColor) ?? DEFAULT_BRAND_COLOR}
+                onChange={(e) => setBrandColor(e.target.value)}
+                className="h-11 w-14 shrink-0 cursor-pointer rounded-lg border border-slate-300 bg-white p-1"
+              />
+              <TextInput value={brandColor} onChange={(e) => setBrandColor(e.target.value.slice(0, 7))} placeholder={DEFAULT_BRAND_COLOR} maxLength={7} dir="ltr" />
+              {brandColor && (
+                <Button type="button" variant="secondary" onClick={() => setBrandColor('')}>
+                  {t('common.remove')}
+                </Button>
+              )}
+            </div>
+          </Field>
+
+          <Field label={t('business.settings.tagline')} hint={t('business.settings.taglineHint')}>
+            <TextInput value={tagline} onChange={(e) => setTagline(e.target.value)} maxLength={80} placeholder={t('business.settings.taglinePlaceholder')} />
+          </Field>
 
           <Field
             label={t('business.settings.rate')}

@@ -5,6 +5,7 @@ import { Alert, Button, Spinner } from '../../components/ui';
 import { friendlyError } from '../../lib/errors';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../auth/AuthProvider';
+import { useBusinessSettings } from '../../hooks/useBusinessSettings';
 import { brandOf } from '../../print/brand';
 import { Receipt, type ReceiptData, type ReceiptWidth } from '../../print/Receipt';
 import { hotspotAddress } from '../../lib/routers';
@@ -77,6 +78,7 @@ export function PrintReceiptPage() {
   const [width, setWidth] = useState<ReceiptWidth>(savedWidth);
   const printedOnce = useRef(false);
   const { business } = useAuth();
+  const settings = useBusinessSettings();
 
   const receipt = useQuery({
     // The language is in the key because the receipt holds a translated seller text.
@@ -135,7 +137,8 @@ export function PrintReceiptPage() {
             <Alert tone="error">{friendlyError(receipt.error)}</Alert>
           </div>
         )}
-        {data && <Receipt data={data} width={width} brand={brandOf(business)} onReady={onReady} />}
+        {/* Wait for the tagline so the automatic print never misses it. */}
+        {data && !settings.isLoading && <Receipt data={data} width={width} brand={brandOf(business, settings.data?.tagline ?? null)} onReady={onReady} />}
       </div>
     </div>
   );

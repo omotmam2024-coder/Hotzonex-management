@@ -85,6 +85,7 @@ export function Receipt({ data, width, brand, onReady }: { data: ReceiptData; wi
           ) : (
             <p style={{ ...line, fontSize: '13pt', fontWeight: 800, textTransform: 'uppercase' }}>{brand.name}</p>
           )}
+          {brand.tagline && <p style={{ ...line, fontSize: '8pt', fontStyle: 'italic' }}>{brand.tagline}</p>}
           <p style={{ ...line, fontSize: '9pt' }}>{data.siteName}</p>
           <div style={{ height: '2mm', background: data.planColor, margin: '2mm 0', printColorAdjust: 'exact', WebkitPrintColorAdjust: 'exact' }} />
           <p style={{ ...line, fontSize: '8pt' }}>{t('vouchers.receipt.wifiCode')}</p>

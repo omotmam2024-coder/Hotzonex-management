@@ -1371,6 +1371,8 @@ export type Database = {
           id: string
           is_active: boolean
           logo_url: string | null
+          brand_color: string | null
+          tagline: string | null
           name: string
           timezone: string
           usd_rate: number | null
@@ -1381,6 +1383,8 @@ export type Database = {
           id?: string
           is_active?: boolean
           logo_url?: string | null
+          brand_color?: string | null
+          tagline?: string | null
           name: string
           timezone?: string
           usd_rate?: number | null
@@ -1391,6 +1395,8 @@ export type Database = {
           id?: string
           is_active?: boolean
           logo_url?: string | null
+          brand_color?: string | null
+          tagline?: string | null
           name?: string
           timezone?: string
           usd_rate?: number | null
@@ -1903,6 +1909,10 @@ export type Database = {
           p_notify_push: boolean
         }
         Returns: Json
+      }
+      save_business_brand: {
+        Args: { p_color: string; p_tagline: string }
+        Returns: undefined
       }
       save_business_settings: {
         Args: { p_logo_url: string; p_name: string; p_usd_rate: number }
