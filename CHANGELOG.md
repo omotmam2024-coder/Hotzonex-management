@@ -13,6 +13,9 @@
 - **To deploy:** the `buy` Edge Function now also returns the colour and tagline:
   `supabase functions deploy buy --no-verify-jwt`. Until then the Buy page uses the default blue
   and no tagline; nothing breaks.
+- **New landing copy** (English, Arabic, Kiswahili): hero "Sell more WiFi. Track every SSP. From your
+  phone.", a "Made in Juba" badge, alerts now named as WhatsApp or Telegram, the logo's "Design | Print |
+  Brand | Connect" line in the footer, and matching search and share text (title, description, Open Graph).
 - Security re-check recorded in AUDIT.md §10; CI token is read-only.
 
 ## 24 October 2026 — big routers no longer flip to "Not answering"

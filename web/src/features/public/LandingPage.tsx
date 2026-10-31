@@ -291,7 +291,13 @@ export function LandingPage() {
 
       <footer className="border-t border-slate-200 bg-slate-50">
         <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-2 px-4 py-6 text-sm text-slate-600 sm:flex-row">
-          <span>{t('public.landing.copyright', { year: new Date().getFullYear() })}</span>
+          <span>
+            {t('public.landing.copyright', { year: new Date().getFullYear() })}
+            {/* The brand's own line from the logo; kept in English in every language, like the name. */}
+            <span className="ms-4 inline-block font-semibold text-brand-700" dir="ltr">
+              Design <span className="text-accent-700">|</span> Print <span className="text-accent-700">|</span> Brand <span className="text-accent-700">|</span> Connect
+            </span>
+          </span>
           <span className="flex gap-4">
             <Link to="/terms" className="inline-flex min-h-11 items-center hover:underline">
               {t('public.termsLink')}

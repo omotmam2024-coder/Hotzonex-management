@@ -121,10 +121,10 @@ const en = {
 
   // Landing page
   'public.landing.navAccount': 'Account',
-  'public.landing.badge': 'For WiFi hotspot businesses in South Sudan and East Africa',
-  'public.landing.hero': 'Run your WiFi hotspot business from your phone',
+  'public.landing.badge': 'Made in Juba for WiFi hotspot businesses in South Sudan and East Africa',
+  'public.landing.hero': 'Sell more WiFi. Track every SSP. From your phone.',
   'public.landing.heroText':
-    'Make and sell MikroTik voucher cards, follow every SSP your cashiers and agents take, and see who is online — on any phone, even on slow internet.',
+    'Make and sell MikroTik voucher cards, see what every cashier and agent has taken, and know who is online and which router is down — on any phone, even on slow internet.',
   'public.landing.trialCta': 'Start {days}-day free trial',
   'public.landing.demoWhatsapp': 'Request a demo on WhatsApp',
   'public.landing.noPayment': 'No payment needed to start.',
@@ -142,7 +142,7 @@ const en = {
   'public.landing.f5.title': 'Reports you can trust',
   'public.landing.f5.text': 'Sales by day, week and month, by site, plan and seller. Download as a spreadsheet (CSV).',
   'public.landing.f6.title': 'See everything live',
-  'public.landing.f6.text': 'Who is online, which router is down, cards running low. Alerts on your phone through Telegram.',
+  'public.landing.f6.text': 'Who is online, which router is down, cards running low. Alerts on your phone through WhatsApp or Telegram.',
   'public.landing.f7.title': 'Made for slow internet',
   'public.landing.f7.text': 'Light pages that work on cheap Android phones and weak connections. A lost connection never sells a card twice.',
   'public.landing.f8.title': 'Safe and private',
@@ -362,10 +362,10 @@ const ar = {
   'public.buy.sendingMomo': 'جارٍ الطلب من MoMo…',
 
   'public.landing.navAccount': 'الحساب',
-  'public.landing.badge': 'لأنشطة هوتسبوت الواي فاي في جنوب السودان وشرق أفريقيا',
-  'public.landing.hero': 'أدِر نشاط هوتسبوت الواي فاي من هاتفك',
+  'public.landing.badge': 'صُنع في جوبا لأنشطة هوتسبوت الواي فاي في جنوب السودان وشرق أفريقيا',
+  'public.landing.hero': 'بِع المزيد من الواي فاي. وتابع كل جنيه. من هاتفك.',
   'public.landing.heroText':
-    'أنشئ وبِع بطاقات قسائم MikroTik، وتابع كل جنيه (SSP) يستلمه الكاشير والوكلاء، واعرف من المتصل الآن — على أي هاتف، حتى مع إنترنت بطيء.',
+    'أنشئ وبِع بطاقات قسائم MikroTik، واعرف كم استلم كل كاشير ووكيل، ومن المتصل الآن وأي راوتر متوقف — على أي هاتف، حتى مع إنترنت بطيء.',
   'public.landing.trialCta': 'ابدأ تجربة مجانية لمدة {days} يوماً',
   'public.landing.demoWhatsapp': 'اطلب عرضاً عبر WhatsApp',
   'public.landing.noPayment': 'لا حاجة للدفع للبدء.',
@@ -383,7 +383,7 @@ const ar = {
   'public.landing.f5.title': 'تقارير موثوقة',
   'public.landing.f5.text': 'المبيعات حسب اليوم والأسبوع والشهر، وحسب الموقع والباقة والبائع. نزّلها كجدول بيانات (CSV).',
   'public.landing.f6.title': 'شاهد كل شيء مباشرة',
-  'public.landing.f6.text': 'من المتصل، وأي راوتر متوقف، والبطاقات التي توشك على النفاد. تنبيهات على هاتفك عبر Telegram.',
+  'public.landing.f6.text': 'من المتصل، وأي راوتر متوقف، والبطاقات التي توشك على النفاد. تنبيهات على هاتفك عبر WhatsApp أو Telegram.',
   'public.landing.f7.title': 'مصمم للإنترنت البطيء',
   'public.landing.f7.text': 'صفحات خفيفة تعمل على هواتف أندرويد الرخيصة والاتصالات الضعيفة. انقطاع الاتصال لا يبيع البطاقة مرتين أبداً.',
   'public.landing.f8.title': 'آمن وخاص',
@@ -599,10 +599,10 @@ const sw = {
   'public.buy.sendingMomo': 'Inaomba MoMo…',
 
   'public.landing.navAccount': 'Akaunti',
-  'public.landing.badge': 'Kwa biashara za hotspot za WiFi Sudan Kusini na Afrika Mashariki',
-  'public.landing.hero': 'Endesha biashara yako ya hotspot ya WiFi kwa simu yako',
+  'public.landing.badge': 'Imetengenezwa Juba kwa biashara za hotspot za WiFi Sudan Kusini na Afrika Mashariki',
+  'public.landing.hero': 'Uza WiFi zaidi. Fuatilia kila SSP. Kwa simu yako.',
   'public.landing.heroText':
-    'Tengeneza na uuze vocha za MikroTik, fuatilia kila SSP wanayopokea makeshia na mawakala wako, na uone nani yuko mtandaoni — kwenye simu yoyote, hata kwa intaneti ya polepole.',
+    'Tengeneza na uuze vocha za MikroTik, ona kila makeshia na wakala amepokea kiasi gani, na ujue nani yuko mtandaoni na router ipi imezimika — kwenye simu yoyote, hata kwa intaneti ya polepole.',
   'public.landing.trialCta': 'Anza majaribio bure ya siku {days}',
   'public.landing.demoWhatsapp': 'Omba maonyesho kwa WhatsApp',
   'public.landing.noPayment': 'Hakuna malipo yanayohitajika kuanza.',
@@ -620,7 +620,7 @@ const sw = {
   'public.landing.f5.title': 'Ripoti za kuaminika',
   'public.landing.f5.text': 'Mauzo kwa siku, wiki na mwezi, kwa tawi, kifurushi na muuzaji. Pakua kama jedwali (CSV).',
   'public.landing.f6.title': 'Ona kila kitu moja kwa moja',
-  'public.landing.f6.text': 'Nani yuko mtandaoni, router ipi imezimika, vocha zinazokaribia kuisha. Taarifa kwenye simu yako kupitia Telegram.',
+  'public.landing.f6.text': 'Nani yuko mtandaoni, router ipi imezimika, vocha zinazokaribia kuisha. Taarifa kwenye simu yako kupitia WhatsApp au Telegram.',
   'public.landing.f7.title': 'Imetengenezwa kwa intaneti ya polepole',
   'public.landing.f7.text': 'Kurasa nyepesi zinazofanya kazi kwenye simu za Android za bei nafuu na mtandao dhaifu. Mtandao ukikatika, vocha haiuzwi mara mbili.',
   'public.landing.f8.title': 'Salama na ya faragha',
