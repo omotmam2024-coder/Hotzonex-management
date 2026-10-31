@@ -1,5 +1,20 @@
 # Changelog
 
+## 31 October 2026 — daily owner report
+
+- **Daily report** (owner: Alerts page → "Send me a daily report", off by default): every evening at
+  18:00 in the business's own time zone, a message through the already connected Telegram and WhatsApp:
+  revenue and cards sold today, yesterday's figures, the best plan, voided sales and offline routers.
+  Written in the language chosen for alerts (English, Arabic, Kiswahili).
+- One report per day (a second run does nothing); nothing is sent unless a channel is connected.
+  The report also appears in the Alerts list with a "Report" badge.
+- Database: migration `20261031230000_daily_report.sql` (applied): `alert_settings.notify_daily_report`,
+  `save_daily_report()`, `send_daily_reports()` and the hourly job `hzc-daily-report`. The alerts Edge
+  Function already sends unknown kinds, so it needs no redeploy. Tested on the live data in a
+  rolled-back transaction (all three languages, no channel, wrong hour, same day twice).
+- Not built: automatic restocking (see the note in the summary: it creates cards on routers and counts
+  against the monthly voucher limit, so it needs your decision first). The low-stock alert still warns.
+
 ## 31 October 2026 — insights
 
 - **Insights page** (owners and managers; menu → Overview → Insights): revenue and cards sold by hour of

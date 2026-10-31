@@ -18,6 +18,7 @@ interface AlertSettings {
   notify_low_stock: boolean;
   low_stock_threshold: number;
   notify_payments: boolean;
+  notify_daily_report: boolean;
   whatsapp_numbers: string[];
   lang: 'en' | 'ar' | 'sw';
 }
@@ -52,9 +53,10 @@ const KIND_COLOR: Record<string, 'red' | 'green' | 'gray' | 'blue'> = {
   low_stock: 'gray',
   payment_request: 'blue',
   billing: 'blue',
+  report: 'blue',
 };
 
-const KINDS = ['router_offline', 'router_online', 'push_failed', 'push_warning', 'low_stock', 'payment_request', 'billing', 'test'];
+const KINDS = ['router_offline', 'router_online', 'push_failed', 'push_warning', 'low_stock', 'payment_request', 'billing', 'test', 'report'];
 /** The badge text of an alert kind in the chosen language; unknown kinds show as they are. */
 const kindLabel = (kind: string) => (KINDS.includes(kind) ? translate(`reports.alerts.kind.${kind}` as TKey) : kind);
 
@@ -242,6 +244,19 @@ function SettingsCard({ settings }: { settings: AlertSettings }) {
     onSuccess: (data) => queryClient.setQueryData(['alert-settings'], data),
   });
   const set = <K extends keyof AlertSettings>(k: K, v: AlertSettings[K]) => setForm((f) => ({ ...f, [k]: v }));
+  // The daily report switch saves at once (it is not part of the Save button below).
+  const daily = useMutation({
+    mutationFn: async (enabled: boolean) => {
+      const { error } = await supabase.rpc('save_daily_report', { p_enabled: enabled });
+      if (error) throw new Error(friendlyError(error));
+      return enabled;
+    },
+    onSuccess: (enabled) => {
+      setForm((f) => ({ ...f, notify_daily_report: enabled }));
+      queryClient.setQueryData<AlertSettings>(['alert-settings'], (old) => (old ? { ...old, notify_daily_report: enabled } : old));
+    },
+  });
+  const hasChannel = settings.telegram_connected || settings.whatsapp_numbers.length > 0;
   return (
     <Card className="space-y-2">
       <h2 className="text-lg font-bold">{t('reports.alerts.whatToSend')}</h2>
@@ -260,6 +275,11 @@ function SettingsCard({ settings }: { settings: AlertSettings }) {
           </Field>
         </div>
       )}
+      <div className="mt-2 border-t border-slate-200 pt-3">
+        <Checkbox label={t('reports.alerts.cbDaily')} checked={form.notify_daily_report} onChange={(v) => daily.mutate(v)} />
+        <p className="ms-8 text-sm text-slate-600">{hasChannel ? t('reports.alerts.dailyHint') : t('reports.alerts.dailyNeedsChannel')}</p>
+        {daily.error && <Alert tone="error">{friendlyError(daily.error)}</Alert>}
+      </div>
       <div className="pt-2">
         <Button onClick={() => save.mutate()} disabled={save.isPending}>
           {save.isPending && <Spinner />} {t('common.save')}

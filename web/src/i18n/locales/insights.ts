@@ -24,6 +24,10 @@ const en = {
   'insights.forecastText': 'Expected revenue: about {total}.',
   'insights.forecastNote': 'A guide only: the average of the same weekday over the period. Holidays, outages and promotions are not counted.',
   'insights.forecastNeeds': 'Choose 14 days or more to see a forecast.',
+  'reports.alerts.cbDaily': 'Send me a daily report',
+  'reports.alerts.dailyHint': 'Every evening at 18:00: revenue, cards sold, the best plan, voids and offline routers. Sent to Telegram and WhatsApp in the language chosen below.',
+  'reports.alerts.dailyNeedsChannel': 'Connect Telegram or add a WhatsApp number first: the report is sent there.',
+  'reports.alerts.kind.report': 'Report',
 }
 
 type Keys = Record<keyof typeof en, string>;
@@ -52,6 +56,10 @@ const ar = {
   'insights.forecastText': 'الإيرادات المتوقعة: حوالي {total}.',
   'insights.forecastNote': 'للاسترشاد فقط: متوسط اليوم نفسه من الأسبوع خلال الفترة. لا تُحتسب العطلات والأعطال والعروض.',
   'insights.forecastNeeds': 'اختر 14 يوماً أو أكثر لرؤية التوقعات.',
+  'reports.alerts.cbDaily': 'أرسل لي تقريراً يومياً',
+  'reports.alerts.dailyHint': 'كل مساء الساعة 18:00: الإيرادات والبطاقات المباعة وأفضل باقة والمبيعات الملغاة والراوترات المتوقفة. يُرسل إلى Telegram وWhatsApp باللغة المختارة أدناه.',
+  'reports.alerts.dailyNeedsChannel': 'اربط Telegram أو أضف رقم WhatsApp أولاً: يُرسل التقرير إليهما.',
+  'reports.alerts.kind.report': 'تقرير',
 } satisfies Keys;
 
 const sw = {
@@ -78,6 +86,10 @@ const sw = {
   'insights.forecastText': 'Mapato yanayotarajiwa: takriban {total}.',
   'insights.forecastNote': 'Mwongozo tu: wastani wa siku hiyo hiyo ya wiki katika kipindi. Sikukuu, hitilafu na promo hazihesabiwi.',
   'insights.forecastNeeds': 'Chagua siku 14 au zaidi kuona makadirio.',
+  'reports.alerts.cbDaily': 'Nitumie ripoti ya kila siku',
+  'reports.alerts.dailyHint': 'Kila jioni saa 18:00: mapato, vocha zilizouzwa, kifurushi bora, mauzo yaliyofutwa na router zilizozimika. Hutumwa kwa Telegram na WhatsApp kwa lugha uliyochagua hapa chini.',
+  'reports.alerts.dailyNeedsChannel': 'Unganisha Telegram au ongeza nambari ya WhatsApp kwanza: ripoti hutumwa huko.',
+  'reports.alerts.kind.report': 'Ripoti',
 } satisfies Keys;
 
 export const insights = { en, ar, sw };
