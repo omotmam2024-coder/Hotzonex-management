@@ -71,10 +71,8 @@ export function WhatsAppSender() {
           </p>
           <Button
             variant="danger"
-            onClick={() => window.confirm(t('business.wa.confirmUnlink')) && logout.mutate()}
-            disabled={logout.isPending}
-          >
-            {logout.isPending && <Spinner />} {t('business.wa.unlink')}
+            onClick={() => window.confirm(t('business.wa.confirmUnlink')) && logout.mutate()} loading={logout.isPending}>
+            {t('business.wa.unlink')}
           </Button>
         </div>
       )}
@@ -103,8 +101,8 @@ export function WhatsAppSender() {
       {(!s?.installed || s.reachable === false || command) && (
         <div className="space-y-2">
           {!command ? (
-            <Button onClick={() => setup.mutate()} disabled={setup.isPending}>
-              {setup.isPending && <Spinner />} {s?.installed ? t('business.wa.showCommand') : t('business.wa.setUp')}
+            <Button onClick={() => setup.mutate()} loading={setup.isPending}>
+              {s?.installed ? t('business.wa.showCommand') : t('business.wa.setUp')}
             </Button>
           ) : (
             <>

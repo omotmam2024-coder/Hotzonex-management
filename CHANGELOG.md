@@ -1,5 +1,19 @@
 # Changelog
 
+## 1 November 2026 — better, consistent buttons
+
+- **One button component for the whole app.** `Button` now has a built-in **loading** state (spinner, disabled
+  while working so a double tap cannot send twice, announced as busy to screen readers), standard sizes
+  (`sm`/`md`/`lg`, all at least 44 px tall), full width (`block`), and new looks: **accent** (the logo orange),
+  **outline** and **success** (green) next to primary, secondary, danger and ghost. Pressed states were added.
+- **Selected-option buttons** (router and plan tabs, quantity, receipt width, print source) share one `chipClass`
+  style and now say `aria-pressed` for screen readers.
+- About 60 buttons moved onto the shared component: 35 hand-written spinners became `loading`, 18
+  hand-rolled full-width buttons (login, sign-up, reset password, Buy page, card check, error screen, resend
+  email) and the one-off green colour override on Payments became standard variants. Labels, disabled rules
+  and actions are unchanged.
+- No behaviour or database change.
+
 ## 1 November 2026 — automatic restock (opt-in)
 
 - **Auto restock** (owner: menu → Cards & WiFi → Auto restock): per router and plan, "keep at least N cards;

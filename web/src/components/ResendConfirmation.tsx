@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { friendlyError } from '../lib/errors';
 import { supabase } from '../lib/supabase';
 import { useT } from '../i18n';
-import { Alert } from './ui';
+import { Alert, Button } from './ui';
 
 /** "Send the email again" for a new owner whose confirmation email is lost or late. */
 export function ResendConfirmation({ email }: { email: string }) {
@@ -37,14 +37,9 @@ export function ResendConfirmation({ email }: { email: string }) {
 
   return (
     <div className="space-y-2">
-      <button
-        type="button"
-        onClick={send}
-        disabled={busy || wait > 0}
-        className="min-h-12 w-full rounded-xl px-4 font-semibold text-brand-700 ring-1 ring-brand-200 hover:bg-brand-50 disabled:opacity-50"
-      >
+      <Button variant="outline" size="lg" block onClick={send} disabled={wait > 0} loading={busy}>
         {wait > 0 ? t('public.confirm.resendWait', { n: wait }) : t('public.confirm.resend')}
-      </button>
+      </Button>
       {sent && <Alert tone="success">{t('public.confirm.resent', { email })}</Alert>}
       {error && <Alert tone="error">{error}</Alert>}
     </div>

@@ -98,8 +98,8 @@ function PromoForm({ onDone }: { onDone: () => void }) {
         </Field>
       </div>
       {create.error && <Alert tone="error">{create.error.message}</Alert>}
-      <Button type="submit" disabled={create.isPending}>
-        {create.isPending && <Spinner />} {t('promos.create')}
+      <Button type="submit" loading={create.isPending}>
+        {t('promos.create')}
       </Button>
     </form>
   );
@@ -169,8 +169,8 @@ function ReferralSettings() {
         {save.error && <Alert tone="error">{save.error.message}</Alert>}
         {save.isSuccess && <Alert tone="success">{t('promos.referral.saved')}</Alert>}
         <div className="flex flex-wrap items-center gap-3">
-          <Button type="submit" disabled={save.isPending}>
-            {save.isPending && <Spinner />} {t('promos.referral.save')}
+          <Button type="submit" loading={save.isPending}>
+            {t('promos.referral.save')}
           </Button>
           <Badge color={on ? 'green' : 'gray'}>{on ? t('promos.referral.on') : t('promos.referral.off')}</Badge>
         </div>

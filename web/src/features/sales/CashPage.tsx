@@ -56,8 +56,8 @@ function ReceiveCash({ row, onDone }: { row: CashRow; onDone: () => void }) {
       <Field label={t('common.noteOptional')}>
         <TextInput value={note} onChange={(e) => setNote(e.target.value.slice(0, 200))} placeholder={t('sales.cash.notePlaceholder')} />
       </Field>
-      <Button onClick={save} disabled={receive.isPending}>
-        {receive.isPending && <Spinner />} {t('common.save')}
+      <Button onClick={save} loading={receive.isPending}>
+        {t('common.save')}
       </Button>
       {receive.error && (
         <div className="sm:col-span-3">
@@ -105,8 +105,8 @@ function Terms({ row, onDone }: { row: CashRow; onDone: () => void }) {
       <Field label={t('sales.cash.creditLimit')} hint={t('sales.cash.creditLimitHint')}>
         <TextInput inputMode="numeric" value={limit} onChange={(e) => setLimit(e.target.value.replace(/\D/g, '').slice(0, 10))} />
       </Field>
-      <Button onClick={submit} disabled={save.isPending}>
-        {save.isPending && <Spinner />} {t('common.save')}
+      <Button onClick={submit} loading={save.isPending}>
+        {t('common.save')}
       </Button>
       {save.error && (
         <div className="sm:col-span-3">

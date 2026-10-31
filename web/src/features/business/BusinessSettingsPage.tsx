@@ -3,7 +3,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { z } from 'zod';
 import { useAuth } from '../../auth/AuthProvider';
 import { PageHeader } from '../../components/PageHeader';
-import { Alert, Button, Card, Field, Spinner, TextInput } from '../../components/ui';
+import { Alert, Button, Card, Field, TextInput } from '../../components/ui';
 import { useBusinessSettings } from '../../hooks/useBusinessSettings';
 import { useT } from '../../i18n';
 import { translate } from '../../i18n/translate';
@@ -133,8 +133,8 @@ export function BusinessSettingsForm({ onSaved, saveLabel }: { onSaved?: () => v
               </div>
               <div className="flex flex-wrap gap-2">
                 <input ref={fileInput} type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={onFile} />
-                <Button type="button" variant="secondary" onClick={() => fileInput.current?.click()} disabled={upload.isPending}>
-                  {upload.isPending && <Spinner />} {logoUrl ? t('business.settings.changePicture') : t('business.settings.uploadPicture')}
+                <Button type="button" variant="secondary" onClick={() => fileInput.current?.click()} loading={upload.isPending}>
+                  {logoUrl ? t('business.settings.changePicture') : t('business.settings.uploadPicture')}
                 </Button>
                 {logoUrl && (
                   <Button type="button" variant="secondary" onClick={() => setLogoUrl('')}>
@@ -178,8 +178,8 @@ export function BusinessSettingsForm({ onSaved, saveLabel }: { onSaved?: () => v
 
           {save.error && <Alert tone="error">{friendlyError(save.error)}</Alert>}
           {notice && <Alert tone="success">{notice}</Alert>}
-          <Button type="submit" disabled={save.isPending} className="min-h-12 px-8 text-lg">
-            {save.isPending && <Spinner />} {saveLabel ?? t('common.save')}
+          <Button type="submit" size="lg" className="px-8" loading={save.isPending}>
+            {saveLabel ?? t('common.save')}
           </Button>
       </form>
     </div>

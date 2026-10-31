@@ -5,7 +5,7 @@ import { supabase, supabaseConfigured } from '../../lib/supabase';
 import { friendlyError } from '../../lib/errors';
 import { homePathFor } from '../../lib/nav';
 import { FullScreenSpinner } from '../../components/FullScreen';
-import { Alert } from '../../components/ui';
+import { Alert, Button } from '../../components/ui';
 import { LanguageSwitch } from '../../components/LanguageSwitch';
 import { ResendConfirmation } from '../../components/ResendConfirmation';
 import { useT } from '../../i18n';
@@ -130,13 +130,9 @@ export function LoginPage() {
           )}
           {unconfirmed && !forgot && <ResendConfirmation email={unconfirmed} />}
 
-          <button
-            type="submit"
-            disabled={busy || !email || (!forgot && !password) || Boolean(forgot && sentTo)}
-            className="min-h-12 w-full rounded-xl bg-brand-600 px-4 text-lg font-semibold text-white hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-50"
-          >
+          <Button type="submit" size="lg" block disabled={!email || (!forgot && !password) || Boolean(forgot && sentTo)} loading={busy}>
             {forgot ? (busy ? t('public.login.sending') : t('public.login.sendReset')) : busy ? t('public.login.loggingIn') : t('public.login.logIn')}
-          </button>
+          </Button>
           <button type="button" onClick={() => switchMode(!forgot)} className="w-full text-center text-sm font-semibold text-brand-700 hover:underline">
             {forgot ? t('public.login.backToLogin') : t('public.login.forgot')}
           </button>
@@ -205,9 +201,9 @@ function TwoStepCode() {
             {error}
           </Alert>
         )}
-        <button type="submit" disabled={busy || code.length !== 6} className="min-h-12 w-full rounded-xl bg-brand-600 text-lg font-semibold text-white disabled:opacity-50">
+        <Button type="submit" size="lg" block disabled={code.length !== 6} loading={busy}>
           {busy ? t('public.mfa.checking') : t('public.mfa.continue')}
-        </button>
+        </Button>
         <button type="button" onClick={() => void signOut()} className="w-full text-center text-sm font-semibold text-slate-600 hover:underline">
           {t('public.mfa.otherAccount')}
         </button>

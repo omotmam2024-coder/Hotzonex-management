@@ -65,8 +65,8 @@ function SiteStep({ done }: { done: boolean }) {
               <TextInput value={name} onChange={(e) => setName(e.target.value)} maxLength={80} />
             </Field>
           </div>
-          <Button variant="secondary" onClick={() => save.mutate()} disabled={save.isPending || name.trim() === site.name}>
-            {save.isPending && <Spinner />} {t('business.welcome.saveName')}
+          <Button variant="secondary" onClick={() => save.mutate()} disabled={name.trim() === site.name} loading={save.isPending}>
+            {t('business.welcome.saveName')}
           </Button>
         </div>
       )}

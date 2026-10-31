@@ -97,8 +97,8 @@ export function SecurityPage() {
         )}
 
         {!verified && !enrolment && (
-          <Button onClick={() => start.mutate()} disabled={start.isPending || factors.isLoading}>
-            {start.isPending && <Spinner />} {t('business.security.turnOnButton')}
+          <Button onClick={() => start.mutate()} disabled={factors.isLoading} loading={start.isPending}>
+            {t('business.security.turnOnButton')}
           </Button>
         )}
 
@@ -130,8 +130,8 @@ export function SecurityPage() {
                 dir="ltr"
                 className="!w-40 min-h-12 text-center font-mono text-2xl tracking-[0.3em]"
               />
-              <Button onClick={() => confirm.mutate()} disabled={confirm.isPending || code.length !== 6}>
-                {confirm.isPending && <Spinner />} {t('business.security.turnOn')}
+              <Button onClick={() => confirm.mutate()} disabled={code.length !== 6} loading={confirm.isPending}>
+                {t('business.security.turnOn')}
               </Button>
             </div>
           </div>

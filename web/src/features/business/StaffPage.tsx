@@ -134,10 +134,9 @@ function StaffEditor({ initial, onClose, canDelete }: { initial: StaffForm; onCl
             <Button
               variant="danger"
               className="ms-auto"
-              disabled={save.isPending || remove.isPending}
-              onClick={() => window.confirm(t('business.staff.deleteConfirm', { name: initial.full_name })) && remove.mutate()}
-            >
-              {remove.isPending && <Spinner />} {t('business.staff.delete')}
+              disabled={save.isPending}
+              onClick={() => window.confirm(t('business.staff.deleteConfirm', { name: initial.full_name })) && remove.mutate()} loading={remove.isPending}>
+              {t('business.staff.delete')}
             </Button>
           )}
         </div>
@@ -161,8 +160,8 @@ function SendWelcome({ member, onDone }: { member: StaffMember; onDone: (notice:
     onError: (err) => onDone({ tone: 'warning', text: friendlyError(err) }),
   });
   return (
-    <Button variant="ghost" onClick={() => send.mutate()} disabled={send.isPending} className="text-sm">
-      {send.isPending && <Spinner />} {t('business.staff.sendWelcome')}
+    <Button variant="ghost" onClick={() => send.mutate()} className="text-sm" loading={send.isPending}>
+      {t('business.staff.sendWelcome')}
     </Button>
   );
 }

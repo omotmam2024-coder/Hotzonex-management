@@ -220,7 +220,7 @@ export function CheckVoucherPage() {
               className="font-mono text-lg"
             />
           </div>
-          <Button type="submit" disabled={!input.trim() || result.isFetching} className="min-h-12">
+          <Button type="submit" disabled={!input.trim() || result.isFetching} size="lg">
             {result.isFetching && <Spinner />} {t('vouchers.check.button')}
           </Button>
         </form>

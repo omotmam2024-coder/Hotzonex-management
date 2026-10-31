@@ -86,8 +86,8 @@ function VoidDialog({ sale, onClose }: { sale: SaleListRow; onClose: () => void 
           </div>
         )}
         <div className="mt-4 flex flex-wrap gap-2">
-          <Button variant="danger" disabled={reason.trim().length < 3 || voidSale.isPending} onClick={confirmVoid}>
-            {voidSale.isPending && <Spinner />} {t('sales.void.title')}
+          <Button variant="danger" disabled={reason.trim().length < 3} onClick={confirmVoid} loading={voidSale.isPending}>
+            {t('sales.void.title')}
           </Button>
           <Button variant="ghost" onClick={onClose}>
             {t('common.cancel')}

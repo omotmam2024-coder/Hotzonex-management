@@ -1,4 +1,5 @@
 import { translate } from '../i18n';
+import { Button } from './ui';
 export function FullScreenSpinner() {
   return (
     <div className="flex h-full items-center justify-center" role="status" aria-label={translate('common.loading')}>
@@ -20,13 +21,9 @@ export function FullScreenMessage({ title, message, onSignOut }: FullScreenMessa
         <h1 className="text-xl font-bold text-slate-900">{title}</h1>
         <p className="mt-3 text-slate-600">{message}</p>
         {onSignOut && (
-          <button
-            type="button"
-            onClick={onSignOut}
-            className="mt-6 min-h-12 w-full rounded-xl bg-brand-600 px-4 py-3 font-semibold text-white hover:bg-brand-700"
-          >
+          <Button size="lg" block onClick={onSignOut} className="mt-6">
             {translate('common.logout')}
-          </button>
+          </Button>
         )}
       </div>
     </div>

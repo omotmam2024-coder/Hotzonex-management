@@ -104,8 +104,8 @@ function RuleForm({ onDone, onCancel }: { onDone: () => void; onCancel: () => vo
       </div>
       {create.error && <Alert tone="error">{create.error.message}</Alert>}
       <div className="flex flex-wrap gap-2">
-        <Button type="submit" disabled={create.isPending}>
-          {create.isPending && <Spinner />} {t('restock.create')}
+        <Button type="submit" loading={create.isPending}>
+          {t('restock.create')}
         </Button>
         <Button type="button" variant="secondary" onClick={onCancel}>
           {t('common.cancel')}

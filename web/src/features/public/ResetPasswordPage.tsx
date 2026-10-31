@@ -4,7 +4,7 @@ import { useAuth } from '../../auth/AuthProvider';
 import { friendlyError } from '../../lib/errors';
 import { homePathFor } from '../../lib/nav';
 import { supabase } from '../../lib/supabase';
-import { Alert } from '../../components/ui';
+import { Alert, Button } from '../../components/ui';
 import { LanguageSwitch } from '../../components/LanguageSwitch';
 import { translate, useT } from '../../i18n';
 
@@ -124,26 +124,18 @@ export function ResetPasswordPage() {
                 {error}
               </Alert>
             )}
-            <button
-              type="submit"
-              disabled={busy || !password || !confirm}
-              className="min-h-12 w-full rounded-xl bg-brand-600 px-4 text-lg font-semibold text-white hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-50"
-            >
+            <Button type="submit" size="lg" block disabled={!password || !confirm} loading={busy}>
               {busy ? t('common.saving') : t('public.reset.save')}
-            </button>
+            </Button>
           </form>
         )}
 
         {stage === 'done' && (
           <div className="space-y-4 text-center">
             <Alert tone="success">{t('public.reset.done')}</Alert>
-            <button
-              type="button"
-              onClick={() => navigate(profile ? homePathFor(profile.role) : '/', { replace: true })}
-              className="min-h-12 w-full rounded-xl bg-brand-600 px-4 text-lg font-semibold text-white hover:bg-brand-700"
-            >
+            <Button size="lg" block onClick={() => navigate(profile ? homePathFor(profile.role) : '/', { replace: true })}>
               {t('public.reset.open')}
-            </button>
+            </Button>
           </div>
         )}
       </div>

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { PageHeader } from '../../components/PageHeader';
-import { Alert, Button, Card, Checkbox, Field, Select, TextInput } from '../../components/ui';
+import { Alert, Button, Card, chipClass, Checkbox, Field, Select, TextInput } from '../../components/ui';
 import { friendlyError } from '../../lib/errors';
 import { formatJubaTime, formatNumber, formatSSP } from '../../lib/format';
 import { useT } from '../../i18n';
@@ -110,8 +110,9 @@ export function PrintSetupPage() {
             <button
               key={s}
               type="button"
+              aria-pressed={source === s}
               onClick={() => setSource(s)}
-              className={`min-h-12 rounded-xl px-3 font-semibold ring-1 ${source === s ? 'bg-brand-600 text-white ring-brand-600' : 'bg-white text-slate-700 ring-slate-300'}`}
+              className={chipClass(source === s, 'min-h-12')}
             >
               {s === 'batch' ? t('vouchers.print.aBatch') : t('vouchers.print.unused')}
             </button>
@@ -198,7 +199,7 @@ export function PrintSetupPage() {
           </div>
         )}
 
-        <Button className="mt-5 min-h-12 px-6 text-lg" disabled={!target} onClick={() => target && navigate(target)}>
+        <Button size="lg" className="mt-5 px-6" disabled={!target} onClick={() => target && navigate(target)}>
           {t('vouchers.print.openPreview')}
         </Button>
       </Card>

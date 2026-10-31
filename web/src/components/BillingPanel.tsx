@@ -67,8 +67,8 @@ export function PayForm({ invoice }: { invoice: Invoice }) {
             className="font-mono text-lg"
           />
         </div>
-        <Button onClick={submit} disabled={send.isPending || ref.trim().length < 4} className="min-h-12">
-          {send.isPending && <Spinner />} {t('business.billing.iPaid')}
+        <Button onClick={submit} disabled={ref.trim().length < 4} size="lg" loading={send.isPending}>
+          {t('business.billing.iPaid')}
         </Button>
       </div>
       {send.error && <Alert tone="error">{friendlyError(send.error)}</Alert>}

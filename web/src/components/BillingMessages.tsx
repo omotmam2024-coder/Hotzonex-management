@@ -126,8 +126,8 @@ export function BillingMessages() {
         })}
       </div>
       <div className="flex flex-wrap items-center gap-2">
-        <Button onClick={() => save.mutate()} disabled={!changed || save.isPending}>
-          {save.isPending && <Spinner />} {t('business.bmsg.save')}
+        <Button onClick={() => save.mutate()} disabled={!changed} loading={save.isPending}>
+          {t('business.bmsg.save')}
         </Button>
         {save.isSuccess && !changed && <span className="text-sm text-green-700">{t('business.bmsg.saved')}</span>}
       </div>

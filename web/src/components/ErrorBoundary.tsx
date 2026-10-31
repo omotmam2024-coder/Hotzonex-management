@@ -1,6 +1,7 @@
 import { translate } from '../i18n/translate';
 import { Component, type ErrorInfo, type ReactNode } from 'react';
 import { reloadForUpdate } from '../lib/appUpdate';
+import { Button } from './ui';
 
 interface Props {
   children: ReactNode;
@@ -47,13 +48,9 @@ export class ErrorBoundary extends Component<Props, State> {
         <p className="mt-2 text-slate-600">
           {translate(update ? 'error.updateText' : 'error.text')}
         </p>
-        <button
-          type="button"
-          onClick={() => window.location.reload()}
-          className="mt-4 min-h-12 w-full rounded-xl bg-brand-600 px-4 text-lg font-semibold text-white hover:bg-brand-700"
-        >
+        <Button size="lg" block onClick={() => window.location.reload()} className="mt-4">
           {translate('common.reload')}
-        </button>
+        </Button>
       </div>
     );
   }

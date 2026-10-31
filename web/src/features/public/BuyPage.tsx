@@ -6,7 +6,7 @@ import { CardBalance } from './CardBalance';
 import { friendlyError } from '../../lib/errors';
 import { formatDuration, formatSSP } from '../../lib/format';
 import { formatDataLimit } from '../../lib/dataLimit';
-import { Alert } from '../../components/ui';
+import { Alert, Button } from '../../components/ui';
 import { callPublicFunction } from '../../lib/functions';
 import { buyMomoSchema, buyRequestSchema, validate } from '../../lib/validation';
 import { LanguageSwitch } from '../../components/LanguageSwitch';
@@ -194,14 +194,9 @@ export function BuyPage() {
           {site.error && (
             <div className="space-y-3">
               <p className="font-medium text-red-700">{friendlyError(site.error)}</p>
-              <button
-                type="button"
-                onClick={() => void site.refetch()}
-                disabled={site.isFetching}
-                className="min-h-12 w-full rounded-xl bg-brand-600 px-4 font-semibold text-white disabled:opacity-50"
-              >
+              <Button size="lg" block onClick={() => void site.refetch()} loading={site.isFetching}>
                 {site.isFetching ? t('public.buy.trying') : t('public.buy.tryAgain')}
-              </button>
+              </Button>
             </div>
           )}
 
@@ -249,9 +244,9 @@ export function BuyPage() {
                   <p className="text-slate-700">
                     {st.reason ? translateMessage(st.reason) : t('public.buy.askCashier')} {st.method === 'api' ? '' : t('public.buy.ifPaid')}
                   </p>
-                  <button type="button" onClick={startOver} className="min-h-12 w-full rounded-xl bg-brand-600 px-4 font-semibold text-white">
+                  <Button size="lg" block onClick={startOver}>
                     {t('public.buy.tryAgain')}
-                  </button>
+                  </Button>
                 </>
               )}
             </div>
@@ -346,11 +341,7 @@ export function BuyPage() {
                   {friendlyError(error)}
                 </Alert>
               )}
-              <button
-                type="submit"
-                disabled={busy || !planId || !phone.trim() || (!momo && !txn.trim())}
-                className="min-h-12 w-full rounded-xl bg-brand-600 px-4 text-lg font-semibold text-white disabled:opacity-50"
-              >
+              <Button type="submit" size="lg" block disabled={!planId || !phone.trim() || (!momo && !txn.trim())} loading={busy}>
                 {momo
                   ? payMomo.isPending
                     ? t('public.buy.sendingMomo')
@@ -358,7 +349,7 @@ export function BuyPage() {
                   : send.isPending
                     ? t('public.buy.sending')
                     : t('public.buy.submit')}
-              </button>
+              </Button>
               {!momo && <p className="text-center text-xs text-slate-500">{t('public.buy.note')}</p>}
               {s.momo_api && (
                 <button

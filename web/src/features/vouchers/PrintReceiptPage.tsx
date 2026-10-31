@@ -1,7 +1,7 @@
 import { useCallback, useRef, useState } from 'react';
 import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { Alert, Button, Spinner } from '../../components/ui';
+import { Alert, Button, chipClass, Spinner } from '../../components/ui';
 import { friendlyError } from '../../lib/errors';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../auth/AuthProvider';
@@ -118,14 +118,15 @@ export function PrintReceiptPage() {
               <button
                 key={w}
                 type="button"
+                aria-pressed={width === w}
                 onClick={() => chooseWidth(w)}
-                className={`min-h-11 rounded-xl px-4 font-semibold ring-1 ${width === w ? 'bg-brand-600 text-white ring-brand-600' : 'bg-white text-slate-700 ring-slate-300'}`}
+                className={chipClass(width === w)}
               >
                 {w} mm
               </button>
             ))}
           </div>
-          <Button onClick={() => window.print()} disabled={!data} className="min-h-12 px-6 text-lg">
+          <Button onClick={() => window.print()} disabled={!data} size="lg" className="px-6">
             {t('vouchers.receipt.print')}
           </Button>
         </div>

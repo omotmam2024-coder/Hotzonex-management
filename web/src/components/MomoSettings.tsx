@@ -136,12 +136,12 @@ export function MomoSettings() {
       </div>
 
       <div className="flex flex-wrap gap-2">
-        <Button onClick={() => save.mutate()} disabled={save.isPending} className="min-h-12">
-          {save.isPending && <Spinner />} {t('common.save')}
+        <Button onClick={() => save.mutate()} size="lg" loading={save.isPending}>
+          {t('common.save')}
         </Button>
         {configured && (
-          <Button variant="secondary" onClick={() => test.mutate()} disabled={test.isPending} className="min-h-12">
-            {test.isPending && <Spinner />} {t('sales.momo.test')}
+          <Button variant="secondary" onClick={() => test.mutate()} size="lg" loading={test.isPending}>
+            {t('sales.momo.test')}
           </Button>
         )}
         {configured && (

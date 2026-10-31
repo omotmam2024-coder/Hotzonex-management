@@ -101,8 +101,8 @@ function TelegramCard({ settings }: { settings: AlertSettings }) {
         <>
           <p className="text-slate-700">{rich(t('reports.alerts.tgGoesTo'), { chat: <b>{settings.telegram_chat_title ?? t('reports.alerts.tgYourChat')}</b> })}</p>
           <div className="flex flex-wrap gap-2">
-            <Button variant="secondary" onClick={() => test.mutate()} disabled={test.isPending}>
-              {test.isPending && <Spinner />} {t('reports.alerts.tgSendTest')}
+            <Button variant="secondary" onClick={() => test.mutate()} loading={test.isPending}>
+              {t('reports.alerts.tgSendTest')}
             </Button>
             <Button variant="secondary" onClick={() => connect.mutate()} disabled={connect.isPending}>
               {t('reports.alerts.tgUseAnother')}
@@ -116,8 +116,8 @@ function TelegramCard({ settings }: { settings: AlertSettings }) {
       ) : (
         <>
           <p className="text-slate-700">{rich(t('reports.alerts.tgIntro'), { start: <b>{t('reports.alerts.tgStartBtn')}</b>, cmd: <b>/start</b> })}</p>
-          <Button onClick={() => connect.mutate()} disabled={connect.isPending}>
-            {connect.isPending && <Spinner />} {t('reports.alerts.tgConnect')}
+          <Button onClick={() => connect.mutate()} loading={connect.isPending}>
+            {t('reports.alerts.tgConnect')}
           </Button>
           {link && (
             <Alert tone="info">
@@ -205,11 +205,11 @@ function WhatsAppCard({ settings }: { settings: AlertSettings }) {
         </Select>
       </Field>
       <div className="flex flex-wrap gap-2">
-        <Button onClick={() => save.mutate()} disabled={save.isPending || text.trim() === saved.trim()}>
-          {save.isPending && <Spinner />} {t('reports.alerts.saveNumbers')}
+        <Button onClick={() => save.mutate()} disabled={text.trim() === saved.trim()} loading={save.isPending}>
+          {t('reports.alerts.saveNumbers')}
         </Button>
-        <Button variant="secondary" onClick={() => test.mutate()} disabled={test.isPending || !hasNumbers || !s?.connected}>
-          {test.isPending && <Spinner />} {t('reports.alerts.sendTestMsg')}
+        <Button variant="secondary" onClick={() => test.mutate()} disabled={!hasNumbers || !s?.connected} loading={test.isPending}>
+          {t('reports.alerts.sendTestMsg')}
         </Button>
       </div>
       {save.isSuccess && <Alert tone="success">{t('reports.alerts.saved')}</Alert>}
@@ -281,8 +281,8 @@ function SettingsCard({ settings }: { settings: AlertSettings }) {
         {daily.error && <Alert tone="error">{friendlyError(daily.error)}</Alert>}
       </div>
       <div className="pt-2">
-        <Button onClick={() => save.mutate()} disabled={save.isPending}>
-          {save.isPending && <Spinner />} {t('common.save')}
+        <Button onClick={() => save.mutate()} loading={save.isPending}>
+          {t('common.save')}
         </Button>
       </div>
       {save.isSuccess && <Alert tone="success">{t('reports.alerts.saved')}</Alert>}

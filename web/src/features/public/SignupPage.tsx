@@ -4,7 +4,7 @@ import { useAuth } from '../../auth/AuthProvider';
 import { friendlyError } from '../../lib/errors';
 import { invokeFunction } from '../../lib/functions';
 import { signupSchema, validate } from '../../lib/validation';
-import { Alert } from '../../components/ui';
+import { Alert, Button, buttonClass } from '../../components/ui';
 import { LanguageSwitch } from '../../components/LanguageSwitch';
 import { ResendConfirmation } from '../../components/ResendConfirmation';
 import { useT } from '../../i18n';
@@ -61,12 +61,12 @@ export function SignupPage() {
           // Already logged in on this device: say so, rather than jumping to the dashboard.
           <div className="space-y-4 text-center">
             <p className="text-slate-700">{t('public.signup.loggedInAs', { email: session?.user.email ?? '' })}</p>
-            <Link to="/" className="flex min-h-12 w-full items-center justify-center rounded-xl bg-brand-600 px-4 text-lg font-semibold text-white hover:bg-brand-700">
+            <Link to="/" className={buttonClass('primary', '', 'lg', true)}>
               {t('public.signup.openApp')}
             </Link>
-            <button type="button" onClick={() => void signOut()} className="min-h-12 w-full rounded-xl px-4 font-semibold text-brand-700 ring-1 ring-brand-200 hover:bg-brand-50">
+            <Button variant="outline" size="lg" block onClick={() => void signOut()}>
               {t('public.signup.logOutToSignUp')}
-            </button>
+            </Button>
           </div>
         ) : sent ? (
           <div className="space-y-4 text-center">
@@ -93,13 +93,9 @@ export function SignupPage() {
               {error}
             </Alert>
           )}
-          <button
-            type="submit"
-            disabled={busy || !form.business_name || !form.full_name || !form.phone || !form.email || form.password.length < 8}
-            className="min-h-12 w-full rounded-xl bg-brand-600 px-4 text-lg font-semibold text-white hover:bg-brand-700 disabled:opacity-50"
-          >
+          <Button type="submit" size="lg" block disabled={!form.business_name || !form.full_name || !form.phone || !form.email || form.password.length < 8} loading={busy}>
             {busy ? t('public.signup.creating') : t('public.startTrial')}
-          </button>
+          </Button>
           <p className="text-center text-xs text-slate-500">
             {t('public.signup.agreeBefore')}{' '}
             <Link to="/terms" className="font-semibold text-brand-700 underline">

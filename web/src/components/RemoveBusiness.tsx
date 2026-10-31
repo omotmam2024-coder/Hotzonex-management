@@ -4,7 +4,7 @@ import { friendlyError } from '../lib/errors';
 import { invokeFunction } from '../lib/functions';
 import { supabase } from '../lib/supabase';
 import { useT } from '../i18n';
-import { Alert, Button, Field, Spinner, TextInput } from './ui';
+import { Alert, Button, Field, TextInput } from './ui';
 
 export interface RemovedBusiness {
   removed: string;
@@ -62,8 +62,8 @@ export function RemoveBusiness({
       </Field>
       {remove.error && <Alert tone="error">{friendlyError(remove.error)}</Alert>}
       <div className="flex flex-wrap gap-2">
-        <Button type="submit" variant="danger" disabled={remove.isPending || !matches}>
-          {remove.isPending && <Spinner />} {t('business.businesses.removeConfirm')}
+        <Button type="submit" variant="danger" disabled={!matches} loading={remove.isPending}>
+          {t('business.businesses.removeConfirm')}
         </Button>
         <Button type="button" variant="secondary" onClick={onClose}>
           {t('common.cancel')}

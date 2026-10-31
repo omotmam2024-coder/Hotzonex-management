@@ -308,8 +308,8 @@ export function MarkSoldPage() {
       {mode === 'batch' && batchId && candidates.data && list.length === 0 && <Alert tone="info">{t('sell.mark.noneLeft')}</Alert>}
 
       {mark.error && <Alert tone="error">{mark.error.message}</Alert>}
-      <Button className="min-h-12 px-6 text-lg" disabled={mark.isPending || chosen.length === 0 || !sellerId} onClick={recordSales}>
-        {mark.isPending && <Spinner />} {t(chosen.length === 1 ? 'sell.mark.recordOne' : 'sell.mark.recordMany', { n: formatNumber(chosen.length), amount: formatSSP(total) })}
+      <Button size="lg" className="px-6" disabled={chosen.length === 0 || !sellerId} onClick={recordSales} loading={mark.isPending}>
+        {t(chosen.length === 1 ? 'sell.mark.recordOne' : 'sell.mark.recordMany', { n: formatNumber(chosen.length), amount: formatSSP(total) })}
       </Button>
     </div>
   );

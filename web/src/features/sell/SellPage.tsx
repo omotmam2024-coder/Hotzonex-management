@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../../auth/AuthProvider';
-import { Alert, Button, Field, Select, Spinner, TextInput } from '../../components/ui';
+import { Alert, Button, chipClass, Field, Select, Spinner, TextInput } from '../../components/ui';
 import { friendlyError, isNetworkError } from '../../lib/errors';
 import { LOW_STOCK } from '../../lib/labels';
 import { rolesFor } from '../../lib/nav';
@@ -288,8 +288,9 @@ export function SellPage() {
             <button
               key={r.id}
               type="button"
+              aria-pressed={r.id === routerId}
               onClick={() => setRouterId(r.id)}
-              className={`min-h-11 rounded-xl px-4 font-semibold ring-1 ${r.id === routerId ? 'bg-brand-600 text-white ring-brand-600' : 'bg-white text-slate-700 ring-slate-300'}`}
+              className={chipClass(r.id === routerId)}
             >
               {r.name}
             </button>

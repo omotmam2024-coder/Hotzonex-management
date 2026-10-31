@@ -118,8 +118,8 @@ function ExpenseForm({
         </div>
       )}
       <div className="mt-3 flex gap-2">
-        <Button type="submit" disabled={save.isPending}>
-          {save.isPending && <Spinner />} {expense ? t('expenses.saveChanges') : t('expenses.add')}
+        <Button type="submit" loading={save.isPending}>
+          {expense ? t('expenses.saveChanges') : t('expenses.add')}
         </Button>
         <Button variant="secondary" onClick={onCancel}>
           {t('common.cancel')}

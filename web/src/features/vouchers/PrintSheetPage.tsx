@@ -147,7 +147,7 @@ export function PrintSheetPage() {
               </>
             )}
           </div>
-          <Button onClick={handlePrint} disabled={marking || all.length === 0} className="min-h-12 px-6 text-lg">
+          <Button onClick={handlePrint} disabled={marking || all.length === 0} size="lg" className="px-6">
             {marking && <Spinner />} {t('common.print')}
           </Button>
         </div>

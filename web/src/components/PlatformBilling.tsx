@@ -127,8 +127,8 @@ function ConfigCard({ config }: { config: PlatformBillingData['config'] }) {
       <Field label={t('business.pbilling.howto')} hint={t('business.pbilling.howtoHint')}>
         <TextArea value={f.howto} onChange={(e) => setF((x) => ({ ...x, howto: e.target.value.slice(0, 500) }))} rows={2} />
       </Field>
-      <Button onClick={() => save.mutate()} disabled={save.isPending}>
-        {save.isPending && <Spinner />} {t('common.save')}
+      <Button onClick={() => save.mutate()} loading={save.isPending}>
+        {t('common.save')}
       </Button>
       {save.isSuccess && <Alert tone="success">{t('business.pbilling.saved')}</Alert>}
       {save.error && <Alert tone="error">{friendlyError(save.error)}</Alert>}
@@ -234,8 +234,8 @@ function BusinessBilling({ b, stdPrice, usdRate }: { b: PlatformBusiness; stdPri
         <Field label={t('business.pbilling.trialUntil')}>
           <TextInput type="date" value={trialEnd} onChange={(e) => setTrialEnd(e.target.value)} />
         </Field>
-        <Button variant="secondary" onClick={() => save.mutate(undefined)} disabled={save.isPending}>
-          {save.isPending && <Spinner />} {t('common.save')}
+        <Button variant="secondary" onClick={() => save.mutate(undefined)} loading={save.isPending}>
+          {t('common.save')}
         </Button>
       </div>
       <BusinessPlanControl tenantId={b.tenant_id} onExtendTrial={extendTrial} />

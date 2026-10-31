@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../../auth/AuthProvider';
 import { PageHeader } from '../../components/PageHeader';
 import { Step } from '../../components/Step';
-import { Alert, Badge, Button, buttonClass, Card, Field, Select, Spinner, TextInput } from '../../components/ui';
+import { Alert, Badge, Button, buttonClass, Card, chipClass, Field, Select, Spinner, TextInput } from '../../components/ui';
 import { friendlyError } from '../../lib/errors';
 import { formatJubaTime, formatNumber, formatSSP } from '../../lib/format';
 import { useT } from '../../i18n';
@@ -294,7 +294,7 @@ export function GenerateVouchersPage() {
                   type="button"
                   aria-pressed={quantity === n}
                   onClick={() => setQuantity(n)}
-                  className={`min-h-11 min-w-16 rounded-xl px-4 font-bold ring-2 ${quantity === n ? 'bg-brand-600 text-white ring-brand-600' : 'bg-white text-slate-800 ring-slate-200'}`}
+                  className={chipClass(quantity === n, 'min-w-16 font-bold')}
                 >
                   {n}
                 </button>
@@ -346,8 +346,8 @@ export function GenerateVouchersPage() {
           {generate.error && <Alert tone="error">{generate.error.message}</Alert>}
           {notice && <Alert tone="success">{notice}</Alert>}
 
-          <Button type="submit" disabled={generate.isPending || !routerId || !planId} className="min-h-12 w-full px-8 text-lg sm:w-auto">
-            {generate.isPending && <Spinner />} {t('vouchers.gen.generate')}
+          <Button type="submit" disabled={!routerId || !planId} size="lg" className="w-full px-8 sm:w-auto" loading={generate.isPending}>
+            {t('vouchers.gen.generate')}
           </Button>
         </form>
       </Card>

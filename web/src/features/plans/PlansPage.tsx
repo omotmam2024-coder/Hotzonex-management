@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { ForceRemove } from '../../components/ForceRemove';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { PageHeader } from '../../components/PageHeader';
-import { Alert, Badge, Button, Card, Checkbox, Field, Select, Spinner, TextInput } from '../../components/ui';
+import { Alert, Badge, Button, Card, chipClass, Checkbox, Field, Select, Spinner, TextInput } from '../../components/ui';
 import { friendlyError } from '../../lib/errors';
 import { formatDuration, formatSSP } from '../../lib/format';
 import { cleanDataAmount, formatDataLimit, splitDataLimit, toMegabytes, type DataUnit } from '../../lib/dataLimit';
@@ -346,8 +346,8 @@ function PlanEditor({
 
           {save.error && <Alert tone="error">{friendlyPlanError(save.error)}</Alert>}
           <div className="flex flex-wrap gap-2">
-            <Button type="submit" disabled={save.isPending}>
-              {save.isPending && <Spinner />} {t('plans.savePlan')}
+            <Button type="submit" loading={save.isPending}>
+              {t('plans.savePlan')}
             </Button>
             <Button variant="ghost" onClick={() => onClose(false)}>
               {t('common.cancel')}
@@ -504,7 +504,7 @@ export function PlansPage() {
               role="tab"
               aria-selected={x.id === activeTab}
               onClick={() => chooseTab(x.id)}
-              className={`inline-flex min-h-11 shrink-0 items-center gap-2 rounded-xl px-4 font-semibold ring-1 ${x.id === activeTab ? 'bg-brand-600 text-white ring-brand-600' : 'bg-white text-slate-700 ring-slate-300 hover:bg-slate-50'}`}
+              className={chipClass(x.id === activeTab, 'shrink-0')}
             >
               {x.name}
               <span className={`rounded-full px-2 text-xs ${x.id === activeTab ? 'bg-white/20' : 'bg-slate-100 text-slate-600'}`}>{x.n}</span>

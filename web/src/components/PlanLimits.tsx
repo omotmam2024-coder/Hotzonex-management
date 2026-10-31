@@ -150,8 +150,8 @@ function PlanEditor({ plan, stdPrice, usdRate, onDone }: { plan: SubscriptionPla
       <Checkbox label={t('business.limits.public')} checked={form.is_public} onChange={(v) => setForm((f) => ({ ...f, is_public: v }))} />
       {save.error && <Alert tone="error">{friendlyError(save.error)}</Alert>}
       <div className="flex gap-2">
-        <Button onClick={() => save.mutate()} disabled={save.isPending}>
-          {save.isPending && <Spinner />} {t('business.limits.savePlan')}
+        <Button onClick={() => save.mutate()} loading={save.isPending}>
+          {t('business.limits.savePlan')}
         </Button>
         <Button variant="ghost" onClick={onDone}>
           {t('common.cancel')}

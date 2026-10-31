@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { useMutation } from '@tanstack/react-query';
+import { Button } from '../../components/ui';
 import { useT } from '../../i18n';
 import { formatDataLimit } from '../../lib/dataLimit';
 import { friendlyError } from '../../lib/errors';
@@ -39,9 +40,9 @@ function ReferralPanel({ slug, code }: { slug: string; code: string }) {
   return (
     <div className="mt-3 border-t border-slate-200 pt-3">
       {!r && (
-        <button type="button" onClick={() => get.mutate()} disabled={get.isPending} className="min-h-12 w-full rounded-xl bg-accent-700 px-4 font-semibold text-white hover:bg-accent-800 disabled:opacity-50">
+        <Button variant="accent" size="lg" block onClick={() => get.mutate()} loading={get.isPending}>
           {get.isPending ? t('public.balance.checking') : t('public.referral.button')}
-        </button>
+        </Button>
       )}
       {get.error && <p className="mt-2 rounded-xl bg-red-50 p-3 font-medium text-red-800">{friendlyError(get.error)}</p>}
       {r && (!r.found || !r.enabled || !r.active) && <p className="rounded-xl bg-amber-50 p-3 text-amber-900">{t('public.referral.unavailable')}</p>}
@@ -50,9 +51,9 @@ function ReferralPanel({ slug, code }: { slug: string; code: string }) {
           <p className="text-sm text-slate-700">{t('public.referral.explain', { friend: r.friend_percent, reward: r.reward_percent })}</p>
           <p className="rounded-xl bg-accent-50 p-3 text-center font-mono text-2xl font-extrabold tracking-wider text-accent-800" dir="ltr">{r.code}</p>
           <p className="text-xs text-slate-500">{t('public.referral.usesLeft', { n: r.uses_left })}</p>
-          <button type="button" onClick={() => share(r.code, r.friend_percent)} className="min-h-12 w-full rounded-xl bg-brand-600 px-4 font-semibold text-white">
+          <Button size="lg" block onClick={() => share(r.code, r.friend_percent)}>
             {t('common.share')}
-          </button>
+          </Button>
           {r.rewards.length > 0 && (
             <div className="rounded-xl bg-green-50 p-3 text-green-900">
               <p className="font-semibold">{t('public.referral.rewards')}</p>
@@ -103,9 +104,9 @@ export function CardBalance({ slug }: { slug: string }) {
           placeholder={t('public.balance.placeholder')}
           aria-label={t('public.balance.code')}
         />
-        <button type="submit" disabled={check.isPending || !code.trim()} className="min-h-12 w-full rounded-xl bg-brand-600 px-4 text-lg font-semibold text-white disabled:opacity-50">
+        <Button type="submit" size="lg" block disabled={!code.trim()} loading={check.isPending}>
           {check.isPending ? t('public.balance.checking') : t('public.balance.check')}
-        </button>
+        </Button>
       </form>
 
       {check.error && <p className="mt-3 rounded-xl bg-red-50 p-3 font-medium text-red-800">{friendlyError(check.error)}</p>}

@@ -170,8 +170,8 @@ function BuySettings({ site }: { site: SiteRow }) {
       )}
 
       <div className="flex flex-wrap items-center gap-2">
-        <Button onClick={() => save.mutate()} disabled={save.isPending || missingNumber} className="min-h-12">
-          {save.isPending && <Spinner />} {t('common.save')}
+        <Button onClick={() => save.mutate()} disabled={missingNumber} size="lg" loading={save.isPending}>
+          {t('common.save')}
         </Button>
         {missingNumber && <span className="text-sm text-amber-800">{t('sales.mm.needNumber')}</span>}
       </div>
@@ -282,10 +282,10 @@ function WaitingPayment({ p, siteName, planName, onConfirmed }: { p: PaymentRow;
         <>
           <p className="mt-3 text-sm text-slate-700">{t('sales.mm.check')}</p>
           <div className="mt-3 grid gap-2 sm:grid-cols-2">
-            <Button onClick={() => setStep('confirm')} disabled={busy} className="min-h-12 !bg-green-600 hover:!bg-green-700">
+            <Button variant="success" size="lg" onClick={() => setStep('confirm')} disabled={busy}>
               ✓ {t('sales.mm.arrived')}
             </Button>
-            <Button variant="danger" onClick={() => setStep('reject')} disabled={busy} className="min-h-12">
+            <Button variant="danger" size="lg" onClick={() => setStep('reject')} disabled={busy}>
               ✗ {t('sales.mm.notArrived')}
             </Button>
           </div>
@@ -303,9 +303,10 @@ function WaitingPayment({ p, siteName, planName, onConfirmed }: { p: PaymentRow;
                 confirm.mutate();
               }}
               disabled={busy}
-              className="min-h-12 !bg-green-600 hover:!bg-green-700"
-            >
-              {confirm.isPending && <Spinner />} {t('sales.mm.giveCard')}
+              variant="success"
+              size="lg"
+              loading={confirm.isPending}>
+              {t('sales.mm.giveCard')}
             </Button>
             <Button variant="secondary" onClick={() => setStep('look')} disabled={busy}>
               {t('sales.mm.back')}

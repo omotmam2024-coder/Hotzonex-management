@@ -1,25 +1,61 @@
 import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode, SelectHTMLAttributes, TextareaHTMLAttributes } from 'react';
 
-type Variant = 'primary' | 'secondary' | 'danger' | 'ghost';
+type Variant = 'primary' | 'accent' | 'secondary' | 'outline' | 'success' | 'danger' | 'ghost';
+type Size = 'sm' | 'md' | 'lg';
 
 const VARIANTS: Record<Variant, string> = {
-  primary: 'bg-brand-600 text-white shadow-sm hover:bg-brand-700',
-  secondary: 'bg-white text-slate-800 shadow-sm ring-1 ring-inset ring-slate-300 hover:bg-slate-50',
-  danger: 'bg-white text-red-700 shadow-sm ring-1 ring-inset ring-red-200 hover:bg-red-50',
-  ghost: 'text-slate-700 hover:bg-slate-100',
+  primary: 'bg-brand-600 text-white shadow-sm hover:bg-brand-700 active:bg-brand-800',
+  // The orange of the Hotzonex logo: for the one call to action that should stand out (darker shades keep white text readable).
+  accent: 'bg-accent-700 text-white shadow-sm hover:bg-accent-800 active:bg-accent-900',
+  secondary: 'bg-white text-slate-800 shadow-sm ring-1 ring-inset ring-slate-300 hover:bg-slate-50 active:bg-slate-100',
+  outline: 'text-brand-700 ring-1 ring-inset ring-brand-200 hover:bg-brand-50 active:bg-brand-100',
+  success: 'bg-green-700 text-white shadow-sm hover:bg-green-800 active:bg-green-900',
+  danger: 'bg-white text-red-700 shadow-sm ring-1 ring-inset ring-red-200 hover:bg-red-50 active:bg-red-100',
+  ghost: 'text-slate-700 hover:bg-slate-100 active:bg-slate-200',
+};
+
+/** Every size is at least 44 px tall, so a thumb can always hit it. `lg` is for the main button of a form or page. */
+const SIZES: Record<Size, string> = {
+  sm: 'min-h-11 px-3 text-sm',
+  md: 'min-h-11 px-4',
+  lg: 'min-h-12 px-5 text-lg',
 };
 
 /** The button look, for links that act as buttons: `<Link className={buttonClass('secondary')}>`. */
-export function buttonClass(variant: Variant = 'primary', className = ''): string {
-  return `inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-4 font-semibold transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100 ${VARIANTS[variant]} ${className}`;
+export function buttonClass(variant: Variant = 'primary', className = '', size: Size = 'md', block = false): string {
+  return `inline-flex select-none items-center justify-center gap-2 rounded-xl font-semibold transition duration-150 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100 ${SIZES[size]} ${block ? 'w-full' : ''} ${VARIANTS[variant]} ${className}`;
 }
 
+/**
+ * The standard button. `loading` shows a spinner, disables the button (a second tap cannot send twice) and tells
+ * screen readers it is busy; `block` makes it full width; `size="lg"` is the big main button of a form.
+ */
 export function Button({
   variant = 'primary',
+  size = 'md',
+  block = false,
+  loading = false,
   className = '',
+  disabled,
+  children,
   ...props
-}: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: Variant }) {
-  return <button type="button" {...props} className={buttonClass(variant, className)} />;
+}: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: Variant; size?: Size; block?: boolean; loading?: boolean }) {
+  return (
+    <button type="button" {...props} disabled={disabled || loading} aria-busy={loading || undefined} className={buttonClass(variant, className, size, block)}>
+      {loading && <Spinner />}
+      {children}
+    </button>
+  );
+}
+
+/**
+ * A choosable option that looks like a button (tabs, plan or router pickers, sizes). Use with `aria-pressed={selected}`:
+ * `<button type="button" aria-pressed={on} className={chipClass(on)}>`.
+ */
+export function chipClass(selected: boolean, className = ''): string {
+  return `inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-4 font-semibold ring-1 ring-inset transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 ${
+    selected ? 'bg-brand-600 text-white shadow-sm ring-brand-600' : 'bg-white text-slate-700 ring-slate-300 hover:bg-slate-50'
+  } ${className}`;
 }
 
 /** A small text button inside tables and lists ("Edit", "Receipt", "Void"), still 44 px tall to tap. */

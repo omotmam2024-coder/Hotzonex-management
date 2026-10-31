@@ -77,8 +77,8 @@ export function ForceRemove({ kind, id, name, onClose, onDone }: { kind: 'router
       </Field>
       {remove.error && <Alert tone="error">{friendlyError(remove.error)}</Alert>}
       <div className="flex flex-wrap gap-2">
-        <Button type="submit" variant="danger" disabled={!matches || remove.isPending || !p}>
-          {remove.isPending && <Spinner />} {t('force.button')}
+        <Button type="submit" variant="danger" disabled={!matches || !p} loading={remove.isPending}>
+          {t('force.button')}
         </Button>
         <Button type="button" variant="secondary" onClick={onClose}>
           {t('common.cancel')}
