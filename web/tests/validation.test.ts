@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { referralSchema, promoCodeSchema, buyRequestSchema, cashHandoverSchema, expenseSchema, EXPENSE_CATEGORIES, generateVouchersSchema, planSchema, sellerTermsSchema, signupSchema, staffSchema, validate } from '../src/lib/validation.ts';
+import { restockRuleSchema, referralSchema, promoCodeSchema, buyRequestSchema, cashHandoverSchema, expenseSchema, EXPENSE_CATEGORIES, generateVouchersSchema, planSchema, sellerTermsSchema, signupSchema, staffSchema, validate } from '../src/lib/validation.ts';
 
 const ID = '3f2b2a4e-0000-4000-8000-000000000000';
 
@@ -114,4 +114,14 @@ test('referral settings: both sizes from 1 to 100, or both empty', () => {
   assert.throws(() => validate(referralSchema, { friend: '0', reward: '20' }), /1 to 100/);
   assert.throws(() => validate(referralSchema, { friend: '10', reward: '101' }), /1 to 100/);
   assert.throws(() => validate(referralSchema, { friend: '1.5', reward: '20' }), /1 to 100/);
+});
+
+test('restock rule: router and plan chosen, both numbers from 1 to 1000', () => {
+  const ok = { router_id: ID, plan_id: ID, keep_min: '50', add_quantity: '100' };
+  assert.deepEqual(validate(restockRuleSchema, ok), { router_id: ID, plan_id: ID, keep_min: 50, add_quantity: 100 });
+  assert.throws(() => validate(restockRuleSchema, { ...ok, router_id: '' }), /Choose a router/);
+  assert.throws(() => validate(restockRuleSchema, { ...ok, plan_id: '' }), /Choose a plan/);
+  assert.throws(() => validate(restockRuleSchema, { ...ok, keep_min: '0' }), /Keep at least/);
+  assert.throws(() => validate(restockRuleSchema, { ...ok, add_quantity: '1001' }), /Cards to add/);
+  assert.throws(() => validate(restockRuleSchema, { ...ok, add_quantity: '2.5' }), /Cards to add/);
 });

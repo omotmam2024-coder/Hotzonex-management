@@ -1111,6 +1111,42 @@ export type Database = {
           },
         ]
       }
+      restock_rules: {
+        Row: {
+          add_quantity: number
+          created_at: string
+          id: string
+          is_active: boolean
+          keep_min: number
+          last_run_at: string | null
+          plan_id: string
+          router_id: string
+          tenant_id: string
+        }
+        Insert: {
+          add_quantity: number
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          keep_min: number
+          last_run_at?: string | null
+          plan_id: string
+          router_id: string
+          tenant_id: string
+        }
+        Update: {
+          add_quantity?: number
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          keep_min?: number
+          last_run_at?: string | null
+          plan_id?: string
+          router_id?: string
+          tenant_id?: string
+        }
+        Relationships: []
+      }
       promo_codes: {
         Row: {
           code: string
@@ -1974,6 +2010,14 @@ export type Database = {
       sales_insights: {
         Args: { p_days: number; p_site_id: string }
         Returns: Json
+      }
+      remove_restock_rule: {
+        Args: { p_id: string }
+        Returns: undefined
+      }
+      save_restock_rule: {
+        Args: { p_add_quantity: number; p_id: string; p_is_active: boolean; p_keep_min: number; p_plan_id: string; p_router_id: string }
+        Returns: string
       }
       save_daily_report: {
         Args: { p_enabled: boolean }

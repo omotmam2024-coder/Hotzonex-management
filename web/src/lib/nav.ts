@@ -53,6 +53,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { path: '/check', get label() { return translate('nav.check'); }, icon: 'check', roles: ALL, group: 'Selling' },
   { path: '/cash', get label() { return translate('nav.cash'); }, icon: 'cash', roles: ALL, group: 'Selling' },
   { path: '/vouchers', get label() { return translate('nav.vouchers'); }, icon: 'vouchers', roles: ADMIN_MANAGER, group: 'Cards & WiFi' },
+  { path: '/restock', get label() { return translate('nav.restock'); }, icon: 'vouchers', roles: ADMIN, group: 'Cards & WiFi' },
   { path: '/plans', get label() { return translate('nav.plans'); }, icon: 'plans', roles: ADMIN, group: 'Cards & WiFi' },
   { path: '/routers', get label() { return translate('nav.routers'); }, icon: 'routers', roles: ADMIN, group: 'Cards & WiFi' },
   { path: '/active-users', get label() { return translate('nav.activeUsers'); }, icon: 'active', roles: ADMIN_MANAGER, group: 'Cards & WiFi' },

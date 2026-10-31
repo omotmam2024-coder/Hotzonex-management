@@ -1,5 +1,22 @@
 # Changelog
 
+## 1 November 2026 — automatic restock (opt-in)
+
+- **Auto restock** (owner: menu → Cards & WiFi → Auto restock): per router and plan, "keep at least N cards;
+  when fewer are left, make M more and put them on the router". Nothing happens until the owner makes a rule.
+- **Safety rules** (all in the database, tested on the live data in rolled-back transactions): only for an
+  **online** router of an active site and plan; cards that exist but are not on the router yet count as stock,
+  and nothing is added while a push for that router is still waiting (no doubling); at most one batch per
+  rule every 30 minutes and **2000 cards per rule per 24 hours** (over that the rule pauses and the owner is
+  alerted); the subscription's **monthly voucher limit still applies**; any failure is contained, nothing
+  from that attempt is kept, and the owner gets one alert a day per rule; at most 20 rules per business.
+- Automatic batches are marked `note = 'auto-restock'` (no creator) and appear in the audit trail like
+  manual ones; each restock also sends an info message ("Automatic restock: 100 × 1Hr added to …") through
+  the connected Telegram/WhatsApp.
+- Database: migration `20261101090000_auto_restock.sql` (applied): `restock_rules`, `save_restock_rule()`,
+  `remove_restock_rule()`, `run_restock()` and the job `hzc-restock` (every 10 minutes). No Edge Function
+  change is needed.
+
 ## 31 October 2026 — daily owner report
 
 - **Daily report** (owner: Alerts page → "Send me a daily report", off by default): every evening at
@@ -12,8 +29,6 @@
   `save_daily_report()`, `send_daily_reports()` and the hourly job `hzc-daily-report`. The alerts Edge
   Function already sends unknown kinds, so it needs no redeploy. Tested on the live data in a
   rolled-back transaction (all three languages, no channel, wrong hour, same day twice).
-- Not built: automatic restocking (see the note in the summary: it creates cards on routers and counts
-  against the monthly voucher limit, so it needs your decision first). The low-stock alert still warns.
 
 ## 31 October 2026 — insights
 

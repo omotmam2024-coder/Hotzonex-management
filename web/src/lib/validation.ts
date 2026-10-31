@@ -184,3 +184,13 @@ export const referralSchema = z
     }
     return { friend, reward };
   });
+
+/** An automatic restock rule: keep at least N cards of a plan on a router; add M when fewer are left. */
+export const restockRuleSchema = z.object({
+  router_id: uuid('Choose a router.'),
+  plan_id: uuid('Choose a plan.'),
+  keep_min: wholeNumber('Keep at least: type a number from 1 to 1000.').pipe(z.number().min(1, 'Keep at least: type a number from 1 to 1000.').max(1000, 'Keep at least: type a number from 1 to 1000.')),
+  add_quantity: wholeNumber('Cards to add each time: type a number from 1 to 1000.').pipe(
+    z.number().min(1, 'Cards to add each time: type a number from 1 to 1000.').max(1000, 'Cards to add each time: type a number from 1 to 1000.'),
+  ),
+});
