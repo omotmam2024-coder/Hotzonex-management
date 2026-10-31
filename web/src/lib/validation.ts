@@ -146,3 +146,22 @@ export const expenseSchema = z.object({
   note: z.string().trim().max(200, 'The note is too long (max 200 characters).'),
   site_id: z.string(),
 });
+
+/** A promo code the owner makes: a percentage or a fixed SSP discount, with an optional expiry and use limit. */
+export const promoCodeSchema = z
+  .object({
+    code: z
+      .string()
+      .trim()
+      .toUpperCase()
+      .regex(/^[A-Z0-9-]{3,20}$/, 'The code must be 3 to 20 letters, numbers or dashes.'),
+    kind: z.enum(['percent', 'fixed'], { errorMap: () => ({ message: 'Choose percent or a fixed amount.' }) }),
+    value: wholeNumber('Type the discount as a whole number.').pipe(z.number().min(1, 'The discount must be at least 1.').max(1_000_000_000, 'The discount is too big.')),
+    expires_on: z.string().refine((v) => v === '' || /^\d{4}-\d{2}-\d{2}$/.test(v), 'Choose the last day the code works, or leave it empty.'),
+    max_uses: z
+      .string()
+      .trim()
+      .transform((v) => (v === '' ? null : Number(v)))
+      .refine((v) => v === null || (Number.isInteger(v) && v >= 1 && v <= 1_000_000), 'The use limit must be 1 or more, or empty for no limit.'),
+  })
+  .refine((p) => p.kind !== 'percent' || p.value <= 100, { message: 'A percentage discount can be at most 100.' });

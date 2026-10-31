@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { buyRequestSchema, cashHandoverSchema, expenseSchema, EXPENSE_CATEGORIES, generateVouchersSchema, planSchema, sellerTermsSchema, signupSchema, staffSchema, validate } from '../src/lib/validation.ts';
+import { promoCodeSchema, buyRequestSchema, cashHandoverSchema, expenseSchema, EXPENSE_CATEGORIES, generateVouchersSchema, planSchema, sellerTermsSchema, signupSchema, staffSchema, validate } from '../src/lib/validation.ts';
 
 const ID = '3f2b2a4e-0000-4000-8000-000000000000';
 
@@ -92,4 +92,17 @@ test('plan data limit in MB or GB', async () => {
   assert.equal(formatDataLimit(1536), '1.5 GB');
   assert.equal(formatDataLimit(1024), '1 GB');
   assert.equal(formatDataLimit(500), '500 MB');
+});
+
+test('promo code: normalised code, percent up to 100, optional expiry and limit', () => {
+  const ok = { code: ' new-year ', kind: 'percent', value: '10', expires_on: '', max_uses: '' };
+  assert.deepEqual(validate(promoCodeSchema, ok), { code: 'NEW-YEAR', kind: 'percent', value: 10, expires_on: '', max_uses: null });
+  assert.equal(validate(promoCodeSchema, { ...ok, kind: 'fixed', value: '500', max_uses: '20', expires_on: '2026-12-31' }).max_uses, 20);
+  assert.throws(() => validate(promoCodeSchema, { ...ok, code: 'AB' }), /3 to 20/);
+  assert.throws(() => validate(promoCodeSchema, { ...ok, code: 'HAS SPACE' }), /3 to 20/);
+  assert.throws(() => validate(promoCodeSchema, { ...ok, value: '101' }), /at most 100/);
+  assert.throws(() => validate(promoCodeSchema, { ...ok, value: '0' }), /at least 1/);
+  assert.throws(() => validate(promoCodeSchema, { ...ok, value: '2.5' }), /whole number/);
+  assert.throws(() => validate(promoCodeSchema, { ...ok, max_uses: '0' }), /use limit/);
+  assert.throws(() => validate(promoCodeSchema, { ...ok, expires_on: 'tomorrow' }), /last day/);
 });

@@ -1111,14 +1111,58 @@ export type Database = {
           },
         ]
       }
+      promo_codes: {
+        Row: {
+          code: string
+          created_at: string
+          created_by: string | null
+          expires_at: string | null
+          id: string
+          is_active: boolean
+          kind: string
+          max_uses: number | null
+          tenant_id: string
+          used_count: number
+          value: number
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          created_by?: string | null
+          expires_at?: string | null
+          id?: string
+          is_active?: boolean
+          kind: string
+          max_uses?: number | null
+          tenant_id: string
+          used_count?: number
+          value: number
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          created_by?: string | null
+          expires_at?: string | null
+          id?: string
+          is_active?: boolean
+          kind?: string
+          max_uses?: number | null
+          tenant_id?: string
+          used_count?: number
+          value?: number
+        }
+        Relationships: []
+      }
       sales: {
         Row: {
           amount_ssp: number
           commission_ssp: number
+          discount_ssp: number
           created_at: string
           id: string
           payment_method: string
           plan_id: string
+          promo_code_id: string | null
           request_id: string | null
           router_id: string
           seller_id: string | null
@@ -1133,10 +1177,12 @@ export type Database = {
         Insert: {
           amount_ssp: number
           commission_ssp?: number
+          discount_ssp?: number
           created_at?: string
           id?: string
           payment_method?: string
           plan_id: string
+          promo_code_id?: string | null
           request_id?: string | null
           router_id: string
           seller_id?: string | null
@@ -1151,10 +1197,12 @@ export type Database = {
         Update: {
           amount_ssp?: number
           commission_ssp?: number
+          discount_ssp?: number
           created_at?: string
           id?: string
           payment_method?: string
           plan_id?: string
+          promo_code_id?: string | null
           request_id?: string | null
           router_id?: string
           seller_id?: string | null
@@ -1910,6 +1958,10 @@ export type Database = {
         }
         Returns: Json
       }
+      save_promo_code: {
+        Args: { p_code: string; p_expires_at: string; p_id: string; p_is_active: boolean; p_kind: string; p_max_uses: number; p_value: number }
+        Returns: string
+      }
       save_business_brand: {
         Args: { p_color: string; p_tagline: string }
         Returns: undefined
@@ -1940,10 +1992,11 @@ export type Database = {
         Returns: string
       }
       sell_voucher: {
-        Args: { p_plan_id: string; p_request_id?: string; p_router_id: string }
+        Args: { p_plan_id: string; p_promo_code?: string; p_request_id?: string; p_router_id: string }
         Returns: {
           amount_ssp: number
           code: string
+          discount_ssp: number
           sale_id: string
           sold_at: string
           voucher_id: string

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../../auth/AuthProvider';
-import { Alert, Button, Select, Spinner } from '../../components/ui';
+import { Alert, Button, Field, Select, Spinner, TextInput } from '../../components/ui';
 import { friendlyError, isNetworkError } from '../../lib/errors';
 import { LOW_STOCK } from '../../lib/labels';
 import { rolesFor } from '../../lib/nav';
@@ -24,6 +24,8 @@ const SITE_KEY = 'hzc.sellSite';
 
 interface LastSale {
   receipt: ReceiptData;
+  /** What a promo code took off the price (0 or missing: none). */
+  discountSsp?: number;
 }
 
 /** The text a customer receives when the code is shared (WhatsApp, SMS…). */
@@ -64,6 +66,7 @@ function SaleResult({ sale, onPrint, onNext }: { sale: LastSale; onPrint: () => 
         <div className="text-3xl font-extrabold tabular-nums sm:text-5xl">{formatSSP(r.priceSsp)}</div>
         {usd && <div className="text-lg font-semibold opacity-90">{usd}</div>}
         <div className="text-2xl font-bold sm:text-3xl">{formatDuration(r.uptimeSeconds)}</div>
+        {sale.discountSsp ? <div className="mt-1 text-lg font-semibold opacity-90">{t('sell.promoSaved', { amount: formatSSP(sale.discountSsp) })}</div> : null}
       </div>
       <div className="flex flex-1 flex-col items-center justify-center px-4 py-6 text-center">
         <div className="text-lg font-semibold uppercase tracking-wide text-slate-500">{t('sell.wifiCode')}</div>
@@ -155,6 +158,7 @@ export function SellPage() {
   const fixedSite = profile?.site_id ?? null;
   const [siteId, setSiteId] = useState<string>(() => fixedSite ?? readStored<string>('local', SITE_KEY) ?? '');
   const [routerId, setRouterId] = useState('');
+  const [promo, setPromo] = useState('');
   const [lastSale, setLastSale] = useState<LastSale | null>(() => readStored<LastSale>('session', LAST_SALE_KEY));
 
   useEffect(() => {
@@ -187,7 +191,7 @@ export function SellPage() {
   const sellPlan = (plan: Plan) => {
     if (inFlight.current) return;
     inFlight.current = true;
-    const key = `${router?.id ?? ''}|${plan.id}`;
+    const key = `${router?.id ?? ''}|${plan.id}|${promo.trim().toUpperCase()}`;
     if (attempt.current?.key !== key) attempt.current = { key, id: newRequestId() };
     sell.mutate(plan);
   };
@@ -195,11 +199,12 @@ export function SellPage() {
   const sell = useMutation({
     mutationFn: async (plan: Plan): Promise<LastSale> => {
       if (!router) throw new Error(t('sell.chooseRouterFirst'));
-      const { data, error } = await supabase.rpc('sell_voucher', { p_router_id: router.id, p_plan_id: plan.id, p_request_id: attempt.current?.id ?? null });
+      const { data, error } = await supabase.rpc('sell_voucher', { p_router_id: router.id, p_plan_id: plan.id, p_request_id: attempt.current?.id ?? null, p_promo_code: promo.trim() || null });
       if (error) throw new SellError(friendlyError(error), isNetworkError(error.message));
       const row = data?.[0];
       if (!row) throw new Error(t('sell.noCodeReturned'));
       return {
+        discountSsp: row.discount_ssp,
         receipt: {
           code: row.code,
           siteName,
@@ -219,6 +224,7 @@ export function SellPage() {
     retryDelay: (count) => 1500 * (count + 1),
     onSuccess: (sale) => {
       attempt.current = null;
+      setPromo(''); // one code, one sale
       setLastSale(sale);
       writeStored('session', LAST_SALE_KEY, sale);
     },
@@ -304,6 +310,14 @@ export function SellPage() {
         {sell.error && <Alert tone="error">{sell.error.message}</Alert>}
         {stock.error && <Alert tone="error">{friendlyError(stock.error)}</Alert>}
       </div>
+
+      {router && (
+        <div className="mt-4 max-w-sm">
+          <Field label={t('sell.promoLabel')} hint={t('sell.promoHint')}>
+            <TextInput value={promo} onChange={(e) => setPromo(e.target.value.toUpperCase().slice(0, 20))} maxLength={20} placeholder={t('sell.promoPlaceholder')} dir="ltr" autoCapitalize="characters" autoComplete="off" />
+          </Field>
+        </div>
+      )}
 
       {router && (
         <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">

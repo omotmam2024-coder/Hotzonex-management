@@ -46,6 +46,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { path: '/expenses', get label() { return translate('nav.expenses'); }, icon: 'expenses', roles: ADMIN_MANAGER, group: 'Overview' },
   { path: '/alerts', get label() { return translate('nav.alerts'); }, icon: 'alerts', roles: ADMIN_MANAGER, group: 'Overview' },
   { path: '/sell', get label() { return translate('nav.sell'); }, icon: 'sell', roles: ALL, group: 'Selling' },
+  { path: '/promos', get label() { return translate('nav.promos'); }, icon: 'plans', roles: ADMIN, group: 'Selling' },
   { path: '/payments', get label() { return translate('nav.payments'); }, icon: 'payments', roles: ALL, group: 'Selling' },
   { path: '/sales', get label() { return translate('nav.sales'); }, icon: 'sales', roles: ALL, group: 'Selling' },
   { path: '/check', get label() { return translate('nav.check'); }, icon: 'check', roles: ALL, group: 'Selling' },

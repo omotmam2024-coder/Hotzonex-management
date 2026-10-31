@@ -1,5 +1,20 @@
 # Changelog
 
+## 31 October 2026 — promo codes
+
+- **Promo codes** (owner: menu → Selling → Promo codes): a percentage or a fixed SSP discount, with an
+  optional last day and use limit; switch a code off at any time. The cashier types the code on the
+  Sell page; the customer pays less and the sale screen shows what was saved.
+- The sale records the price **paid** (`amount_ssp`), so reports, agent commission and cash-up already
+  use the discounted price; `discount_ssp` and `promo_code_id` record the discount and the code.
+- Rules enforced in the database: only owners create codes; a code must be active, not past its last
+  day and under its use limit; two cashiers cannot both use a last use; a retried sale never uses a
+  code twice. Voiding a sale does not give the use back.
+- Database: migration `20261031120000_promo_codes.sql` (applied): `promo_codes`, `save_promo_code()`,
+  and `sell_voucher()` with a new optional `p_promo_code` argument (calls without it work as before).
+  Tested on the live database inside a rolled-back transaction; nothing was left behind.
+- Not included yet: promo codes on the customer Buy page (online payments), referrals, reseller prices.
+
 ## 31 October 2026 — Hotzonex logo, orange accent, per-business brand colour and tagline
 
 - The supplied Hotzonex logo is now the logo, favicon, app icons (including the Android maskable
