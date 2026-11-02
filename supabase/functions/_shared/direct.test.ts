@@ -3,11 +3,17 @@
 import assert from 'node:assert/strict';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { after, before, test } from 'node:test';
-import { closeSessions, directTest, removeLeftoverProfiles, disableVoucher, ensureProfileExists, installPortalDirect, pushVoucher, readUsage, removeExpired, removeProfileIfUnused, removeVoucherUsers, restorePortalDirect, upsertManagedProfile, RestClient, RouterError, matchRouterProfile, readRouterUsers, expiredRouterUsers, mikroticketSeconds, routerClockText, setWalledGarden } from './direct.ts';
+import { closeSessions, directTest, removeLeftoverProfiles, disableVoucher, ensureProfileExists, installPortalDirect, pushVoucher, readUsage, removeExpired, removeProfileIfUnused, removeVoucherUsers, restorePortalDirect, mapPool, checkPushed, ROUTER_PARALLEL, LOOKUP_LIMIT, upsertManagedProfile, RestClient, RouterError, matchRouterProfile, readRouterUsers, expiredRouterUsers, mikroticketSeconds, routerClockText, setWalledGarden } from './direct.ts';
 
 type Row = Record<string, string>;
 const state: Record<string, Row[]> = {};
 const writes: string[] = [];
+/** Reads of the WHOLE hotspot user list (no filter): the slow thing on a router with thousands of users. */
+let fullUserReads = 0;
+/** Called before a remove command is handled: lets a test make an item vanish just before it. */
+let beforeRemove: ((ids: string[]) => void) | null = null;
+let inFlight = 0;
+let maxInFlight = 0;
 let port = 0;
 
 function reset() {
@@ -18,6 +24,10 @@ function reset() {
   state['/ip/hotspot/active'] = [];
   state['/ip/address'] = [{ '.id': '*1', address: '10.5.50.1/24', interface: 'bridge', disabled: 'false' }, { '.id': '*2', address: '192.168.88.1/24', interface: 'ether2', disabled: 'false' }];
   writes.length = 0;
+  fullUserReads = 0;
+  beforeRemove = null;
+  inFlight = 0;
+  maxInFlight = 0;
 }
 
 function handler(req: IncomingMessage, res: ServerResponse) {
@@ -31,6 +41,9 @@ function handler(req: IncomingMessage, res: ServerResponse) {
   let raw = '';
   req.on('data', (c) => (raw += c));
   req.on('end', () => {
+    inFlight++;
+    maxInFlight = Math.max(maxInFlight, inFlight);
+    res.on('close', () => { inFlight--; });
     if (path === '/system/resource') return send(200, { 'board-name': 'hAP ax2', version: '7.19.6 (stable)', uptime: '1d2h' });
     // A big list that arrives slowly: the headers come at once, the rest only after a while.
     if (path === '/slow-list') {
@@ -59,6 +72,7 @@ function handler(req: IncomingMessage, res: ServerResponse) {
     if (req.method === 'POST' && path.endsWith('/remove')) {
       const rows = state[path.slice(0, -'/remove'.length)] ?? [];
       const ids = String((JSON.parse(raw) as Row)['.id'] ?? '').split(',');
+      beforeRemove?.(ids);
       if (ids.some((id) => !rows.some((r) => r['.id'] === id))) return send(400, { error: 400, message: 'Bad Request', detail: 'no such item' });
       for (const id of ids) rows.splice(rows.findIndex((r) => r['.id'] === id), 1);
       writes.push(`REMOVE ${path} ${ids.join(',')}`);
@@ -68,6 +82,7 @@ function handler(req: IncomingMessage, res: ServerResponse) {
       const rows = state[path.slice(0, -'/print'.length)];
       if (!rows) return send(404, { error: 404, message: 'Not Found' });
       const body = JSON.parse(raw || '{}') as { '.query'?: string[]; '.proplist'?: string[] };
+      if (path === '/ip/hotspot/user/print' && !(body['.query'] ?? []).length) fullUserReads++;
       const words = (body['.query'] ?? []).map((w) => [w.slice(0, w.indexOf('=')), w.slice(w.indexOf('=') + 1)] as const);
       const picked = rows.filter((r) => words.every(([k, v]) => r[k] === v));
       const props = body['.proplist'];
@@ -331,4 +346,141 @@ test('a reply that is still arriving when the time runs out is a timeout, not a 
   );
   // A longer wait for big lists lets the same reply arrive.
   assert.deepEqual(await slow.get('/slow-list', undefined, 3000), [{ name: '1' }]);
+});
+
+// ---------------------------------------------------------------------------
+// Speed: big routers (thousands of hotspot users) must never be read whole for a small push or delete
+// ---------------------------------------------------------------------------
+
+const manyUsers = (n: number) => {
+  state['/ip/hotspot/user'] = Array.from({ length: n }, (_, i) => ({ '.id': `*U${i}`, name: String(10000000 + i), comment: 'router own card' }));
+};
+const tagged = (n: number, start = 0) =>
+  Array.from({ length: n }, (_, i) => ({ id: `${V.slice(0, 8)}-0000-4000-8000-${String(start + i).padStart(12, '0')}`, code: String(90000000 + start + i) }));
+const addTagged = (list: { id: string; code: string }[]) => {
+  for (const v of list) state['/ip/hotspot/user']!.push({ '.id': `*H${v.code}`, name: v.code, comment: `hzc:${v.id}` });
+};
+
+test('mapPool: results in order, never more than the limit at once, first error stops new work', async () => {
+  let running = 0;
+  let peak = 0;
+  const out = await mapPool([1, 2, 3, 4, 5, 6, 7, 8], 3, async (n) => {
+    running++;
+    peak = Math.max(peak, running);
+    await new Promise((r) => setTimeout(r, 5));
+    running--;
+    return n * 2;
+  });
+  assert.deepEqual(out, [2, 4, 6, 8, 10, 12, 14, 16]);
+  assert.equal(peak, 3);
+  const started: number[] = [];
+  await assert.rejects(
+    mapPool([1, 2, 3, 4, 5, 6, 7, 8, 9, 10], 2, async (n) => {
+      started.push(n);
+      await new Promise((r) => setTimeout(r, 5));
+      if (n === 3) throw new Error('boom');
+      return n;
+    }),
+    /boom/,
+  );
+  assert.ok(started.length < 10, 'no new cards are started after a failure');
+  assert.deepEqual(await mapPool([], 4, async (x) => x), []);
+});
+
+test('deleting a few cards on a big router: no full user list, one remove command', async () => {
+  reset();
+  manyUsers(3000);
+  const mine = tagged(10);
+  addTagged(mine);
+  const sessionUser = mine[0]!.code;
+  state['/ip/hotspot/active']!.push({ '.id': '*S1', user: sessionUser }, { '.id': '*S2', user: 'someone-else' });
+  const removed = await removeVoucherUsers(client(), mine);
+  assert.equal(removed, 10);
+  assert.equal(fullUserReads, 0, 'the 3000 users are never read');
+  assert.equal(writes.filter((w) => w.startsWith('REMOVE /ip/hotspot/user/remove ')).length, 1, 'one command removes all ten');
+  assert.deepEqual(writes.filter((w) => w.includes('/active/')), ['REMOVE /ip/hotspot/active/remove *S1'], "only the cards' own sessions are closed");
+  assert.equal(state['/ip/hotspot/user']!.length, 3000, 'only the ten cards are gone');
+  assert.ok(maxInFlight <= ROUTER_PARALLEL + 1, `at most ${ROUTER_PARALLEL} lookups at a time (plus the session read), saw ${maxInFlight}`);
+});
+
+test('deleting: a user that carries another tag stays; one that is already gone counts as done', async () => {
+  reset();
+  const mine = tagged(3);
+  addTagged([mine[0]!, mine[1]!]); // the third is not on the router at all
+  state['/ip/hotspot/user']!.find((u) => u.name === mine[1]!.code)!.comment = 'hzc:someone-elses'; // same code, another card
+  assert.equal(await removeVoucherUsers(client(), mine), 1);
+  assert.deepEqual(state['/ip/hotspot/user']!.map((u) => u.name).sort(), ['11112222', mine[1]!.code].sort());
+});
+
+test('deleting: if one card vanished just before the remove command, the others are still removed', async () => {
+  reset();
+  const mine = tagged(5);
+  addTagged(mine);
+  let armed = true;
+  beforeRemove = (ids) => {
+    if (!armed || ids.length < 2) return;
+    armed = false;
+    const gone = state['/ip/hotspot/user']!.findIndex((u) => u['.id'] === ids[1]);
+    state['/ip/hotspot/user']!.splice(gone, 1); // removed by someone else a moment ago
+  };
+  const removed = await removeVoucherUsers(client(), mine);
+  assert.equal(removed, 4, 'the one already gone is not counted, the other four are removed');
+  assert.deepEqual(state['/ip/hotspot/user']!.map((u) => u.name), ['11112222']);
+});
+
+test('deleting more cards than the lookup limit reads the list once and removes 50 per command', async () => {
+  reset();
+  const mine = tagged(LOOKUP_LIMIT + 70);
+  addTagged(mine);
+  assert.equal(await removeVoucherUsers(client(), mine), LOOKUP_LIMIT + 70);
+  assert.equal(fullUserReads, 1);
+  assert.equal(writes.filter((w) => w.startsWith('REMOVE /ip/hotspot/user/remove ')).length, Math.ceil((LOOKUP_LIMIT + 70) / 50));
+});
+
+test('deleting stops when time runs out and tells the caller to come back', async () => {
+  reset();
+  const mine = tagged(120);
+  addTagged(mine);
+  assert.equal(await removeVoucherUsers(client(), mine, Date.now() - 1), null);
+  assert.equal(writes.filter((w) => w.startsWith('REMOVE /ip/hotspot/user/remove ')).length, 0);
+});
+
+test('checking pushed cards on a big router looks up the cards, it does not read every user', async () => {
+  reset();
+  manyUsers(3000);
+  const cards = tagged(10);
+  addTagged(cards);
+  state['/ip/hotspot/user']!.find((u) => u.name === cards[2]!.code)!.profile = 'other';
+  for (const c of cards) if (c !== cards[2]) state['/ip/hotspot/user']!.find((u) => u.name === c.code)!.profile = 'p1';
+  const r = await checkPushed(client(), [...cards.map((c) => c.code), '99999999'], 'p1');
+  assert.equal(fullUserReads, 0);
+  assert.equal(r.checked, 11);
+  assert.deepEqual(r.missing, ['99999999']);
+  assert.deepEqual(r.wrongProfile, [cards[2]!.code]);
+});
+
+test('checking a large batch reads the list once', async () => {
+  reset();
+  const cards = tagged(LOOKUP_LIMIT + 5);
+  addTagged(cards);
+  for (const c of cards) state['/ip/hotspot/user']!.find((u) => u.name === c.code)!.profile = 'p1';
+  const r = await checkPushed(client(), cards.map((c) => c.code), 'p1');
+  assert.equal(fullUserReads, 1);
+  assert.deepEqual([r.missing.length, r.wrongProfile.length], [0, 0]);
+});
+
+test('pushing ten cards in parallel adds each once, never more than the limit at a time', async () => {
+  reset();
+  manyUsers(500);
+  const cards = tagged(10);
+  const opts = { profile: 'p1', server: 'all', limitUptime: '1h', limitBytes: null, password: 'same' as const };
+  const results = await mapPool(cards, ROUTER_PARALLEL, (v) => pushVoucher(client(), v, opts, new Map()));
+  assert.deepEqual(results, Array(10).fill('added'));
+  assert.equal(fullUserReads, 0, 'no list read: a clash is answered by the router itself');
+  assert.ok(maxInFlight <= ROUTER_PARALLEL, `saw ${maxInFlight} at once`);
+  // The same cards again: the router answers "already have user", and the tag shows they are ours.
+  const again = await mapPool(cards, ROUTER_PARALLEL, (v) => pushVoucher(client(), v, opts, new Map()));
+  assert.deepEqual(again, Array(10).fill('already'));
+  // A code that belongs to another user on the router is a conflict, never touched.
+  assert.equal(await pushVoucher(client(), { id: V, code: '10000005' }, opts, new Map()), 'conflict');
 });

@@ -1,5 +1,25 @@
 # Changelog
 
+## 2 November 2026 — much faster card pushes and deletes (and a stuck delete fixed)
+
+- **Cause.** Your routers hold 2,500 to 7,500 hotspot users each. Pushing ten cards first downloaded the router's
+  whole user list, added the cards one at a time, then downloaded the whole list again to check them; deleting
+  downloaded the whole list too, with only a 10-second limit, which a big router through the tunnel could not meet.
+  So a delete on **Hotzonex-Jebel-HQ** kept timing out and retrying (one job had been stuck for 20+ minutes).
+- **Deleting** now looks up only the cards being deleted (a few at a time) and removes them in **one command per
+  50 cards**; no full user list. A card already gone, or one that carries another tag, is handled safely.
+- **Pushing** now adds **6 cards at a time**, checks only the pushed cards, and remembers how the router's own cards
+  are made (from its last push) instead of reading every user before each push. The first push after this update
+  to a router still reads its list once to learn that.
+- **Less waiting in line.** A router that is online now runs its waiting jobs *before* the minute check (which reads
+  every user), then again after it; jobs left "running" by a stopped worker are recovered after 2.5 minutes (was 5).
+- **Delete screen.** Cards that are being removed now disappear from the list by themselves (the list refreshes
+  every 2.5 s while any is "disabled", for up to 3 minutes). A second tap no longer queues the same delete twice.
+- **Measured** on a simulated slow tunnel (150 ms per request, 3,000 users, full list = 8 s): pushing 10 cards
+  17.9 s → 0.6 s; deleting 10 cards 9.7 s → 0.5 s. 9 new router tests; no database change.
+- **To deploy** (Edge Functions): `supabase functions deploy router-direct --no-verify-jwt` and
+  `supabase functions deploy delete-items`. The stuck delete jobs finish on their own once `router-direct` is updated.
+
 ## 1 November 2026 — better, consistent buttons
 
 - **One button component for the whole app.** `Button` now has a built-in **loading** state (spinner, disabled

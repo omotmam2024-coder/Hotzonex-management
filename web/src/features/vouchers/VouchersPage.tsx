@@ -92,9 +92,13 @@ export function VouchersPage() {
     },
   });
 
+  // After a delete, cards on a router are switched off first and removed a moment later: the list follows them
+  // (every 2.5 s, for at most 3 minutes) until none is left in between, instead of waiting for a manual refresh.
+  const [followUntil, setFollowUntil] = useState(0);
   const vouchers = useQuery({
     queryKey: ['vouchers', routerId, planId, status, batchId, code, page],
     placeholderData: keepPreviousData,
+    refetchInterval: (q) => (Date.now() < followUntil && (q.state.data?.rows ?? []).some((v) => v.status === 'disabled') ? 2500 : false),
     queryFn: async () => {
       let q = supabase.from('vouchers').select(VOUCHER_COLUMNS, { count: 'exact' });
       if (routerId) q = q.eq('router_id', routerId);
@@ -116,8 +120,9 @@ export function VouchersPage() {
 
   const remove = useMutation({
     mutationFn: (ids: string[]) => invokeFunction<DeleteResult>('delete-items', { action: 'delete_vouchers', ids }),
-    onSuccess: () => {
+    onSuccess: (result) => {
       setSelected(new Set());
+      if (result.removing > 0) setFollowUntil(Date.now() + 3 * 60_000);
       invalidateSalesData(queryClient);
       void queryClient.invalidateQueries({ queryKey: ['batch-options'] });
     },

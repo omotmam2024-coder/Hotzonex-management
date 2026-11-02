@@ -59,7 +59,17 @@ async function deleteVouchers(db: SupabaseClient, caller: Caller, body: Record<s
   const byRouter = new Map<string, VoucherRow[]>();
   let removing = 0;
   for (const v of onRouter) byRouter.set(v.router_id, [...(byRouter.get(v.router_id) ?? []), v]);
-  for (const [routerId, list] of byRouter) {
+  for (const [routerId, allOfRouter] of byRouter) {
+    // A second tap (or a second person) must not queue the same deletion twice: cards that already have a delete
+    // waiting or running on this router are left to that job.
+    const { data: open } = await db.from('router_jobs').select('payload').eq('router_id', routerId).eq('type', 'disable_voucher').in('status', ['queued', 'running']);
+    const alreadyQueued = new Set<string>();
+    for (const j of open ?? []) {
+      const list = (j.payload as { delete?: unknown; vouchers?: unknown } | null)?.vouchers;
+      if (Array.isArray(list)) for (const v of list) if (v && typeof v === 'object' && typeof (v as { id?: unknown }).id === 'string') alreadyQueued.add((v as { id: string }).id);
+    }
+    const list = allOfRouter.filter((v) => !alreadyQueued.has(v.id));
+    removing += allOfRouter.length - list.length;
     for (let i = 0; i < list.length; i += PER_JOB) {
       const slice = list.slice(i, i + PER_JOB);
       // Not one sold meanwhile (a cashier or a mobile-money confirmation just now): it stays.

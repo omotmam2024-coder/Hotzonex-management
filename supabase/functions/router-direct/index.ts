@@ -18,11 +18,12 @@ import {
   ensureProfileExists,
   installPortalDirect,
   pushVoucher,
+  mapPool,
+  ROUTER_PARALLEL,
   readUsage,
   removeExpired,
   setWalledGarden,
   checkPushed,
-  ownCodeLength,
   removeExpiredRouterUsers,
   removeLeftoverProfiles,
   removeProfileIfUnused,
@@ -90,7 +91,8 @@ const ROUTER_COLUMNS =
   'id, tenant_id, name, status, connection, tunnel_ip, hotspot_server, dns_name, last_usage_at, host, port, use_https, username, password_enc, last_error, last_seen_at, hotspot_info';
 const BUDGET_MS = 100_000; // stay well inside the Edge Function time limit
 const LEASE_MS = BUDGET_MS + 30_000; // one worker per router at a time; expires if a worker is stopped
-const STALE_RUNNING_MS = 5 * 60_000;
+// A worker is stopped at 130 s at the latest (see LEASE_MS), so a job still "running" after 150 s lost its worker.
+const STALE_RUNNING_MS = 150_000;
 const TEST_WAIT_MS = 2 * 60_000;
 const PUSH_CHUNK = 50;
 // A router that was answering is shown offline only after missing two checks in a row (one minute
@@ -210,7 +212,9 @@ async function runJob(db: SupabaseClient, router: DirectRouter, client: RestClie
         }
         const chunk = await nextPushChunk(db, router, job, PUSH_CHUNK);
         if (!chunk) return true;
-        users ??= await readRouterUsers(client);
+        // How the router's own cards are made is read once and remembered (see knownCardStyle): reading every
+        // hotspot user of a big router before each push is what made small pushes slow.
+        users ??= (await knownCardStyle(db, router)) ?? (await readRouterUsers(client));
         profiles ??= await routerProfileNames(client);
         // A router with its own profiles (MikroTicket's): its matching profile is used, nothing is added.
         // A router without any: Hotzonex adds the plan's profile.
@@ -238,7 +242,7 @@ async function runJob(db: SupabaseClient, router: DirectRouter, client: RestClie
           await ensureProfileExists(client, profileOf(chunk.plan));
         }
         if (!job.result?.password_style) {
-          job.result = { ...(job.result ?? {}), profile, password_style: users.passwordStyle, password_sample: users.sample };
+          job.result = { ...(job.result ?? {}), profile, password_style: users.passwordStyle, password_sample: users.sample, own_length: users.ownLength };
           await db.from('router_jobs').update({ result: job.result }).eq('id', job.id);
         }
         const opts = {
@@ -250,7 +254,11 @@ async function runJob(db: SupabaseClient, router: DirectRouter, client: RestClie
         };
         const items: { voucher: string; result: PushResult }[] = [];
         try {
-          for (const v of chunk.vouchers) items.push({ voucher: v.id, result: await pushVoucher(client, v, opts, users.comments) });
+          // Several cards at a time (each is a separate call through the tunnel); results are kept as they come,
+          // so what was added is saved even if the router stops answering part-way.
+          await mapPool(chunk.vouchers, ROUTER_PARALLEL, async (v) => {
+            items.push({ voucher: v.id, result: await pushVoucher(client, v, opts, users.comments) });
+          });
         } finally {
           await applyPushResults(db, router, job, items);
         }
@@ -262,7 +270,7 @@ async function runJob(db: SupabaseClient, router: DirectRouter, client: RestClie
             profile,
           )),
           codeLength: chunk.vouchers[0]?.code.length ?? 0,
-          ownLength: ownCodeLength(users.comments.keys(), users.comments),
+          ownLength: users.ownLength,
         });
         if (items.every((i) => i.result === 'error')) {
           await finishJob(db, job.id, false, {
@@ -343,6 +351,36 @@ async function runJob(db: SupabaseClient, router: DirectRouter, client: RestClie
       await finishJob(db, job.id, false, { error: `Unknown job type ${job.type}.` });
       return true;
   }
+}
+
+/**
+ * How this router's own cards are made, from its last finished push (the job remembers it), so the full list of
+ * hotspot users does not have to be read before every push. Null when unknown: the push then reads it once.
+ */
+async function knownCardStyle(db: SupabaseClient, router: DirectRouter): Promise<RouterUsers | null> {
+  const since = new Date(Date.now() - 30 * 86_400_000).toISOString();
+  const { data } = await db
+    .from('router_jobs')
+    .select('result')
+    .eq('router_id', router.id)
+    .eq('type', 'push_vouchers')
+    .eq('status', 'done')
+    .gte('created_at', since)
+    .not('result->>password_style', 'is', null)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const r = (data?.result ?? null) as Record<string, unknown> | null;
+  const sample = r?.password_sample as { empty?: unknown; same?: unknown; readable?: unknown } | undefined;
+  const style = r?.password_style;
+  // A guess from fewer than 3 readable cards is not trusted; results from before own_length was kept are read again once.
+  if (!r || (style !== 'same' && style !== 'empty') || typeof sample?.readable !== 'number' || sample.readable < 3 || !('own_length' in r)) return null;
+  return {
+    comments: new Map(),
+    passwordStyle: style,
+    sample: { empty: Number(sample.empty) || 0, same: Number(sample.same) || 0, readable: sample.readable },
+    ownLength: typeof r.own_length === 'number' ? r.own_length : null,
+  };
 }
 
 /** Jobs left "running" by a worker that was stopped are picked up again. */
@@ -561,6 +599,9 @@ async function serveLeased(db: SupabaseClient, router: DirectRouter, relay: Rela
     await db.from('routers').update({ last_error: message(err) }).eq('id', router.id);
     return `${router.name}: ${message(err)}`;
   }
+  // A router that was online a moment ago runs its waiting jobs FIRST: a card push or delete must not wait behind the
+  // minute's check, which reads thousands of hotspot users and can take most of the minute on a big router.
+  if (tick && router.status === 'online') await runJobs(db, router, client, deadline);
   if (tick && router.status !== 'pending') {
     const reachable = await checkRouter(db, router, client, deadline);
     if (!reachable) {
@@ -568,6 +609,7 @@ async function serveLeased(db: SupabaseClient, router: DirectRouter, relay: Rela
       return `${router.name}: offline`;
     }
   }
+  // Jobs queued during the check (or all of them, for a wake-up that is not the minute's check).
   await runJobs(db, router, client, deadline);
   return `${router.name}: ok`;
 }

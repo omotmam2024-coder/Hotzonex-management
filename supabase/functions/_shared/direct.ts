@@ -254,6 +254,38 @@ export async function upsertManagedProfile(
 
 export type PushResult = 'added' | 'already' | 'conflict' | 'error';
 
+/** How many cards are looked up, added or checked on the router at the same time (a few: the router stays responsive). */
+export const ROUTER_PARALLEL = 6;
+/** Up to this many cards are looked up one by one (in parallel); more than that read the user list once instead. */
+export const LOOKUP_LIMIT = 60;
+/** Users removed in one command. */
+const REMOVE_BATCH = 50;
+
+/**
+ * Runs `fn` over the items with at most `limit` at a time; results come back in the items' order. When one
+ * fails, no new item is started, the ones running finish, and the first error is thrown.
+ */
+export async function mapPool<T, R>(items: readonly T[], limit: number, fn: (item: T, index: number) => Promise<R>): Promise<R[]> {
+  const out = new Array<R>(items.length);
+  let next = 0;
+  let failure: { error: unknown } | null = null;
+  const worker = async (): Promise<void> => {
+    while (!failure) {
+      const i = next++;
+      if (i >= items.length) return;
+      try {
+        out[i] = await fn(items[i] as T, i);
+      } catch (error) {
+        failure ??= { error };
+        return;
+      }
+    }
+  };
+  await Promise.all(Array.from({ length: Math.max(1, Math.min(limit, items.length)) }, worker));
+  if (failure) throw (failure as { error: unknown }).error;
+  return out;
+}
+
 /** Adds one voucher as a hotspot user. Idempotent; never touches a user with another tag. */
 export async function pushVoucher(
   client: RestClient,
@@ -296,18 +328,22 @@ export interface RouterUsers {
   passwordStyle: PasswordStyle;
   /** What the decision was based on: own users with an empty password / password = name / readable. */
   sample: { empty: number; same: number; readable: number };
+  /** The usual length of the router's own numeric cards, or null when unclear (see ownCodeLength). */
+  ownLength: number | null;
 }
 
 /** All hotspot users, read once per push, and how the router's own vouchers are made. */
 export async function readRouterUsers(client: RestClient): Promise<RouterUsers> {
-  const users = await client.get<Json[]>('/ip/hotspot/user', { '.proplist': 'name,comment,password' }, LIST_TIMEOUT_MS);
+  // Thousands of users through the tunnel: a long wait. Only read when the style is not known yet (see the push job).
+  const users = await client.get<Json[]>('/ip/hotspot/user', { '.proplist': 'name,comment,password' }, FIRST_READ_TIMEOUT_MS);
   const own = users.filter((u) => s(u.name) && s(u.name) !== 'default-trial' && !s(u.comment).startsWith('hzc:'));
   // A password the router does not show (no "sensitive" permission) tells nothing: only shown ones count.
   const readable = own.filter((u) => typeof u.password === 'string');
   const empty = readable.filter((u) => s(u.password) === '').length;
   const same = readable.filter((u) => s(u.password) === s(u.name)).length;
   const passwordStyle: PasswordStyle = readable.length >= 3 && empty > same && empty >= readable.length * 0.6 ? 'empty' : 'same';
-  return { comments: new Map(users.map((u) => [s(u.name), s(u.comment)])), passwordStyle, sample: { empty, same, readable: readable.length } };
+  const comments = new Map(users.map((u) => [s(u.name), s(u.comment)]));
+  return { comments, passwordStyle, sample: { empty, same, readable: readable.length }, ownLength: ownCodeLength(comments.keys(), comments) };
 }
 
 /** The usual length of the router's own numeric cards (MikroTicket's PINs), or null when unclear. */
@@ -327,7 +363,12 @@ export function ownCodeLength(names: Iterable<string>, comments?: Map<string, st
  */
 export async function checkPushed(client: RestClient, codes: string[], profile: string): Promise<{ checked: number; missing: string[]; wrongProfile: string[] }> {
   if (!codes.length) return { checked: 0, missing: [], wrongProfile: [] };
-  const rows = await client.get<Json[]>('/ip/hotspot/user', { '.proplist': 'name,profile' });
+  // A few cards: look each one up (a small answer each, several at a time). Reading every user of a big
+  // router just to check ten cards took longer than the push itself, and could time out.
+  const rows =
+    codes.length <= LOOKUP_LIMIT
+      ? (await mapPool(codes, ROUTER_PARALLEL, (c) => client.get<Json[]>('/ip/hotspot/user', { name: c, '.proplist': 'name,profile' }))).flat()
+      : await client.get<Json[]>('/ip/hotspot/user', { '.proplist': 'name,profile' }, LIST_TIMEOUT_MS);
   const byName = new Map(rows.map((r) => [s(r.name), s(r.profile)]));
   const missing = codes.filter((c) => !byName.has(c));
   const wrongProfile = codes.filter((c) => byName.has(c) && byName.get(c) !== profile);
@@ -415,6 +456,8 @@ export async function closeSessions(client: RestClient, code: string, mac: strin
 
 /** How long a full hotspot user list may take: thousands of users through the tunnel take a while. */
 export const LIST_TIMEOUT_MS = 30_000;
+/** The one-time read of every user, to learn how the router's own cards are made. */
+export const FIRST_READ_TIMEOUT_MS = 60_000;
 
 /** A hotspot user as Hotzonex counts it: every user on the router, not only Hotzonex vouchers. */
 export interface RouterUser {
@@ -591,8 +634,36 @@ export async function removeLeftoverProfiles(client: RestClient, keep: Set<strin
 }
 
 /**
- * Deletes vouchers' hotspot users from the router (closing their sessions first). Only a user that
- * still carries the voucher's tag is removed; one that is already gone counts as removed.
+ * Removes users by router id, many in one command. If the command fails because one of them is already gone,
+ * the rest are removed one by one. Returns how many were removed.
+ */
+async function removeUserIds(client: RestClient, ids: string[]): Promise<number> {
+  if (!ids.length) return 0;
+  try {
+    await client.post('/ip/hotspot/user/remove', { '.id': ids.join(',') });
+    return ids.length;
+  } catch (err) {
+    if (!(err instanceof RouterError) || (err.kind !== 'not_found' && !/no such item/i.test(err.message))) throw err;
+  }
+  let removed = 0;
+  for (const id of ids) {
+    try {
+      await client.post('/ip/hotspot/user/remove', { '.id': id });
+      removed++;
+    } catch (err) {
+      if (!(err instanceof RouterError) || (err.kind !== 'not_found' && !/no such item/i.test(err.message))) throw err;
+    }
+  }
+  return removed;
+}
+
+/**
+ * Deletes vouchers' users from the router: the sessions of the cards are closed, then each user that still carries
+ * the voucher's tag is removed; one that is already gone counts as removed.
+ *
+ * Fast on big routers: a few cards are looked up one by one (several at a time) instead of reading every hotspot
+ * user (thousands, which through the tunnel took longer than the time allowed), and the users are removed in
+ * groups of 50 per command. Returns how many users were removed, or null when time ran out (call again to finish).
  */
 export async function removeVoucherUsers(
   client: RestClient,
@@ -600,23 +671,31 @@ export async function removeVoucherUsers(
   deadline = Infinity,
 ): Promise<number | null> {
   if (!vouchers.length) return 0;
-  // Users and sessions are read once (not once per card): deleting hundreds of cards through the
-  // tunnel stays within the time limit. Returns null when time ran out (call again to finish).
-  const [users, active] = await Promise.all([
-    client.get<Json[]>('/ip/hotspot/user', { '.proplist': '.id,name,comment' }),
-    client.get<Json[]>('/ip/hotspot/active', { '.proplist': '.id,user' }),
-  ]);
-  const byTag = new Map(users.map((u) => [`${s(u.name)}|${s(u.comment)}`, s(u['.id'])]));
   const codes = new Set(vouchers.map((v) => v.code));
-  const sessions = active.filter((a) => codes.has(s(a.user))).map((a) => s(a['.id']));
+  const activeRead = client.get<Json[]>('/ip/hotspot/active', { '.proplist': '.id,user' }, LIST_TIMEOUT_MS);
+  void activeRead.catch(() => undefined); // awaited below; if a lookup fails first, nothing is left unhandled
+
+  let userIds: string[];
+  if (vouchers.length <= LOOKUP_LIMIT) {
+    const found = await mapPool(vouchers, ROUTER_PARALLEL, async (v) => {
+      const rows = await client.get<Json[]>('/ip/hotspot/user', { name: v.code, '.proplist': '.id,comment' });
+      const own = rows.find((u) => s(u.comment) === `hzc:${v.id}`);
+      return own ? s(own['.id']) : null;
+    });
+    userIds = found.filter((id): id is string => Boolean(id));
+  } else {
+    const users = await client.get<Json[]>('/ip/hotspot/user', { '.proplist': '.id,name,comment' }, LIST_TIMEOUT_MS);
+    const byTag = new Map(users.map((u) => [`${s(u.name)}|${s(u.comment)}`, s(u['.id'])]));
+    userIds = vouchers.map((v) => byTag.get(`${v.code}|hzc:${v.id}`)).filter((id): id is string => Boolean(id));
+  }
+
+  const sessions = (await activeRead).filter((a) => codes.has(s(a.user))).map((a) => s(a['.id']));
   if (sessions.length) await ignoreGone(client.post('/ip/hotspot/active/remove', { '.id': sessions.join(',') }));
+
   let removed = 0;
-  for (const v of vouchers) {
-    const id = byTag.get(`${v.code}|hzc:${v.id}`);
-    if (!id) continue;
+  for (let i = 0; i < userIds.length; i += REMOVE_BATCH) {
     if (Date.now() > deadline) return null;
-    await ignoreGone(client.post('/ip/hotspot/user/remove', { '.id': id }));
-    removed++;
+    removed += await removeUserIds(client, userIds.slice(i, i + REMOVE_BATCH));
   }
   return removed;
 }
