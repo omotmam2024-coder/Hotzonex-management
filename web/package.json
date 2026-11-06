@@ -13,9 +13,6 @@
     "test": "node --test --experimental-strip-types tests/*.test.ts"
   },
   "dependencies": {
-    "@fontsource-variable/atkinson-hyperlegible-next": "5.3.0",
-    "@fontsource-variable/bricolage-grotesque": "5.3.0",
-    "@fontsource-variable/inter": "5.2.8",
     "@supabase/supabase-js": "^2.117.3",
     "@tanstack/query-sync-storage-persister": "^5.104.1",
     "@tanstack/react-query": "^5.104.1",

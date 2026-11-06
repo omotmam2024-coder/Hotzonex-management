@@ -428,13 +428,13 @@ test('deleting: if one card vanished just before the remove command, the others 
   assert.deepEqual(state['/ip/hotspot/user']!.map((u) => u.name), ['11112222']);
 });
 
-test('deleting more cards than the lookup limit reads the list once and removes 50 per command', async () => {
+test('deleting more cards than the lookup limit reads the list once and removes 100 per command', async () => {
   reset();
   const mine = tagged(LOOKUP_LIMIT + 70);
   addTagged(mine);
   assert.equal(await removeVoucherUsers(client(), mine), LOOKUP_LIMIT + 70);
   assert.equal(fullUserReads, 1);
-  assert.equal(writes.filter((w) => w.startsWith('REMOVE /ip/hotspot/user/remove ')).length, Math.ceil((LOOKUP_LIMIT + 70) / 50));
+  assert.equal(writes.filter((w) => w.startsWith('REMOVE /ip/hotspot/user/remove ')).length, Math.ceil((LOOKUP_LIMIT + 70) / 100));
 });
 
 test('deleting stops when time runs out and tells the caller to come back', async () => {

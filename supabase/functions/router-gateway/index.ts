@@ -57,7 +57,8 @@ import { PORTAL_FILES } from '../_shared/portal.ts';
 
 const USAGE_EVERY_MS = 55_000;
 const OFFLINE_AFTER_MS = 120_000;
-const PUSH_CHUNK = 80;
+// Cards sent per call: one call from the router per 200 cards (about 30 KB of script; RouterOS keeps at most 64 KB).
+const PUSH_CHUNK = 200;
 const MAX_BODY = 200_000;
 
 function text(body: string, status = 200): Response {

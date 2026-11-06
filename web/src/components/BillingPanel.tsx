@@ -4,7 +4,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useBillingOverview, type BillingOverview, type Invoice } from '../hooks/useBillingOverview';
 import { friendlyError } from '../lib/errors';
 import { useT } from '../i18n';
-import { formatJubaDate, formatSSPWithUsd } from '../lib/format';
+import { daysLeft, formatJubaDate, formatSSPWithUsd } from '../lib/format';
 import { supabase } from '../lib/supabase';
 import { OwnerPlanUsage } from './PlanLimits';
 import { Alert, Badge, Button, buttonClass, Card, Spinner, TextInput } from './ui';
@@ -16,10 +16,7 @@ export const INVOICE_STATUS = {
   void: { key: 'business.billing.status.void', color: 'gray' },
 } as const;
 
-export function daysLeft(iso: string | null): number | null {
-  if (!iso) return null;
-  return Math.max(0, Math.ceil((new Date(iso).getTime() - Date.now()) / 86400_000));
-}
+export { daysLeft } from '../lib/format';
 
 /** "I have paid": the transaction ID from the payment SMS, checked by Hotzonex Cloud. */
 export function PayForm({ invoice }: { invoice: Invoice }) {

@@ -53,7 +53,7 @@ export function SignupPage() {
           <LanguageSwitch tone="light" />
         </div>
         <div className="mb-5 text-center">
-          <img src="/logo.png" alt="Hotzonex WiFi" className="mx-auto h-20 w-auto" />
+          <img src="/logo-sm.webp" alt="Hotzonex WiFi" width={291} height={224} className="mx-auto h-20 w-auto" />
           <h1 className="mt-3 text-2xl font-bold text-slate-900">{t('public.signup.title')}</h1>
           <p className="text-slate-600">{t('public.signup.subtitle')}</p>
         </div>

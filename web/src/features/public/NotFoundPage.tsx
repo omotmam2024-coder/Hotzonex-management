@@ -15,7 +15,7 @@ export function NotFoundPage() {
         <div className="mb-4 ms-auto max-w-xs">
           <LanguageSwitch tone="light" />
         </div>
-        <img src="/logo.png" alt="Hotzonex WiFi" className="mx-auto h-16 w-auto" />
+        <img src="/logo-sm.webp" alt="Hotzonex WiFi" width={291} height={224} className="mx-auto h-16 w-auto" />
         <p className="mt-6 text-5xl font-bold text-brand-700">404</p>
         <h1 className="mt-2 text-xl font-bold text-slate-900">{t('public.notFound.title')}</h1>
         <p className="mt-2 text-slate-600">{t('public.notFound.text')}</p>

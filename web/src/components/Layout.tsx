@@ -18,7 +18,7 @@ function Brand() {
   return (
     <Link to="/" className="flex items-center gap-2.5">
       <img src="/icon-72.png" alt="" className="h-8 w-8" />
-      <span className="font-display text-[19px] font-extrabold tracking-tight [font-stretch:88%]">Hotzonex Cloud</span>
+      <span className="font-display text-[19px] font-extrabold tracking-tight">Hotzonex Cloud</span>
     </Link>
   );
 }

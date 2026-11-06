@@ -92,7 +92,7 @@ export function ResetPasswordPage() {
           <LanguageSwitch tone="light" />
         </div>
         <div className="mb-6 flex flex-col items-center text-center">
-          <img src="/logo.png" alt="Hotzonex WiFi" className="h-20 w-auto" />
+          <img src="/logo-sm.webp" alt="Hotzonex WiFi" width={291} height={224} className="h-20 w-auto" />
           <h1 className="mt-3 text-2xl font-bold text-slate-900">{t('public.reset.title')}</h1>
         </div>
 

@@ -280,10 +280,30 @@ test('portal install downloads every page before switching the login folder, and
 
 test('deleting vouchers removes only tagged users; a profile goes only while no user is on it', () => {
   const v = removeVouchersBlock(JOB, [{ id: V1, code: '12345678' }]);
-  assert.ok(v.includes(`/ip hotspot user remove [find where name="12345678" and comment="hzc:${V1}"]`));
-  assert.ok(v.includes('/ip hotspot active remove [find where user="12345678"]'));
+  // The helper removes sessions, then only the user that still carries this voucher's tag.
+  assert.ok(v.includes('/ip hotspot active remove [find where user=$c]'));
+  assert.ok(v.includes(':local f [/ip hotspot user find where name=$c and comment=("hzc:" . $i)]'));
+  assert.ok(v.includes(':if ([:len $f] > 0) do={ /ip hotspot user remove $f }'));
+  assert.ok(v.includes(`:set n ($n + [$rm c="12345678" i="${V1}"])`));
   assert.ok(v.includes(`"J|${JOB}|ok|" . $n`));
   const p = removeProfileBlock(JOB, 'Guest');
   assert.ok(p.includes(':local n [:len [/ip hotspot user find where profile="Guest"]]'));
   assert.ok(p.includes(':if ($n = 0) do={ /ip hotspot user profile remove [find where name="Guest"] }'));
+});
+
+test('a full push (200 cards) and a full delete (500 cards) stay well under the 64 KB RouterOS fetch limit', () => {
+  const cards = (n: number) => Array.from({ length: n }, (_, i) => ({ id: `aaaaaaaa-bbbb-4ccc-8ddd-${String(i).padStart(12, '0')}`, code: String(1000000000 + i) }));
+  const push = pushBlock({ jobId: JOB, profile: { name: 'profile_1Hr-se:-co:1000-ut:0d 01:00:00', rateLimit: '2M/2M', sharedUsers: 1 }, server: 'hotspot1', limitUptime: '1h', limitBytes: '1073741824', vouchers: cards(200) });
+  const del = removeVouchersBlock(JOB, cards(500));
+  assertBalanced(push);
+  assertBalanced(del);
+  const limit = 48 * 1024; // room for the usage block and the builder around it
+  assert.ok(push.length < limit, `push block is ${push.length} bytes`);
+  assert.ok(del.length < limit, `delete block is ${del.length} bytes`);
+});
+
+test('a card with a data limit is added in one command (no second search of the user list)', () => {
+  const block = pushBlock({ jobId: JOB, profile: { name: 'hzc-1h', rateLimit: null, sharedUsers: 1 }, server: 'hotspot1', limitUptime: '1h', limitBytes: '1048576', vouchers: [{ id: V1, code: '12345678' }] });
+  assert.match(block, /user add name=\$c password=\$c profile=\$p server=\$s limit-uptime=\$lu limit-bytes-total=\$lb comment=\$t/);
+  assert.doesNotMatch(block, /user set \[find where name=\$c\]/);
 });

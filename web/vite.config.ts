@@ -13,7 +13,10 @@ function serviceWorker(): Plugin {
     generateBundle(_options, bundle) {
       const files = Object.keys(bundle)
         .filter((f) => !f.endsWith('.html') && !f.endsWith('.map'))
-        .concat(['favicon.png', 'icon-72.png', 'icon-192.png', 'logo.png'])
+        // Arabic and Kiswahili texts are saved only for people who choose them (when first used),
+        // so nobody spends data on two languages they never read.
+        .filter((f) => !/^assets\/lang-(ar|sw)-/.test(f))
+        .concat(['favicon.png', 'icon-72.png', 'icon-192.png', 'logo-sm.webp'])
         .map((f) => `/${f}`)
         .sort();
       const version = createHash('sha256').update(files.join('\n')).digest('hex').slice(0, 12);

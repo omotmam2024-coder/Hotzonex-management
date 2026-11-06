@@ -256,10 +256,15 @@ export type PushResult = 'added' | 'already' | 'conflict' | 'error';
 
 /** How many cards are looked up, added or checked on the router at the same time (a few: the router stays responsive). */
 export const ROUTER_PARALLEL = 6;
+/**
+ * Cards added at the same time while pushing a batch. Each add is a short command; the tunnel's delay, not the
+ * router, is what limits a push, so more run at once (RouterOS serves up to 20 REST sessions by default).
+ */
+export const PUSH_PARALLEL = 10;
 /** Up to this many cards are looked up one by one (in parallel); more than that read the user list once instead. */
 export const LOOKUP_LIMIT = 60;
 /** Users removed in one command. */
-const REMOVE_BATCH = 50;
+const REMOVE_BATCH = 100;
 
 /**
  * Runs `fn` over the items with at most `limit` at a time; results come back in the items' order. When one
@@ -663,7 +668,7 @@ async function removeUserIds(client: RestClient, ids: string[]): Promise<number>
  *
  * Fast on big routers: a few cards are looked up one by one (several at a time) instead of reading every hotspot
  * user (thousands, which through the tunnel took longer than the time allowed), and the users are removed in
- * groups of 50 per command. Returns how many users were removed, or null when time ran out (call again to finish).
+ * groups of 100 per command. Returns how many users were removed, or null when time ran out (call again to finish).
  */
 export async function removeVoucherUsers(
   client: RestClient,

@@ -114,3 +114,9 @@ export function formatBytes(bytes: number): string {
   }
   return `${value >= 100 ? Math.round(value) : value.toFixed(1)} ${units[unit]}`;
 }
+
+/** Whole days from now until a date (0 once it has passed), or null without a date. */
+export function daysLeft(iso: string | null): number | null {
+  if (!iso) return null;
+  return Math.max(0, Math.ceil((new Date(iso).getTime() - Date.now()) / 86400_000));
+}

@@ -2,22 +2,24 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Fonts bundled with the app (work offline and under the Content-Security-Policy). Latin letters only;
-   Arabic falls back to the phone's own Arabic font. */
+/* Fonts bundled with the app (work offline and under the Content-Security-Policy), cut down for slow
+   connections: Latin letters only (Arabic uses the phone's own font), body weights 400–700, heading
+   weights 700–800 at one fixed width (86%). 48 KB for both instead of 165 KB. Made with the
+   `subset-font` npm package from @fontsource-variable/atkinson-hyperlegible-next and
+   @fontsource-variable/bricolage-grotesque 5.3.0 (opsz 32, wdth 86). */
 @font-face {
   font-family: 'Atkinson Hyperlegible Next Variable';
   font-style: normal;
   font-display: swap;
-  font-weight: 200 800;
-  src: url('../node_modules/@fontsource-variable/atkinson-hyperlegible-next/files/atkinson-hyperlegible-next-latin-wght-normal.woff2') format('woff2-variations');
+  font-weight: 400 700;
+  src: url('./assets/fonts/atkinson-hyperlegible-next.woff2') format('woff2-variations');
 }
 @font-face {
   font-family: 'Bricolage Grotesque Variable';
   font-style: normal;
   font-display: swap;
-  font-weight: 200 800;
-  font-stretch: 75% 100%;
-  src: url('../node_modules/@fontsource-variable/bricolage-grotesque/files/bricolage-grotesque-latin-standard-normal.woff2') format('woff2-variations');
+  font-weight: 700 800;
+  src: url('./assets/fonts/bricolage-grotesque-display.woff2') format('woff2-variations');
 }
 
 html,
@@ -36,7 +38,6 @@ body {
   h2,
   h3 {
     font-family: theme('fontFamily.display');
-    font-stretch: 92%;
     letter-spacing: -0.012em;
   }
 }
@@ -44,7 +45,6 @@ body {
 /* Big numbers (money, voucher codes) in the display face, narrow so long SSP amounts fit on a phone. */
 .num-display {
   font-family: theme('fontFamily.display');
-  font-stretch: 85%;
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.02em;
 }
