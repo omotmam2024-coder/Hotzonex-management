@@ -8,7 +8,8 @@ import { ErrorBoundary } from './ErrorBoundary';
 import { BillingBanner } from './BillingBanner';
 import { SupportBar } from './SupportBar';
 import { Icon } from './Icon';
-import { reloadForUpdate, updateReady, watchForUpdates } from '../lib/appUpdate';
+import { watchForUpdates } from '../lib/appUpdate';
+import { preloadPages } from '../lib/lazyPage';
 import { CONTACT, whatsappLink } from '../lib/contact';
 import { getThemePref, setThemePref, type ThemePref } from '../lib/theme';
 
@@ -179,13 +180,10 @@ export function Layout() {
     setMenuOpen(false);
   }, [location.pathname]);
 
-  // A newer version is live: the page just chosen opens in it (a full load of the same address).
+  // Newer versions are loaded when the person comes back to the app (see appUpdate.ts), never on a tap.
   useEffect(() => watchForUpdates(), []);
-  const shownPath = useRef(location.pathname);
-  useEffect(() => {
-    if (location.pathname !== shownPath.current && updateReady()) reloadForUpdate();
-    shownPath.current = location.pathname;
-  }, [location.pathname]);
+  // Every screen is fetched in the background once the app is open, so tapping a page opens it at once.
+  useEffect(() => preloadPages(), []);
 
   if (!profile) return null;
   const items = navForRole(profile.role, isPlatformAdmin);

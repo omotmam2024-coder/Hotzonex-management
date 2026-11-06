@@ -62,7 +62,8 @@ void loadLang(getLang()).then(() =>
           },
         }}
       >
-        <BrowserRouter>
+        {/* v7_startTransition: the current page stays on screen until the next one is ready (no blank flash). */}
+        <BrowserRouter future={{ v7_startTransition: true }}>
           <I18nProvider>
             <ErrorBoundary>
               <AuthProvider>
