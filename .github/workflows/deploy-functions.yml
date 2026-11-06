@@ -53,4 +53,5 @@ jobs:
           version: latest
 
       - name: Deploy every function
-        run: supabase functions deploy --project-ref "$PROJECT_REF" --use-api
+        # --yes: the CLI asks for confirmation before deploying, and nobody can answer it here.
+        run: supabase functions deploy --project-ref "$PROJECT_REF" --use-api --yes
