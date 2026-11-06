@@ -2,7 +2,7 @@ import { useMemo, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { useAuth } from '../../auth/AuthProvider';
-import { Alert, Button, Card, Field, ReportPrintStyle, ReportSection, Select, Spinner, reportTd as td, reportTh as th } from '../../components/ui';
+import { Alert, Button, Card, Field, ReportPrintStyle, ReportSection, Select, Spinner, chipClass, reportTd as td, reportTh as th } from '../../components/ui';
 import { PageHeader } from '../../components/PageHeader';
 import { downloadText, toCsv } from '../../lib/csv';
 import { friendlyError } from '../../lib/errors';
@@ -204,7 +204,8 @@ export function ReportsPage() {
   }
 
   const change = r?.summary.change_pct;
-  const filterCount = (siteId ? 1 : 0) + (planId ? 1 : 0) + (sellerId ? 1 : 0);
+  // The location has its own row of buttons (below the period), so it is not counted among the filters.
+  const filterCount = (planId ? 1 : 0) + (sellerId ? 1 : 0);
   const shownBreakdown = breakdownRows.filter((b) => b.kind === 'subtotal' || b.sold > 0);
   const filtersText = [isAdmin || scope ? scope : '', planId ? planName : '', sellerId ? sellerName : ''].filter(Boolean).join(' · ');
 
@@ -265,21 +266,35 @@ export function ReportsPage() {
         {report.isFetching && <Spinner className="h-4 w-4 text-brand-600" />}
       </PeriodPicker>
 
+      {/* Location: the income and every table below follow the site chosen here. */}
+      {isAdmin
+        ? (sites.data?.length ?? 0) > 1 && (
+            <div className="no-print -mx-4 overflow-x-auto px-4 pb-1 sm:mx-0 sm:px-0">
+              <div role="radiogroup" aria-label={t('common.site')} className="flex w-max gap-2">
+                {[{ id: '', name: t('common.allSites') }, ...(sites.data ?? [])].map((s) => (
+                  <button
+                    key={s.id || 'all'}
+                    type="button"
+                    role="radio"
+                    aria-checked={siteId === s.id}
+                    onClick={() => set('site', s.id)}
+                    className={chipClass(siteId === s.id, 'shrink-0 whitespace-nowrap')}
+                  >
+                    {s.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )
+        : mySite && (
+            <p className="no-print text-sm text-slate-600">
+              {t('common.site')}: <span className="font-bold text-slate-900">{mySite}</span>
+            </p>
+          )}
+
       {showFilters && (
         <Card className="no-print !p-3">
-          <div className="grid gap-3 sm:grid-cols-3">
-            {isAdmin && (
-              <Field label={t('common.site')}>
-                <Select value={siteId} onChange={(e) => set('site', e.target.value)}>
-                  <option value="">{t('common.allSites')}</option>
-                  {(sites.data ?? []).map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.name}
-                    </option>
-                  ))}
-                </Select>
-              </Field>
-            )}
+          <div className="grid gap-3 sm:grid-cols-2">
             <Field label={t('common.plan')}>
               <Select value={planId} onChange={(e) => set('plan', e.target.value)}>
                 <option value="">{t('common.allPlans')}</option>
@@ -378,7 +393,17 @@ export function ReportsPage() {
             </ReportSection>
             {!r.site_id && r.by_site.length > 1 && (
               <ReportSection title={t('reports.bySite')}>
-                <SalesTable head={t('common.site')} total={r.summary} rows={r.by_site.map((p) => ({ key: p.site_id, name: p.name, sold: p.sold, revenue: p.revenue }))} />
+                <SalesTable head={t('common.site')} total={r.summary} rows={r.by_site.map((p) => ({
+                    key: p.site_id,
+                    // Tapping a location shows that location's report.
+                    name: (
+                      <button type="button" onClick={() => set('site', p.site_id)} className="min-h-11 text-start font-bold text-brand-700 hover:underline print:min-h-0 print:font-normal print:text-slate-900">
+                        {p.name}
+                      </button>
+                    ),
+                    sold: p.sold,
+                    revenue: p.revenue,
+                  }))} />
               </ReportSection>
             )}
           </div>
