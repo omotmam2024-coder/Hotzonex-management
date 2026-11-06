@@ -30,66 +30,6 @@ const en = {
   'reports.alerts.kind.report': 'Report',
 }
 
-type Keys = Record<keyof typeof en, string>;
+export type Keys = Record<keyof typeof en, string>;
 
-const ar = {
-  'nav.insights': 'التحليلات',
-  'insights.title': 'التحليلات',
-  'insights.subtitle': 'متى وماذا يُباع، وما المتوقع الأسبوع القادم، وأي شيء غير معتاد',
-  'insights.period': 'الفترة',
-  'insights.lastDays': 'آخر {n} يوماً',
-  'insights.noSales': 'لا توجد مبيعات في هذه الفترة بعد. تظهر التحليلات بعد أول المبيعات.',
-  'insights.flags': 'يستحق النظر',
-  'insights.flagsNote': 'هذه إشارات وليست إثباتاً: راجع صفحة المبيعات قبل الاستنتاج.',
-  'insights.flag.drop': 'انخفضت الإيرادات {pct}% في آخر 7 أيام ({last}) مقارنة بالـ 7 أيام السابقة ({prev}).',
-  'insights.flag.voids': 'ألغى {name} {voids} من أصل {total} عملية بيع.',
-  'insights.flag.discounts': 'منح {name} خصماً ترويجياً على {n} من أصل {total} عملية بيع.',
-  'insights.revenue': 'الإيرادات',
-  'insights.sold': 'البطاقات المباعة',
-  'insights.bestHour': 'أفضل ساعة',
-  'insights.bestDay': 'أفضل يوم',
-  'insights.byHour': 'الإيرادات حسب ساعة اليوم',
-  'insights.barsNote': 'الشريط = الإيرادات؛ الرقم الصغير على الجانب = البطاقات المباعة.',
-  'insights.byWeekday': 'الإيرادات حسب يوم الأسبوع',
-  'insights.byPlan': 'الإيرادات حسب الباقة',
-  'insights.forecast': 'الأيام السبعة القادمة',
-  'insights.forecastText': 'الإيرادات المتوقعة: حوالي {total}.',
-  'insights.forecastNote': 'للاسترشاد فقط: متوسط اليوم نفسه من الأسبوع خلال الفترة. لا تُحتسب العطلات والأعطال والعروض.',
-  'insights.forecastNeeds': 'اختر 14 يوماً أو أكثر لرؤية التوقعات.',
-  'reports.alerts.cbDaily': 'أرسل لي تقريراً يومياً',
-  'reports.alerts.dailyHint': 'كل مساء الساعة 18:00: الإيرادات والبطاقات المباعة وأفضل باقة والمبيعات الملغاة والراوترات المتوقفة. يُرسل إلى Telegram وWhatsApp باللغة المختارة أدناه.',
-  'reports.alerts.dailyNeedsChannel': 'اربط Telegram أو أضف رقم WhatsApp أولاً: يُرسل التقرير إليهما.',
-  'reports.alerts.kind.report': 'تقرير',
-} satisfies Keys;
-
-const sw = {
-  'nav.insights': 'Uchambuzi',
-  'insights.title': 'Uchambuzi',
-  'insights.subtitle': 'Lini na nini kinauzwa, unachotarajia wiki ijayo, na kitu chochote kisicho cha kawaida',
-  'insights.period': 'Kipindi',
-  'insights.lastDays': 'Siku {n} zilizopita',
-  'insights.noSales': 'Bado hakuna mauzo katika kipindi hiki. Uchambuzi huonekana baada ya mauzo ya kwanza.',
-  'insights.flags': 'Inastahili kuangaliwa',
-  'insights.flagsNote': 'Hizi ni ishara, si uthibitisho: kagua ukurasa wa Mauzo kabla ya kuhitimisha.',
-  'insights.flag.drop': 'Mapato yalishuka {pct}% katika siku 7 zilizopita ({last}) ikilinganishwa na siku 7 kabla yake ({prev}).',
-  'insights.flag.voids': '{name} alifuta mauzo {voids} kati ya {total}.',
-  'insights.flag.discounts': '{name} alitoa punguzo la promo kwenye mauzo {n} kati ya {total}.',
-  'insights.revenue': 'Mapato',
-  'insights.sold': 'Vocha zilizouzwa',
-  'insights.bestHour': 'Saa bora',
-  'insights.bestDay': 'Siku bora',
-  'insights.byHour': 'Mapato kwa saa ya siku',
-  'insights.barsNote': 'Upau = mapato; nambari ndogo upande = vocha zilizouzwa.',
-  'insights.byWeekday': 'Mapato kwa siku ya wiki',
-  'insights.byPlan': 'Mapato kwa kifurushi',
-  'insights.forecast': 'Siku 7 zijazo',
-  'insights.forecastText': 'Mapato yanayotarajiwa: takriban {total}.',
-  'insights.forecastNote': 'Mwongozo tu: wastani wa siku hiyo hiyo ya wiki katika kipindi. Sikukuu, hitilafu na promo hazihesabiwi.',
-  'insights.forecastNeeds': 'Chagua siku 14 au zaidi kuona makadirio.',
-  'reports.alerts.cbDaily': 'Nitumie ripoti ya kila siku',
-  'reports.alerts.dailyHint': 'Kila jioni saa 18:00: mapato, vocha zilizouzwa, kifurushi bora, mauzo yaliyofutwa na router zilizozimika. Hutumwa kwa Telegram na WhatsApp kwa lugha uliyochagua hapa chini.',
-  'reports.alerts.dailyNeedsChannel': 'Unganisha Telegram au ongeza nambari ya WhatsApp kwanza: ripoti hutumwa huko.',
-  'reports.alerts.kind.report': 'Ripoti',
-} satisfies Keys;
-
-export const insights = { en, ar, sw };
+export const insights = { en };

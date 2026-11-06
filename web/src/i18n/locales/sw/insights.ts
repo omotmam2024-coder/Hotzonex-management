@@ -1,0 +1,32 @@
+// Kiswahili texts for locales/insights.ts (same keys). Loaded only when this language is chosen.
+import type { Keys } from '../insights';
+
+export const insights = {
+  'nav.insights': 'Uchambuzi',
+  'insights.title': 'Uchambuzi',
+  'insights.subtitle': 'Lini na nini kinauzwa, unachotarajia wiki ijayo, na kitu chochote kisicho cha kawaida',
+  'insights.period': 'Kipindi',
+  'insights.lastDays': 'Siku {n} zilizopita',
+  'insights.noSales': 'Bado hakuna mauzo katika kipindi hiki. Uchambuzi huonekana baada ya mauzo ya kwanza.',
+  'insights.flags': 'Inastahili kuangaliwa',
+  'insights.flagsNote': 'Hizi ni ishara, si uthibitisho: kagua ukurasa wa Mauzo kabla ya kuhitimisha.',
+  'insights.flag.drop': 'Mapato yalishuka {pct}% katika siku 7 zilizopita ({last}) ikilinganishwa na siku 7 kabla yake ({prev}).',
+  'insights.flag.voids': '{name} alifuta mauzo {voids} kati ya {total}.',
+  'insights.flag.discounts': '{name} alitoa punguzo la promo kwenye mauzo {n} kati ya {total}.',
+  'insights.revenue': 'Mapato',
+  'insights.sold': 'Vocha zilizouzwa',
+  'insights.bestHour': 'Saa bora',
+  'insights.bestDay': 'Siku bora',
+  'insights.byHour': 'Mapato kwa saa ya siku',
+  'insights.barsNote': 'Upau = mapato; nambari ndogo upande = vocha zilizouzwa.',
+  'insights.byWeekday': 'Mapato kwa siku ya wiki',
+  'insights.byPlan': 'Mapato kwa kifurushi',
+  'insights.forecast': 'Siku 7 zijazo',
+  'insights.forecastText': 'Mapato yanayotarajiwa: takriban {total}.',
+  'insights.forecastNote': 'Mwongozo tu: wastani wa siku hiyo hiyo ya wiki katika kipindi. Sikukuu, hitilafu na promo hazihesabiwi.',
+  'insights.forecastNeeds': 'Chagua siku 14 au zaidi kuona makadirio.',
+  'reports.alerts.cbDaily': 'Nitumie ripoti ya kila siku',
+  'reports.alerts.dailyHint': 'Kila jioni saa 18:00: mapato, vocha zilizouzwa, kifurushi bora, mauzo yaliyofutwa na router zilizozimika. Hutumwa kwa Telegram na WhatsApp kwa lugha uliyochagua hapa chini.',
+  'reports.alerts.dailyNeedsChannel': 'Unganisha Telegram au ongeza nambari ya WhatsApp kwanza: ripoti hutumwa huko.',
+  'reports.alerts.kind.report': 'Ripoti',
+} satisfies Keys;

@@ -7,7 +7,8 @@ import { createSyncStoragePersister } from '@tanstack/query-sync-storage-persist
 import { AuthProvider } from './auth/AuthProvider';
 import { App } from './App';
 import { ErrorBoundary } from './components/ErrorBoundary';
-import { I18nProvider, LangRoot } from './i18n';
+import { I18nProvider, LangRoot, loadLang } from './i18n';
+import { getLang } from './i18n/core';
 import './index.css';
 
 const DAY = 24 * 60 * 60 * 1000;
@@ -45,32 +46,36 @@ const persister = createSyncStoragePersister({ storage, key: 'hzc.cache', thrott
 const root = document.getElementById('root');
 if (!root) throw new Error('Root element #root not found');
 
-createRoot(root).render(
-  <StrictMode>
-    <PersistQueryClientProvider
-      client={queryClient}
-      persistOptions={{
-        persister,
-        maxAge: DAY,
-        buster: __APP_VERSION__,
-        dehydrateOptions: {
-          shouldDehydrateQuery: (q) => q.state.status === 'success' && SAVED.has(String(q.queryKey[0])),
-        },
-      }}
-    >
-      <BrowserRouter>
-        <I18nProvider>
-          <ErrorBoundary>
-            <AuthProvider>
-              <LangRoot>
-                <App />
-              </LangRoot>
-            </AuthProvider>
-          </ErrorBoundary>
-        </I18nProvider>
-      </BrowserRouter>
-    </PersistQueryClientProvider>
-  </StrictMode>,
+// Arabic or Kiswahili: their texts come first (one small file, saved after the first visit), so the
+// app never flashes English. English is built in and starts at once.
+void loadLang(getLang()).then(() =>
+  createRoot(root).render(
+    <StrictMode>
+      <PersistQueryClientProvider
+        client={queryClient}
+        persistOptions={{
+          persister,
+          maxAge: DAY,
+          buster: __APP_VERSION__,
+          dehydrateOptions: {
+            shouldDehydrateQuery: (q) => q.state.status === 'success' && SAVED.has(String(q.queryKey[0])),
+          },
+        }}
+      >
+        <BrowserRouter>
+          <I18nProvider>
+            <ErrorBoundary>
+              <AuthProvider>
+                <LangRoot>
+                  <App />
+                </LangRoot>
+              </AuthProvider>
+            </ErrorBoundary>
+          </I18nProvider>
+        </BrowserRouter>
+      </PersistQueryClientProvider>
+    </StrictMode>,
+  ),
 );
 
 // The app's files are kept by a service worker, so it opens without downloading them again.

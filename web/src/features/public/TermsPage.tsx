@@ -29,7 +29,7 @@ export function TermsPage() {
           <LanguageSwitch tone="light" />
         </div>
         <header className="space-y-1">
-          <img src="/logo.png" alt="Hotzonex WiFi" className="h-14 w-auto" />
+          <img src="/logo-sm.webp" alt="Hotzonex WiFi" width={291} height={224} className="h-14 w-auto" />
           <h1 className="pt-2 text-2xl font-bold text-slate-900">{t('public.terms.title')}</h1>
           <p className="text-sm text-slate-500">{t('public.terms.updated', { date: lang === 'en' ? UPDATED : formatJubaDate(UPDATED_DAY) })}</p>
           {lang !== 'en' && <p className="rounded-xl bg-amber-50 p-3 text-sm font-medium text-amber-900">{t('public.terms.binding')}</p>}

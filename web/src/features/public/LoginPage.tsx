@@ -79,7 +79,7 @@ export function LoginPage() {
           <LanguageSwitch tone="light" />
         </div>
         <div className="mb-6 flex flex-col items-center text-center">
-          <img src="/logo.png" alt="Hotzonex WiFi" className="h-28 w-auto" />
+          <img src="/logo-sm.webp" alt="Hotzonex WiFi" width={291} height={224} className="h-28 w-auto" />
           <h1 className="mt-4 text-[30px] font-extrabold leading-none text-brand-950">Hotzonex Cloud</h1>
           <p className="mt-1.5 text-slate-600">{t('public.login.subtitle')}</p>
         </div>

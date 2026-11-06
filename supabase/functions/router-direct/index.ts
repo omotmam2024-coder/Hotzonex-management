@@ -19,7 +19,7 @@ import {
   installPortalDirect,
   pushVoucher,
   mapPool,
-  ROUTER_PARALLEL,
+  PUSH_PARALLEL,
   readUsage,
   removeExpired,
   setWalledGarden,
@@ -68,6 +68,7 @@ import {
   retireRemovedProfiles,
   str,
   type Job,
+  type PlanRow,
   type RouterRef,
 } from '../_shared/jobs.ts';
 import { PORTAL_FILES } from '../_shared/portal.ts';
@@ -94,7 +95,8 @@ const LEASE_MS = BUDGET_MS + 30_000; // one worker per router at a time; expires
 // A worker is stopped at 130 s at the latest (see LEASE_MS), so a job still "running" after 150 s lost its worker.
 const STALE_RUNNING_MS = 150_000;
 const TEST_WAIT_MS = 2 * 60_000;
-const PUSH_CHUNK = 50;
+// Cards per round: their results are saved after each round (more per round: fewer database and router trips).
+const PUSH_CHUNK = 100;
 // A router that was answering is shown offline only after missing two checks in a row (one minute
 // apart): a short internet drop at the site does not flash it offline.
 const OFFLINE_AFTER_MS = 100_000;
@@ -204,6 +206,35 @@ async function runJob(db: SupabaseClient, router: DirectRouter, client: RestClie
     case 'push_vouchers': {
       let users: RouterUsers | null = null;
       let profiles: string[] | null = null;
+      const profileFor = new Map<string, string>(); // plan id → router profile, worked out once per batch
+      /** The router profile the cards of this plan go on, or null when the router has none for it (the job is then finished). */
+      const pushProfile = async (plan: PlanRow): Promise<string | null> => {
+        profiles ??= await routerProfileNames(client);
+        // A router with its own profiles (MikroTicket's): its matching profile is used, nothing is added.
+        // A router without any: Hotzonex adds the plan's profile.
+        const ownProfiles = profiles.filter((n) => n !== 'default' && !n.startsWith('hzc-'));
+        const link = await planLink(db, router, plan.id);
+        if (link?.managed) {
+          // Hotzonex's own profile for this plan: made now if the router does not have it yet.
+          await upsertManagedProfile(client, { name: link.profile_name, previousName: link.profile_name, rateLimit: plan.rate_limit, sharedUsers: plan.shared_users });
+          profiles = null;
+          return link.profile_name;
+        }
+        if (link && profiles.includes(link.profile_name)) return link.profile_name;
+        if (ownProfiles.length) {
+          const match = matchRouterProfile(plan.router_profile_name, profiles);
+          if (!match) {
+            await finishJob(db, job.id, false, {
+              ...(job.result ?? {}),
+              error: `${router.name} has no user profile for this plan (${plan.router_profile_name.replace(/^profile_(.+?)-se:.*$/, '$1')}). Make the profile on the router (e.g. in MikroTicket) or choose another plan; nothing was added to the router.`,
+            });
+            return null;
+          }
+          return match;
+        }
+        await ensureProfileExists(client, profileOf(plan));
+        return plan.router_profile_name;
+      };
       for (;;) {
         if (Date.now() > deadline) {
           // Out of time: continue on the next wake-up (progress is already saved).
@@ -215,31 +246,14 @@ async function runJob(db: SupabaseClient, router: DirectRouter, client: RestClie
         // How the router's own cards are made is read once and remembered (see knownCardStyle): reading every
         // hotspot user of a big router before each push is what made small pushes slow.
         users ??= (await knownCardStyle(db, router)) ?? (await readRouterUsers(client));
-        profiles ??= await routerProfileNames(client);
-        // A router with its own profiles (MikroTicket's): its matching profile is used, nothing is added.
-        // A router without any: Hotzonex adds the plan's profile.
-        const ownProfiles = profiles.filter((n) => n !== 'default' && !n.startsWith('hzc-'));
-        let profile = chunk.plan.router_profile_name;
-        const link = await planLink(db, router, chunk.plan.id);
-        if (link?.managed) {
-          // Hotzonex's own profile for this plan: made now if the router does not have it yet.
-          await upsertManagedProfile(client, { name: link.profile_name, previousName: link.profile_name, rateLimit: chunk.plan.rate_limit, sharedUsers: chunk.plan.shared_users });
-          profiles = null;
-          profile = link.profile_name;
-        } else if (link && profiles.includes(link.profile_name)) {
-          profile = link.profile_name;
-        } else if (ownProfiles.length) {
-          const match = matchRouterProfile(profile, profiles);
-          if (!match) {
-            await finishJob(db, job.id, false, {
-              ...(job.result ?? {}),
-              error: `${router.name} has no user profile for this plan (${profile.replace(/^profile_(.+?)-se:.*$/, '$1')}). Make the profile on the router (e.g. in MikroTicket) or choose another plan; nothing was added to the router.`,
-            });
-            return true;
-          }
-          profile = match;
-        } else {
-          await ensureProfileExists(client, profileOf(chunk.plan));
+        // The router profile is worked out once per batch (every chunk has the same plan): checking it again
+        // before every chunk cost extra calls through the tunnel each time.
+        let profile = profileFor.get(chunk.plan.id);
+        if (profile === undefined) {
+          const found = await pushProfile(chunk.plan);
+          if (found === null) return true;
+          profile = found;
+          profileFor.set(chunk.plan.id, found);
         }
         if (!job.result?.password_style) {
           job.result = { ...(job.result ?? {}), profile, password_style: users.passwordStyle, password_sample: users.sample, own_length: users.ownLength };
@@ -256,7 +270,7 @@ async function runJob(db: SupabaseClient, router: DirectRouter, client: RestClie
         try {
           // Several cards at a time (each is a separate call through the tunnel); results are kept as they come,
           // so what was added is saved even if the router stops answering part-way.
-          await mapPool(chunk.vouchers, ROUTER_PARALLEL, async (v) => {
+          await mapPool(chunk.vouchers, PUSH_PARALLEL, async (v) => {
             items.push({ voucher: v.id, result: await pushVoucher(client, v, opts, users.comments) });
           });
         } finally {

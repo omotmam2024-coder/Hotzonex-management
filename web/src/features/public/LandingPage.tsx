@@ -85,9 +85,9 @@ const FAQ: { q: TKey; a: TKey }[] = [
 ];
 
 const SCREENS: { src: string; alt: TKey; caption: TKey }[] = [
-  { src: '/screens/dashboard.png', alt: 'public.landing.screen1.alt', caption: 'public.landing.screen1.caption' },
-  { src: '/screens/sell.png', alt: 'public.landing.screen2.alt', caption: 'public.landing.screen2.caption' },
-  { src: '/screens/reports.png', alt: 'public.landing.screen3.alt', caption: 'public.landing.screen3.caption' },
+  { src: '/screens/dashboard.webp', alt: 'public.landing.screen1.alt', caption: 'public.landing.screen1.caption' },
+  { src: '/screens/sell.webp', alt: 'public.landing.screen2.alt', caption: 'public.landing.screen2.caption' },
+  { src: '/screens/reports.webp', alt: 'public.landing.screen3.alt', caption: 'public.landing.screen3.caption' },
 ];
 
 /** A section of the landing page: heading on the left, content beside it on wide screens and below on phones. */
@@ -176,7 +176,7 @@ export function LandingPage() {
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-3 px-5">
           <Link to="/" className="flex min-h-11 items-center gap-2.5">
             <img src="/icon-72.png" alt="" className="h-9 w-9" />
-            <span className="font-display text-xl font-extrabold tracking-tight [font-stretch:88%]">Hotzonex Cloud</span>
+            <span className="font-display text-xl font-extrabold tracking-tight">Hotzonex Cloud</span>
           </Link>
           <nav className="flex items-center gap-2" aria-label={t('public.landing.navAccount')}>
             <div className="hidden w-60 md:block">
@@ -200,7 +200,7 @@ export function LandingPage() {
           <div className="mx-auto grid max-w-6xl items-center gap-14 px-5 pb-20 pt-10 sm:pt-16 lg:grid-cols-[1.15fr_1fr] lg:pb-28 lg:pt-20">
             <div>
               <p className="max-w-md text-[15px] font-bold text-accent-300">{t('public.landing.badge')}</p>
-              <h1 className="mt-5 text-[46px] font-extrabold leading-[0.95] [font-stretch:80%] sm:text-[68px] lg:text-[80px]">{t('public.landing.hero')}</h1>
+              <h1 className="mt-5 text-[46px] font-extrabold leading-[0.95] sm:text-[68px] lg:text-[80px]">{t('public.landing.hero')}</h1>
               <p className="mt-6 max-w-[34rem] text-lg leading-relaxed text-white/80">{t('public.landing.heroText')}</p>
               <div className="mt-9 flex flex-col gap-3 sm:flex-row">
                 <Link to="/signup" className={`${cta} bg-accent-600 text-white hover:bg-accent-500`}>

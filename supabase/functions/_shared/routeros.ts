@@ -492,8 +492,10 @@ export function pushBlock(spec: PushSpec): string {
     '  :do {',
     '    :local f [/ip hotspot user find where name=$c]',
     '    :if ([:len $f] = 0) do={',
-    '      /ip hotspot user add name=$c password=$c profile=$p server=$s limit-uptime=$lu comment=$t',
-    '      :if ([:len $lb] > 0) do={ /ip hotspot user set [find where name=$c] limit-bytes-total=$lb }',
+    // One command per card (a data limit is set in the same command, not by searching the user list again).
+    '      :if ([:len $lb] > 0) do={',
+    '        /ip hotspot user add name=$c password=$c profile=$p server=$s limit-uptime=$lu limit-bytes-total=$lb comment=$t',
+    '      } else={ /ip hotspot user add name=$c password=$c profile=$p server=$s limit-uptime=$lu comment=$t }',
     '      :set hzcOut ($hzcOut . "P|" . $j . "|" . $i . "|added\\n")',
     '    } else={',
     '      :if ([/ip hotspot user get ($f->0) comment] = $t) do={',
@@ -525,17 +527,22 @@ export function disableBlock(jobId: string, voucherId: string, code: string): st
   );
 }
 
-/** Deletes vouchers' hotspot users (only those still carrying the voucher's tag) and their sessions. */
+/**
+ * Deletes vouchers' hotspot users (only those still carrying the voucher's tag) and their sessions.
+ * One short line per card calling a helper (like pushBlock), so 500 cards stay a small download
+ * (about 35 KB; RouterOS keeps at most 64 KB of a fetched reply) and the user list is searched once per card.
+ */
 export function removeVouchersBlock(jobId: string, vouchers: { id: string; code: string }[]): string {
-  const lines = [':local n 0'];
-  for (const v of vouchers) {
-    const where = `name=${rosStr(v.code)} and comment=${rosStr(`hzc:${v.id}`)}`;
-    lines.push(
-      `/ip hotspot active remove [find where user=${rosStr(v.code)}]`,
-      `:set n ($n + [:len [/ip hotspot user find where ${where}]])`,
-      `/ip hotspot user remove [find where ${where}]`,
-    );
-  }
+  const lines = [
+    ':local n 0',
+    ':local rm do={',
+    '  /ip hotspot active remove [find where user=$c]',
+    '  :local f [/ip hotspot user find where name=$c and comment=("hzc:" . $i)]',
+    '  :if ([:len $f] > 0) do={ /ip hotspot user remove $f }',
+    '  :return [:len $f]',
+    '}',
+  ];
+  for (const v of vouchers) lines.push(`:set n ($n + [$rm c=${rosStr(v.code)} i=${rosStr(v.id)}])`);
   lines.push(emit(rosStr(`J|${jobId}|ok|`), '$n'));
   return guarded(lines.join('\n'), `J|${jobId}|err|The router could not delete the vouchers.`);
 }

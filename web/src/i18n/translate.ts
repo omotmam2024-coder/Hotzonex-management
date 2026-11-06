@@ -1,5 +1,5 @@
 import { getLang } from './core';
-import { dictionaries, englishToKey, type TKey } from './dictionaries';
+import { englishToKey, lookup, type TKey } from './dictionaries';
 
 export type Vars = Record<string, string | number | null | undefined>;
 
@@ -11,7 +11,7 @@ export function fill(text: string, vars?: Vars): string {
 /** A text in the chosen language (English when a translation is missing). Usable outside components. */
 export function translate(key: TKey, vars?: Vars): string {
   const lang = getLang();
-  return fill(dictionaries[lang][key] ?? dictionaries.en[key] ?? key, vars);
+  return fill(lookup(lang, key), vars);
 }
 
 /**

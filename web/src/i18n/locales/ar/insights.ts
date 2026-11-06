@@ -1,0 +1,32 @@
+// Arabic texts for locales/insights.ts (same keys). Loaded only when this language is chosen.
+import type { Keys } from '../insights';
+
+export const insights = {
+  'nav.insights': 'التحليلات',
+  'insights.title': 'التحليلات',
+  'insights.subtitle': 'متى وماذا يُباع، وما المتوقع الأسبوع القادم، وأي شيء غير معتاد',
+  'insights.period': 'الفترة',
+  'insights.lastDays': 'آخر {n} يوماً',
+  'insights.noSales': 'لا توجد مبيعات في هذه الفترة بعد. تظهر التحليلات بعد أول المبيعات.',
+  'insights.flags': 'يستحق النظر',
+  'insights.flagsNote': 'هذه إشارات وليست إثباتاً: راجع صفحة المبيعات قبل الاستنتاج.',
+  'insights.flag.drop': 'انخفضت الإيرادات {pct}% في آخر 7 أيام ({last}) مقارنة بالـ 7 أيام السابقة ({prev}).',
+  'insights.flag.voids': 'ألغى {name} {voids} من أصل {total} عملية بيع.',
+  'insights.flag.discounts': 'منح {name} خصماً ترويجياً على {n} من أصل {total} عملية بيع.',
+  'insights.revenue': 'الإيرادات',
+  'insights.sold': 'البطاقات المباعة',
+  'insights.bestHour': 'أفضل ساعة',
+  'insights.bestDay': 'أفضل يوم',
+  'insights.byHour': 'الإيرادات حسب ساعة اليوم',
+  'insights.barsNote': 'الشريط = الإيرادات؛ الرقم الصغير على الجانب = البطاقات المباعة.',
+  'insights.byWeekday': 'الإيرادات حسب يوم الأسبوع',
+  'insights.byPlan': 'الإيرادات حسب الباقة',
+  'insights.forecast': 'الأيام السبعة القادمة',
+  'insights.forecastText': 'الإيرادات المتوقعة: حوالي {total}.',
+  'insights.forecastNote': 'للاسترشاد فقط: متوسط اليوم نفسه من الأسبوع خلال الفترة. لا تُحتسب العطلات والأعطال والعروض.',
+  'insights.forecastNeeds': 'اختر 14 يوماً أو أكثر لرؤية التوقعات.',
+  'reports.alerts.cbDaily': 'أرسل لي تقريراً يومياً',
+  'reports.alerts.dailyHint': 'كل مساء الساعة 18:00: الإيرادات والبطاقات المباعة وأفضل باقة والمبيعات الملغاة والراوترات المتوقفة. يُرسل إلى Telegram وWhatsApp باللغة المختارة أدناه.',
+  'reports.alerts.dailyNeedsChannel': 'اربط Telegram أو أضف رقم WhatsApp أولاً: يُرسل التقرير إليهما.',
+  'reports.alerts.kind.report': 'تقرير',
+} satisfies Keys;

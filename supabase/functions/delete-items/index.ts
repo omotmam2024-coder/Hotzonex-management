@@ -25,7 +25,9 @@ import type { HotspotInfo } from '../_shared/routeros.ts';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const MAX_VOUCHERS = 1000;
-const PER_JOB = 200;
+const PER_JOB = 200; // ids per database query (keeps the request address short)
+/** Cards per router job: 1000 cards are 2 trips to the router, not 5 (the cloud script stays about 35 KB). */
+const PER_ROUTER_JOB = 500;
 
 interface VoucherRow {
   id: string;
@@ -70,17 +72,20 @@ async function deleteVouchers(db: SupabaseClient, caller: Caller, body: Record<s
     }
     const list = allOfRouter.filter((v) => !alreadyQueued.has(v.id));
     removing += allOfRouter.length - list.length;
-    for (let i = 0; i < list.length; i += PER_JOB) {
-      const slice = list.slice(i, i + PER_JOB);
+    for (let i = 0; i < list.length; i += PER_ROUTER_JOB) {
+      const slice = list.slice(i, i + PER_ROUTER_JOB);
       // Not one sold meanwhile (a cashier or a mobile-money confirmation just now): it stays.
-      const { data: off, error: offError } = await db
-        .from('vouchers')
-        .update({ status: 'disabled' })
-        .in('id', slice.map((v) => v.id))
-        .neq('status', 'sold')
-        .select('id');
-      if (offError) throw new Error(`Could not switch the vouchers off: ${offError.message}`);
-      const offIds = new Set((off ?? []).map((v) => v.id as string));
+      const offIds = new Set<string>();
+      for (let k = 0; k < slice.length; k += PER_JOB) {
+        const { data: off, error: offError } = await db
+          .from('vouchers')
+          .update({ status: 'disabled' })
+          .in('id', slice.slice(k, k + PER_JOB).map((v) => v.id))
+          .neq('status', 'sold')
+          .select('id');
+        if (offError) throw new Error(`Could not switch the vouchers off: ${offError.message}`);
+        for (const v of off ?? []) offIds.add(v.id as string);
+      }
       const part = slice.filter((v) => offIds.has(v.id));
       removing += part.length;
       if (!part.length) continue;

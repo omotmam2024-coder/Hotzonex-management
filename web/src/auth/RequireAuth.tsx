@@ -1,9 +1,12 @@
+import { lazy, Suspense } from 'react';
 import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from './AuthProvider';
-import { BillingPanel } from '../components/BillingPanel';
 import { useBillingOverview } from '../hooks/useBillingOverview';
 import { FullScreenMessage, FullScreenSpinner } from '../components/FullScreen';
 import { useT } from '../i18n';
+
+// Only a paused business needs the billing screen (and its form checks): it is not part of every page's download.
+const BillingPanel = lazy(() => import('../components/BillingPanel').then((m) => ({ default: m.BillingPanel })));
 
 /** Lets only signed-in, active staff with a profile through. */
 export function RequireAuth() {
@@ -61,7 +64,9 @@ function PausedBusiness({ onSignOut }: { onSignOut: () => void }) {
           <h1 className="text-xl font-bold text-slate-900">{t('public.auth.pausedTitle')}</h1>
           <p className="mt-2 text-slate-700">{t('public.auth.pausedText')}</p>
         </div>
-        <BillingPanel invoiceLinks={false} />
+        <Suspense fallback={<FullScreenSpinner />}>
+          <BillingPanel invoiceLinks={false} />
+        </Suspense>
         <button type="button" onClick={onSignOut} className="w-full text-center text-sm font-semibold text-slate-600 underline">
           {t('common.logout')}
         </button>
