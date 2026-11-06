@@ -1,10 +1,13 @@
-// Keeps an open app on the version that is live. After a new version is published, the page files
-// of the old one are gone from the server, so the app checks /version.json now and then and, once
-// there is a newer version, loads it fully on the next page change (the click still lands on the
-// page that was chosen).
+// Keeps an open app on the version that is live. The app checks /version.json now and then; once
+// there is a newer version it is loaded when the person comes back to the app after a while away
+// (never on a tap: on a slow connection a full reload made that page change slow, and never right
+// after switching apps: a half-filled form would be lost). Until then the old version keeps working
+// (the service worker keeps its files); a screen whose file is gone reloads on its own (lazyPage.ts).
 
 const RELOADED_KEY = 'hzc.reloadedForUpdate';
 const CHECK_EVERY_MS = 5 * 60_000;
+/** Away from the app at least this long: coming back loads a newer version, if there is one. */
+const AWAY_FOR_UPDATE_MS = 30 * 60_000;
 
 let newer = false;
 
@@ -47,8 +50,17 @@ export function reloadForUpdate(): boolean {
 export function watchForUpdates(): () => void {
   if (!import.meta.env.PROD) return () => undefined;
   const check = () => void checkForUpdate();
+  let hiddenAt = 0;
   const onVisible = () => {
-    if (document.visibilityState === 'visible') check();
+    if (document.visibilityState === 'hidden') {
+      hiddenAt = Date.now();
+      return;
+    }
+    const away = hiddenAt ? Date.now() - hiddenAt : 0;
+    hiddenAt = 0;
+    void checkForUpdate().then((isNewer) => {
+      if (isNewer && away >= AWAY_FOR_UPDATE_MS) reloadForUpdate();
+    });
   };
   check();
   const timer = window.setInterval(check, CHECK_EVERY_MS);
