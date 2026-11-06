@@ -39,7 +39,7 @@ function StatusPanel({ router }: { router: RouterInfo }) {
     text = router.last_seen_at ? t('routers.lastCall', { time: formatJubaTime(router.last_seen_at) }) : t('routers.neverCalled');
   }
   return (
-    <div className={`flex items-center gap-3 rounded-2xl p-3 ring-1 ${tone}`}>
+    <div className={`flex items-center gap-3 rounded-xl p-3 ring-1 ${tone}`}>
       <span className={`h-4 w-4 shrink-0 rounded-full ${dot}`} />
       <div className="min-w-0">
         <div className="text-xl font-extrabold">{title}</div>

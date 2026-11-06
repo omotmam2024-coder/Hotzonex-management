@@ -140,7 +140,7 @@ function BuySettings({ site }: { site: SiteRow }) {
   const missingNumber = enabled && !instructions.trim();
 
   return (
-    <div className="space-y-4 rounded-2xl border border-slate-200 p-4">
+    <div className="space-y-4 rounded-xl border border-slate-200 p-4">
       <div className="flex flex-wrap items-center gap-2">
         <h3 className="text-lg font-bold">{site.name}</h3>
         {live ? <Badge color="green">{t('sales.buy.open')}</Badge> : <Badge color="gray">{t('sales.buy.closed')}</Badge>}
@@ -242,7 +242,7 @@ function WaitingPayment({ p, siteName, planName, onConfirmed }: { p: PaymentRow;
   const busy = confirm.isPending || reject.isPending;
 
   return (
-    <li className="rounded-2xl bg-white p-4 shadow-card ring-1 ring-slate-200">
+    <li className="rounded-xl bg-white p-4 shadow-card ring-1 ring-slate-200">
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
           <div className="text-3xl font-extrabold tabular-nums text-slate-900">{formatSSP(p.amount_ssp)}</div>
@@ -257,13 +257,13 @@ function WaitingPayment({ p, siteName, planName, onConfirmed }: { p: PaymentRow;
       </div>
       <dl className="mt-3 grid gap-2 sm:grid-cols-2">
         <div className="rounded-xl bg-slate-50 p-3">
-          <dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">{t('sales.mm.from')}</dt>
+          <dt className="text-xs font-bold text-slate-500">{t('sales.mm.from')}</dt>
           <dd dir="ltr" className="text-lg font-bold text-slate-900">
             {p.phone}
           </dd>
         </div>
         <div className="rounded-xl bg-slate-50 p-3">
-          <dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">{t('sales.mm.txn')}</dt>
+          <dt className="text-xs font-bold text-slate-500">{t('sales.mm.txn')}</dt>
           <dd dir="ltr" className="break-all font-mono text-lg font-bold text-slate-900">
             {p.momo_txn_id ?? p.txn_ref}
           </dd>
@@ -373,7 +373,7 @@ export function PaymentsPage() {
       <PageHeader title={t('nav.payments')} subtitle={t('sales.mm.subtitle')} />
 
       {confirmed && (
-        <div className="rounded-2xl bg-green-50 p-5 text-center ring-1 ring-green-200">
+        <div className="rounded-xl bg-green-50 p-5 text-center ring-1 ring-green-200">
           <p className="font-semibold text-green-800">{t('sales.mm.given')}</p>
           <p dir="ltr" className="my-2 font-mono text-5xl font-extrabold tracking-wider text-slate-900">
             {confirmed.code}
@@ -411,13 +411,13 @@ export function PaymentsPage() {
             ))}
           </ul>
         ) : (
-          <p className="rounded-2xl bg-white p-5 text-center text-slate-600 ring-1 ring-slate-200">{t('sales.mm.nothing')}</p>
+          <p className="rounded-xl bg-white p-5 text-center text-slate-600 ring-1 ring-slate-200">{t('sales.mm.nothing')}</p>
         )}
         {payments.error && <Alert tone="error">{friendlyError(payments.error)}</Alert>}
       </section>
 
       {done.length > 0 && (
-        <details className="rounded-2xl bg-white p-4 ring-1 ring-slate-200">
+        <details className="rounded-xl bg-white p-4 ring-1 ring-slate-200">
           <summary className="flex min-h-11 cursor-pointer items-center font-semibold text-slate-800">{t('sales.mm.earlier', { n: done.length })}</summary>
           <ul className="mt-2 divide-y divide-slate-100 text-sm">
             {done.map((p) => (

@@ -571,7 +571,7 @@ export function PlansPage() {
       </div>
 
       {oldMikroticket.length > 0 && (
-        <details className="rounded-2xl bg-white p-4 shadow-card ring-1 ring-slate-200/70 sm:p-5">
+        <details className="rounded-xl bg-white p-4 shadow-card ring-1 ring-slate-200/70 sm:p-5">
           <summary className="flex min-h-11 cursor-pointer items-center font-semibold text-slate-700">
             {t('plans.old.summary', { n: oldMikroticket.length })}
           </summary>

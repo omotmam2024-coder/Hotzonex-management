@@ -109,7 +109,7 @@ function StatusHero({ b, openCount }: { b: BillingOverview; openCount: number })
     text = b.trial_ends_at ? t('business.bill.hero.trialText', { date: formatJubaDate(b.trial_ends_at) }) : '';
   }
   return (
-    <div className={`rounded-2xl p-4 ring-1 ${tone}`}>
+    <div className={`rounded-xl p-4 ring-1 ${tone}`}>
       <div className="text-2xl font-extrabold">{title}</div>
       {text && <p className="mt-1 text-sm">{text}</p>}
     </div>

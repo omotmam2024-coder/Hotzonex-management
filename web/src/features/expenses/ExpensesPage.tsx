@@ -69,7 +69,7 @@ function ExpenseForm({
   };
 
   return (
-    <form onSubmit={submit} className="no-print rounded-2xl bg-white p-4 shadow-card ring-1 ring-brand-200 sm:p-5">
+    <form onSubmit={submit} className="no-print rounded-xl bg-white p-4 shadow-card ring-1 ring-brand-200 sm:p-5">
       <h2 className="mb-3 text-sm font-bold text-slate-900">{expense ? t('expenses.change') : t('expenses.add')}</h2>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Field label={t('common.day')}>
@@ -250,7 +250,7 @@ export function ExpensesPage() {
       {report.isLoading && <Spinner className="h-8 w-8 text-brand-600" />}
 
       {r && (
-        <section className="report-section rounded-2xl bg-white p-4 shadow-card ring-1 ring-slate-200/70">
+        <section className="report-section rounded-xl bg-white p-4 shadow-card ring-1 ring-slate-200/70">
           <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
             <div className="text-sm font-semibold text-slate-900">{label}</div>
             <div className="flex items-center gap-3 text-xs text-slate-500">
@@ -267,7 +267,7 @@ export function ExpensesPage() {
           <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-4">
             {stats.map((x, i) => (
               <div key={x.label} className={i > 0 ? 'sm:border-s sm:border-slate-100 sm:ps-4' : ''}>
-                <dt className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{x.label}</dt>
+                <dt className="text-xs font-bold text-slate-500">{x.label}</dt>
                 <dd className={`whitespace-nowrap text-base font-bold tabular-nums sm:text-xl ${x.tone ?? 'text-slate-900'}`}>{x.value}</dd>
                 {x.sub && <dd className="text-xs text-slate-500">{x.sub}</dd>}
               </div>

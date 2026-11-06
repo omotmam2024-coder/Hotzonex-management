@@ -69,7 +69,7 @@ function SaleResult({ sale, onPrint, onNext }: { sale: LastSale; onPrint: () => 
         {sale.discountSsp ? <div className="mt-1 text-lg font-semibold opacity-90">{t('sell.promoSaved', { amount: formatSSP(sale.discountSsp) })}</div> : null}
       </div>
       <div className="flex flex-1 flex-col items-center justify-center px-4 py-6 text-center">
-        <div className="text-lg font-semibold uppercase tracking-wide text-slate-500">{t('sell.wifiCode')}</div>
+        <div className="text-lg font-bold text-slate-500">{t('sell.wifiCode')}</div>
         <div className="mt-2 flex flex-wrap justify-center gap-x-[0.35em] font-extrabold leading-none tabular-nums text-slate-900" style={{ fontSize: 'clamp(56px, 17vw, 170px)' }} aria-label={r.code}>
           {codeGroups(r.code).map((g, i) => (
             <span key={i}>{g}</span>
@@ -104,7 +104,7 @@ function PlanButton({ plan, stock, busy, canGenerate, onSell }: { plan: Plan; st
       type="button"
       onClick={onSell}
       disabled={busy || empty || stock === undefined}
-      className="relative flex min-h-36 w-full flex-col items-start justify-between rounded-2xl p-5 text-start text-white shadow-md transition active:scale-[0.98] disabled:cursor-not-allowed"
+      className="relative flex min-h-36 w-full flex-col items-start justify-between rounded-xl p-5 text-start text-white shadow-md transition active:scale-[0.98] disabled:cursor-not-allowed"
       style={{ backgroundColor: empty ? '#94a3b8' : plan.color }}
     >
       <div>

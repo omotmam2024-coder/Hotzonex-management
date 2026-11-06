@@ -11,7 +11,7 @@ export function NotFoundPage() {
   const home = profile ? homePathFor(profile.role) : '/login';
   return (
     <main className="flex min-h-full items-center justify-center bg-slate-50 p-4">
-      <div className="w-full max-w-sm rounded-3xl bg-white p-8 text-center shadow-sm ring-1 ring-slate-200">
+      <div className="w-full max-w-sm rounded-xl bg-white p-8 text-center shadow-sm ring-1 ring-slate-200">
         <div className="mb-4 ms-auto max-w-xs">
           <LanguageSwitch tone="light" />
         </div>

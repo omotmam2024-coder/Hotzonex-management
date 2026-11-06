@@ -18,7 +18,7 @@ function Brand() {
   return (
     <Link to="/" className="flex items-center gap-2.5">
       <img src="/icon-72.png" alt="" className="h-8 w-8" />
-      <span className="text-[17px] font-bold tracking-tight">Hotzonex Cloud</span>
+      <span className="font-display text-[19px] font-extrabold tracking-tight [font-stretch:88%]">Hotzonex Cloud</span>
     </Link>
   );
 }
@@ -33,15 +33,15 @@ function MenuLink({ item }: { item: NavItem }) {
     <NavLink
       to={item.path}
       className={({ isActive }) =>
-        `group relative flex h-10 items-center gap-3 rounded-lg px-3 text-[15px] font-medium transition-colors ${
-          isActive ? 'bg-white/[0.12] text-white' : 'text-white/70 hover:bg-white/[0.06] hover:text-white'
+        `group relative flex h-10 items-center gap-3 rounded-md px-3 text-[15px] transition-colors ${
+          isActive ? 'bg-white/[0.09] font-bold text-white' : 'text-white/70 hover:bg-white/[0.05] hover:text-white'
         }`
       }
     >
       {({ isActive }) => (
         <>
-          {isActive && <span className="absolute inset-y-2 start-0 w-1 rounded-e-full bg-brand-300" aria-hidden="true" />}
-          <Icon name={item.icon} className={`h-5 w-5 shrink-0 ${isActive ? 'text-brand-200' : 'text-white/50 group-hover:text-white/80'}`} />
+          {isActive && <span className="absolute inset-y-1.5 start-0 w-[3px] rounded-e-sm bg-accent-500" aria-hidden="true" />}
+          <Icon name={item.icon} className={`h-5 w-5 shrink-0 ${isActive ? 'text-accent-400' : 'text-white/45 group-hover:text-white/80'}`} />
           {item.label}
         </>
       )}
@@ -85,16 +85,16 @@ function AccountMenu({ name, detail, business, onLogout }: { name: string; detai
   }, [open]);
 
   const chip = (on: boolean) =>
-    `inline-flex min-h-9 flex-1 items-center justify-center gap-1.5 rounded-lg px-2 text-xs font-semibold transition ${on ? 'bg-brand-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'}`;
+    `inline-flex min-h-9 flex-1 items-center justify-center gap-1.5 rounded-lg px-2 text-xs font-semibold transition ${on ? 'bg-brand-600 text-white' : 'text-slate-600 hover:bg-slate-100'}`;
   const rowBase = 'flex min-h-11 w-full items-center gap-3 rounded-lg px-3 text-sm font-medium';
   const row = `${rowBase} text-slate-700 hover:bg-slate-100`;
 
   return (
     <div ref={box} className="relative">
       {open && (
-        <div role="menu" className="absolute inset-x-0 bottom-full z-50 mb-2 space-y-3 rounded-2xl bg-white p-3 text-slate-900 shadow-2xl ring-1 ring-slate-200">
+        <div role="menu" className="absolute inset-x-0 bottom-full z-50 mb-2 space-y-3 rounded-xl bg-white p-3 text-slate-900 shadow-2xl ring-1 ring-slate-200">
           <div>
-            <p className="mb-1.5 px-1 text-[11px] font-semibold uppercase tracking-wide text-slate-500">{t('lang.label')}</p>
+            <p className="mb-1.5 px-1 text-xs font-bold text-slate-500">{t('lang.label')}</p>
             <div className="flex gap-1 rounded-xl bg-slate-50 p-1 ring-1 ring-slate-200" role="radiogroup" aria-label={t('lang.label')}>
               {LANGUAGES.map((l) => (
                 <button key={l.key} type="button" role="radio" lang={l.key} aria-checked={lang === l.key} onClick={() => setLang(l.key)} className={chip(lang === l.key)}>
@@ -104,7 +104,7 @@ function AccountMenu({ name, detail, business, onLogout }: { name: string; detai
             </div>
           </div>
           <div>
-            <p className="mb-1.5 px-1 text-[11px] font-semibold uppercase tracking-wide text-slate-500">{t('theme.label')}</p>
+            <p className="mb-1.5 px-1 text-xs font-bold text-slate-500">{t('theme.label')}</p>
             <div className="flex gap-1 rounded-xl bg-slate-50 p-1 ring-1 ring-slate-200" role="radiogroup" aria-label={t('theme.label')}>
               {THEMES.map((theme) => (
                 <button
@@ -125,7 +125,7 @@ function AccountMenu({ name, detail, business, onLogout }: { name: string; detai
             </div>
           </div>
           <div className="border-t border-slate-100 pt-2">
-            <p className="mb-1 px-1 text-[11px] font-semibold uppercase tracking-wide text-slate-500">{t('common.help')}</p>
+            <p className="mb-1 px-1 text-xs font-bold text-slate-500">{t('common.help')}</p>
             <a href={whatsappLink('Hotzonex Cloud')} target="_blank" rel="noopener noreferrer" className={row}>
               <Icon name="whatsapp" className="h-5 w-5 shrink-0 text-[#25D366]" />
               <span className="min-w-0 flex-1 truncate" dir="ltr">
@@ -196,7 +196,7 @@ export function Layout() {
   const current = NAV_ITEMS.find((i) => location.pathname === i.path || location.pathname.startsWith(`${i.path}/`));
 
   const sidebar = (
-    <nav className="flex h-full flex-col bg-gradient-to-b from-brand-900 to-brand-950 text-white">
+    <nav className="flex h-full flex-col bg-brand-950 text-white">
       <div className="flex h-16 shrink-0 items-center justify-between px-4">
         <Brand />
         <button type="button" className="inline-flex h-11 w-11 items-center justify-center rounded-lg text-white/70 hover:bg-white/10 lg:hidden" onClick={() => setMenuOpen(false)} aria-label={t('nav.closeMenu')}>
@@ -209,7 +209,7 @@ export function Layout() {
           if (!inGroup.length) return null;
           return (
             <div key={group}>
-              <p className="mb-1 px-3 text-[11px] font-semibold uppercase tracking-wider text-white/60">{groupLabel(group)}</p>
+              <p className="mb-1 px-3 text-xs font-bold text-white/45">{groupLabel(group)}</p>
               <ul className="space-y-0.5">
                 {inGroup.map((item) => (
                   <li key={item.path}>
@@ -221,7 +221,7 @@ export function Layout() {
           );
         })}
       </div>
-      <div className="shrink-0 border-t border-white/10 p-2">
+      <div className="shrink-0 border-t border-white/[0.08] p-2">
         <AccountMenu name={profile.full_name} detail={`${ROLE_LABELS[profile.role]} · ${siteLabel}`} business={business?.name ?? null} onLogout={() => void signOut()} />
       </div>
     </nav>
@@ -241,7 +241,7 @@ export function Layout() {
       )}
 
       <div className="flex min-w-0 flex-1 flex-col print:block">
-        <header className="flex h-14 shrink-0 items-center gap-2 bg-brand-900 px-2 text-white shadow-sm lg:hidden print:hidden">
+        <header className="flex h-14 shrink-0 items-center gap-2 bg-brand-950 px-2 text-white lg:hidden print:hidden">
           <button type="button" className="inline-flex h-11 w-11 items-center justify-center rounded-lg hover:bg-white/10" onClick={() => setMenuOpen(true)} aria-label={t('nav.openMenu')}>
             <Icon name="menu" className="h-6 w-6" />
           </button>
@@ -272,7 +272,7 @@ export function Layout() {
                 <NavLink
                   to={t.path}
                   className={({ isActive }) =>
-                    `flex h-16 flex-col items-center justify-center gap-1 text-[11px] font-semibold ${isActive ? 'text-brand-600' : 'text-slate-500'}`
+                    `flex h-16 flex-col items-center justify-center gap-1 text-[11px] font-semibold ${isActive ? 'text-brand-700' : 'text-slate-500'}`
                   }
                 >
                   {({ isActive }) => (
@@ -291,7 +291,7 @@ export function Layout() {
                 type="button"
                 onClick={() => setMenuOpen(true)}
                 className={`flex h-16 w-full flex-col items-center justify-center gap-1 text-[11px] font-semibold ${
-                  current && !tabs.some((t) => t.path === current.path) ? 'text-brand-600' : 'text-slate-500'
+                  current && !tabs.some((t) => t.path === current.path) ? 'text-brand-700' : 'text-slate-500'
                 }`}
               >
                 <span className="rounded-full px-4 py-1">

@@ -309,7 +309,7 @@ export function ReportsPage() {
 
       {r && (
         <>
-          <section className="report-section rounded-2xl bg-white p-4 shadow-card ring-1 ring-slate-200/70">
+          <section className="report-section rounded-xl bg-white p-4 shadow-card ring-1 ring-slate-200/70">
             <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
               <div className="text-sm font-semibold text-slate-900">{label}</div>
               <div className="flex items-center gap-3 text-xs text-slate-500">
@@ -324,7 +324,7 @@ export function ReportsPage() {
             <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-4">
               {stats.map((x, i) => (
                 <div key={x.label} className={i > 0 ? 'sm:border-s sm:border-slate-100 sm:ps-4' : ''}>
-                  <dt className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{x.label}</dt>
+                  <dt className="text-xs font-bold text-slate-500">{x.label}</dt>
                   <dd
                     className={`text-xl font-bold tabular-nums ${
                       i === 3 && typeof change === 'number' ? (change > 0 ? 'text-green-700' : change < 0 ? 'text-red-700' : 'text-slate-900') : 'text-slate-900'

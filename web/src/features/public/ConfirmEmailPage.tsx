@@ -52,8 +52,8 @@ export function ConfirmEmailPage() {
 
   if (!error) return <FullScreenSpinner />;
   return (
-    <div className="flex min-h-full items-center justify-center bg-gradient-to-br from-brand-700 via-brand-900 to-brand-950 p-4">
-      <div className="w-full max-w-sm space-y-4 rounded-3xl bg-white p-6 shadow-2xl ring-1 ring-white/10 sm:p-8">
+    <div className="flex min-h-full items-center justify-center bg-brand-950 p-4">
+      <div className="w-full max-w-sm space-y-4 rounded-xl bg-white p-6 shadow-2xl sm:p-8">
         <div className="ms-auto max-w-xs">
           <LanguageSwitch tone="light" />
         </div>

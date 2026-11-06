@@ -86,7 +86,7 @@ export function CardBalance({ slug }: { slug: string }) {
   }
 
   return (
-    <div className="rounded-2xl bg-white p-5 shadow-xl">
+    <div className="rounded-xl bg-white p-5 shadow-xl">
       <h2 className="text-lg font-bold text-slate-900">{t('public.balance.title')}</h2>
       <p className="mt-1 text-sm text-slate-600">{t('public.balance.hint')}</p>
       <form onSubmit={submit} className="mt-3 space-y-3" noValidate>

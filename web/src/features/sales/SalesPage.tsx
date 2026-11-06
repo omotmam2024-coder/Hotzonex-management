@@ -264,7 +264,7 @@ export function SalesPage() {
       <Card className="!p-0">
         <div className="overflow-x-auto">
           <table className="w-full min-w-[760px] text-start text-sm">
-            <thead className="border-b border-slate-200 bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+            <thead className="border-b border-slate-200 bg-slate-50 text-xs font-bold text-slate-500">
               <tr>
                 <th className="px-4 py-2">{t('sales.col.time')}</th>
                 <th className="px-4 py-2">{t('sales.col.code')}</th>

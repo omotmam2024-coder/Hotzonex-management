@@ -43,7 +43,7 @@ export class ErrorBoundary extends Component<Props, State> {
     if (!this.state.error) return this.props.children;
     const update = isOldVersion(this.state.error);
     return (
-      <div role="alert" className="mx-auto my-10 max-w-md rounded-2xl border border-slate-200 bg-white p-6 text-center shadow-sm">
+      <div role="alert" className="mx-auto my-10 max-w-md rounded-xl border border-slate-200 bg-white p-6 text-center shadow-sm">
         <h2 className="text-lg font-bold text-slate-900">{translate(update ? 'error.updateTitle' : 'error.title')}</h2>
         <p className="mt-2 text-slate-600">
           {translate(update ? 'error.updateText' : 'error.text')}

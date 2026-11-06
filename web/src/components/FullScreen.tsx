@@ -17,7 +17,7 @@ interface FullScreenMessageProps {
 export function FullScreenMessage({ title, message, onSignOut }: FullScreenMessageProps) {
   return (
     <div className="flex h-full items-center justify-center p-4">
-      <div className="w-full max-w-md rounded-2xl bg-white p-6 text-center shadow">
+      <div className="w-full max-w-md rounded-xl bg-white p-6 text-center shadow">
         <h1 className="text-xl font-bold text-slate-900">{title}</h1>
         <p className="mt-3 text-slate-600">{message}</p>
         {onSignOut && (

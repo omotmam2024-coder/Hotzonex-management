@@ -67,7 +67,7 @@ function StatCard({
   highlight?: boolean;
 }) {
   const body = highlight ? (
-    <div className="h-full rounded-2xl bg-gradient-to-br from-brand-600 to-brand-800 p-4 text-white shadow-lift sm:p-5">
+    <div className="h-full rounded-xl bg-gradient-to-br from-brand-600 to-brand-800 p-4 text-white shadow-lift sm:p-5">
       <div className="flex items-center justify-between gap-2">
         <span className="text-sm font-medium text-white/80">{label}</span>
         <span className="rounded-lg bg-white/15 p-1.5">
@@ -90,7 +90,7 @@ function StatCard({
     </Card>
   );
   return to ? (
-    <Link to={to} className="block rounded-2xl">
+    <Link to={to} className="block rounded-xl">
       {body}
     </Link>
   ) : (
@@ -168,7 +168,7 @@ export function DashboardPage() {
       />
 
       {isAdmin && !routers.isLoading && !plans.isLoading && (!(routers.data ?? []).length || !(plans.data ?? []).some((p) => p.is_active)) && (
-        <Link to="/welcome" className={buttonClass('primary', 'min-h-14 w-full !justify-between gap-3 !rounded-2xl py-4')}>
+        <Link to="/welcome" className={buttonClass('primary', 'min-h-14 w-full !justify-between gap-3 !rounded-xl py-4')}>
           <span>{t('reports.dash.finishSetup', { what: !(routers.data ?? []).length ? t('reports.dash.connectRouter') : t('reports.dash.makePlan') })}</span>
           <span aria-hidden="true">{dir === 'rtl' ? '←' : '→'}</span>
         </Link>
@@ -266,7 +266,7 @@ export function DashboardPage() {
             </div>
             <div className="overflow-x-auto">
               <table className="mt-2 w-full text-start text-sm">
-                <thead className="border-y border-slate-200 bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+                <thead className="border-y border-slate-200 bg-slate-50 text-xs font-bold text-slate-500">
                   <tr>
                     {showSiteColumn && <th className="px-4 py-2">{t('common.site')}</th>}
                     <th className="px-4 py-2">{t('common.plan')}</th>

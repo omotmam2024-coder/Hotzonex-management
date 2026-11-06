@@ -24,7 +24,7 @@ export function TermsPage() {
   const [contactBefore, contactAfter = ''] = t('public.terms.s8.p1').split('{phone}');
   return (
     <div className="min-h-full bg-slate-50 px-4 py-8">
-      <article className="mx-auto max-w-2xl space-y-6 rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200 sm:p-8">
+      <article className="mx-auto max-w-2xl space-y-6 rounded-xl bg-white p-6 shadow-sm ring-1 ring-slate-200 sm:p-8">
         <div className="ms-auto max-w-xs">
           <LanguageSwitch tone="light" />
         </div>

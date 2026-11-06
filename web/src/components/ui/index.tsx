@@ -23,7 +23,7 @@ const SIZES: Record<Size, string> = {
 
 /** The button look, for links that act as buttons: `<Link className={buttonClass('secondary')}>`. */
 export function buttonClass(variant: Variant = 'primary', className = '', size: Size = 'md', block = false): string {
-  return `inline-flex select-none items-center justify-center gap-2 rounded-xl font-semibold transition duration-150 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100 ${SIZES[size]} ${block ? 'w-full' : ''} ${VARIANTS[variant]} ${className}`;
+  return `inline-flex select-none items-center justify-center gap-2 rounded-lg font-bold transition duration-150 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100 ${SIZES[size]} ${block ? 'w-full' : ''} ${VARIANTS[variant]} ${className}`;
 }
 
 /**
@@ -53,7 +53,7 @@ export function Button({
  * `<button type="button" aria-pressed={on} className={chipClass(on)}>`.
  */
 export function chipClass(selected: boolean, className = ''): string {
-  return `inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-4 font-semibold ring-1 ring-inset transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 ${
+  return `inline-flex min-h-11 items-center justify-center gap-2 rounded-lg px-4 font-bold ring-1 ring-inset transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 ${
     selected ? 'bg-brand-600 text-white shadow-sm ring-brand-600' : 'bg-white text-slate-700 ring-slate-300 hover:bg-slate-50'
   } ${className}`;
 }
@@ -62,12 +62,12 @@ export function chipClass(selected: boolean, className = ''): string {
 export const textButtonClass = 'inline-flex min-h-11 items-center px-2 text-sm font-semibold hover:underline disabled:opacity-50';
 
 const inputClass =
-  'min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-base focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100 disabled:bg-slate-100';
+  'min-h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-base focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100 disabled:bg-slate-100';
 
 export function Field({ label, hint, children }: { label: string; hint?: string; children: ReactNode }) {
   return (
     <label className="block">
-      <span className="mb-1.5 block text-sm font-medium text-slate-700">{label}</span>
+      <span className="mb-1.5 block text-sm font-bold text-slate-700">{label}</span>
       {children}
       {hint && <span className="mt-1 block text-xs text-slate-500">{hint}</span>}
     </label>
@@ -110,22 +110,22 @@ const TONES: Record<Tone, string> = {
 
 export function Alert({ tone, children }: { tone: Tone; children: ReactNode }) {
   return (
-    <div role={tone === 'error' ? 'alert' : 'status'} className={`rounded-xl p-3 text-sm ring-1 ${TONES[tone]}`}>
+    <div role={tone === 'error' ? 'alert' : 'status'} className={`rounded-lg p-3 text-sm ring-1 ${TONES[tone]}`}>
       {children}
     </div>
   );
 }
 
 export function Card({ children, className = '' }: { children: ReactNode; className?: string }) {
-  return <div className={`rounded-2xl bg-white p-4 shadow-card ring-1 ring-slate-200/70 sm:p-5 ${className}`}>{children}</div>;
+  return <div className={`rounded-xl bg-white p-4 shadow-card ring-1 ring-slate-200 sm:p-5 ${className}`}>{children}</div>;
 }
 
 /** A titled table card on report pages (Reports, Expenses & profit). Prints without its shadow. */
 export function ReportSection({ title, aside, children, className = '' }: { title: string; aside?: ReactNode; children: ReactNode; className?: string }) {
   return (
-    <section className={`report-section rounded-2xl bg-white shadow-card ring-1 ring-slate-200/70 ${className}`}>
+    <section className={`report-section rounded-xl bg-white shadow-card ring-1 ring-slate-200 ${className}`}>
       <div className="flex items-baseline justify-between gap-2 border-b border-slate-100 px-4 py-2.5">
-        <h2 className="text-sm font-bold text-slate-900">{title}</h2>
+        <h2 className="text-base font-bold text-slate-900">{title}</h2>
         {aside && <span className="text-xs text-slate-500">{aside}</span>}
       </div>
       <div className="overflow-x-auto px-4 pb-2">{children}</div>
@@ -134,7 +134,7 @@ export function ReportSection({ title, aside, children, className = '' }: { titl
 }
 
 /** Table cells on report pages. */
-export const reportTh = 'py-2 pe-3 text-[11px] font-semibold uppercase tracking-wide text-slate-500 last:pe-0';
+export const reportTh = 'py-2 pe-3 text-xs font-bold text-slate-500 last:pe-0';
 export const reportTd = 'py-1.5 pe-3 last:pe-0';
 
 /** A4 print rules for report pages. */
@@ -154,5 +154,5 @@ const BADGES = {
 } as const;
 
 export function Badge({ color, children }: { color: keyof typeof BADGES; children: ReactNode }) {
-  return <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${BADGES[color]}`}>{children}</span>;
+  return <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-bold ${BADGES[color]}`}>{children}</span>;
 }

@@ -189,7 +189,7 @@ export function BuyPage() {
           </div>
         </header>
 
-        <div className="rounded-2xl bg-white p-5 shadow-xl">
+        <div className="rounded-xl bg-white p-5 shadow-xl">
           {site.isLoading && <p className="text-slate-600">{t('public.buy.loading')}</p>}
           {site.error && (
             <div className="space-y-3">
@@ -222,7 +222,7 @@ export function BuyPage() {
               {st?.status === 'confirmed' && (
                 <>
                   <h2 className="text-lg font-bold text-green-700">{t('public.buy.paidTitle', { plan: st.plan })}</h2>
-                  <p dir="ltr" className="select-all rounded-2xl bg-slate-100 py-4 font-mono text-4xl font-bold tracking-widest text-slate-900">{st.code}</p>
+                  <p dir="ltr" className="select-all rounded-xl bg-slate-100 py-4 font-mono text-4xl font-bold tracking-widest text-slate-900">{st.code}</p>
                   {st.ready ? (
                     <p className="text-slate-700">{t('public.buy.typeCode', { host: st.login_host ? ` (${st.login_host})` : '' })}</p>
                   ) : (

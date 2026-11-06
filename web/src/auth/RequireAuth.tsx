@@ -57,7 +57,7 @@ function PausedBusiness({ onSignOut }: { onSignOut: () => void }) {
   return (
     <div className="min-h-full bg-slate-100 p-4">
       <div className="mx-auto max-w-2xl space-y-4">
-        <div className="rounded-2xl bg-white p-5 shadow-sm">
+        <div className="rounded-xl bg-white p-5 shadow-sm">
           <h1 className="text-xl font-bold text-slate-900">{t('public.auth.pausedTitle')}</h1>
           <p className="mt-2 text-slate-700">{t('public.auth.pausedText')}</p>
         </div>

@@ -30,7 +30,7 @@ export function InvoicePage() {
         <Button onClick={() => window.print()}>{t('business.bill.print')}</Button>
       </div>
 
-      <article className="rounded-2xl bg-white p-6 shadow-card ring-1 ring-slate-200 sm:p-8 print:rounded-none print:p-0 print:shadow-none print:ring-0">
+      <article className="rounded-xl bg-white p-6 shadow-card ring-1 ring-slate-200 sm:p-8 print:rounded-none print:p-0 print:shadow-none print:ring-0">
         <header className="flex flex-wrap items-start justify-between gap-4 border-b border-slate-200 pb-5">
           <div className="flex items-center gap-3">
             <img src="/icon-192.png" alt="" className="h-12 w-12" />
@@ -56,7 +56,7 @@ export function InvoicePage() {
 
         <section className="grid gap-4 py-5 sm:grid-cols-2">
           <div>
-            <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">{t('business.bill.billTo')}</div>
+            <div className="text-xs font-bold text-slate-500">{t('business.bill.billTo')}</div>
             <div className="mt-1 text-lg font-bold text-slate-900">{b.business_name ?? ''}</div>
           </div>
           <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm sm:justify-self-end">
@@ -88,7 +88,7 @@ export function InvoicePage() {
         <div className="hidden overflow-x-auto sm:block">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-y border-slate-200 text-start text-xs uppercase tracking-wide text-slate-500">
+              <tr className="border-y border-slate-200 text-start text-xs font-bold text-slate-500">
                 <th className="py-2 pe-3 text-start font-semibold">{t('business.bill.item')}</th>
                 <th className="px-3 py-2 text-end font-semibold">{t('business.bill.qty')}</th>
                 <th className="px-3 py-2 text-end font-semibold">{t('business.bill.unit')}</th>
@@ -124,7 +124,7 @@ export function InvoicePage() {
 
         {b.instructions && (
           <section className="mt-6 border-t border-slate-200 pt-4">
-            <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">{t('business.bill.howTitle')}</div>
+            <div className="text-xs font-bold text-slate-500">{t('business.bill.howTitle')}</div>
             <p className="mt-1 whitespace-pre-line text-sm text-slate-800">{b.instructions}</p>
             <p className="mt-2 text-sm text-slate-600">{t('business.bill.reference', { number: inv.number })}</p>
           </section>

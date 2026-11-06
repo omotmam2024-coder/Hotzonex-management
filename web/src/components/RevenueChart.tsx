@@ -51,7 +51,7 @@ export function RevenueChart({ days }: { days: DayRevenue[] }) {
       {asTable ? (
         <div className="overflow-x-auto">
           <table className="w-full text-start text-sm">
-            <thead className="text-xs uppercase tracking-wide text-slate-500">
+            <thead className="text-xs font-bold text-slate-500">
               <tr>
                 <th className="py-1">{t('common.day')}</th>
                 <th className="py-1 text-end">{t('reports.chart.vouchers')}</th>

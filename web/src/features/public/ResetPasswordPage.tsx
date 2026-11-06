@@ -11,7 +11,7 @@ import { translate, useT } from '../../i18n';
 type Stage = 'checking' | 'ready' | 'bad_link' | 'done';
 
 const input =
-  'min-h-12 w-full rounded-xl border border-slate-300 px-3 text-base focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100';
+  'min-h-12 w-full rounded-lg border border-slate-300 px-3 text-base focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100';
 
 /**
  * Opened from the "reset your password" email. Supabase sends the person back here (the address
@@ -86,8 +86,8 @@ export function ResetPasswordPage() {
   }
 
   return (
-    <div className="flex min-h-full items-center justify-center bg-gradient-to-br from-brand-700 via-brand-900 to-brand-950 p-4">
-      <div className="w-full max-w-sm rounded-3xl bg-white p-6 shadow-2xl ring-1 ring-white/10 sm:p-8">
+    <div className="flex min-h-full items-center justify-center bg-brand-950 p-4">
+      <div className="w-full max-w-sm rounded-xl bg-white p-6 shadow-2xl sm:p-8">
         <div className="mb-4 ms-auto max-w-xs">
           <LanguageSwitch tone="light" />
         </div>

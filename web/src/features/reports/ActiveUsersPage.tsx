@@ -201,7 +201,7 @@ export function ActiveUsersPage() {
               </ul>
               <div className="hidden overflow-x-auto border-t border-slate-100 sm:block">
                 <table className="w-full min-w-[760px] text-start text-sm">
-                  <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+                  <thead className="bg-slate-50 text-xs font-bold text-slate-500">
                     <tr>
                       <th className="px-4 py-2">{t('reports.code')}</th>
                       <th className="px-4 py-2">{t('common.plan')}</th>

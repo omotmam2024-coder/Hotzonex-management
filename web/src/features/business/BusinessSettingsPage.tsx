@@ -128,7 +128,7 @@ export function BusinessSettingsForm({ onSaved, saveLabel }: { onSaved?: () => v
           <div>
             <span className="mb-1 block text-sm font-medium text-slate-700">{t('business.settings.logo')}</span>
             <div className="flex flex-wrap items-center gap-4">
-              <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-2xl bg-slate-100 ring-1 ring-slate-200">
+              <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-xl bg-slate-100 ring-1 ring-slate-200">
                 {logoUrl ? <img src={logoUrl} alt={t('business.settings.logoAlt')} className="h-full w-full object-contain" /> : <span className="text-xs text-slate-500">{t('business.settings.noLogo')}</span>}
               </div>
               <div className="flex flex-wrap gap-2">

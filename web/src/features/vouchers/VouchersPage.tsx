@@ -293,7 +293,7 @@ export function VouchersPage() {
         </ul>
         <div className="hidden overflow-x-auto sm:block">
           <table className="w-full min-w-[700px] text-start text-sm">
-            <thead className="border-y border-slate-200 bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+            <thead className="border-y border-slate-200 bg-slate-50 text-xs font-bold text-slate-500">
               <tr>
                 {isAdmin && (
                   <th className="w-10 px-4 py-2">
